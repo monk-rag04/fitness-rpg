@@ -111,20 +111,41 @@ Product要件を正しく説明するために必要な履歴Entity候補。
 
 推奨値をユーザー確定値として暗黙に保存しない。
 
-### ExerciseDefinition（追加候補）
+### EquipmentDefinition / Equipment Catalog
 
-**責務候補**: Exercise固有ID、名称、Equipment、対象部位、代替関係を管理するMaster。
+**決定済みのDomain責務**: EquipmentをExerciseから分離したMasterとして管理し、メーカーや特定Gymに依存しない安定したIDで参照する。
+
+- `id`: `EquipmentId`
+- `displayName`
+
+MVP CatalogはBarbell、Dumbbell、Bench、Rack、Cable、主要Machine等から開始する。メーカー固有名やGym固有Machineは含めない。Database上のSchema、Catalog Versioning、更新運用は未決定。
+
+### ExerciseDefinition / Exercise Catalog
+
+**決定済みのDomain責務**: Exercise固有ID、表示名、Muscle、Movement Pattern、Difficulty、必要Equipment、明示的な代替関係を管理するMaster。
+
+- `id`: `ExerciseId`
+- `displayName`
+- `primaryMuscles`
+- `secondaryMuscles`
+- `movementPattern`
+- `difficulty`
+- `requiredEquipmentOptions`
+- `alternativeExerciseIds`
+
+`requiredEquipmentOptions`の各要素は、そのExerciseを実施できる完全なEquipment Setを表す。いずれか1 SetをGym Equipment Profileが満たせば利用可能と判定する。器具不要Exerciseは空のSetで表す。
+
+AIは自由なExercise名を確定せず、このCatalogに存在する`exerciseId`から選択する。Exercise情報の正式な情報源・監修方法は未決定。
+
+### GymEquipmentProfile
+
+**決定済みのDomain責務**: GymまたはTraining環境で利用可能な器具をEquipment CatalogのIDで表す。固定UserやPersistenceは含めない。
 
 - `id`
-- `canonicalName`
-- `category`
-- `equipment`
-- `muscleGroups`
-- `supportsE1rm`
-- `active`
-- `contentSourceVersion`
+- `displayName`
+- `availableEquipmentIds`: `EquipmentId[]`
 
-Exercise Masterの正式な情報源・監修方法は未決定。
+Exercise候補のEquipment判定では、Exerciseの必要Equipment SetをこのProfileが満たすことを必須とする。
 
 ### TrainingPlan
 
@@ -415,6 +436,8 @@ locked
 
 実装時に最低限必要なValidation候補：
 
+- Equipment / Exercise Catalog内のIDが重複せず、全Equipment参照とAlternative Exercise参照がCatalogに存在すること。
+- Exercise候補がGym Equipment Profileで満たせる完全なEquipment Setを少なくとも1つ持つこと。
 - Weight、reps、sets、Training frequencyの許容範囲。
 - Main Exerciseがe1RM対応か。
 - AllergyとMeal提案の衝突。

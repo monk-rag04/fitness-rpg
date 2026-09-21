@@ -115,6 +115,16 @@ Status:
 - Rationale: `setup/app-foundation`でユーザーがDirectory構成とnpm workspaces採用を明示した。
 - Consequence: Root scriptsから各Workspaceを実行し、Figma Snapshotや未決定技術をProduction依存へ含めない。
 
+### D-017: Exercise / Equipment Catalog Domain
+
+- Status: Accepted
+- Decision: Equipment MasterとExercise Masterを分離し、`shared/src/domain/training/`で安定したIDにより管理する。ExerciseはPrimary / Secondary Muscle、Movement Pattern、Difficulty、必要Equipmentの選択肢、Alternative Exercise IDを持つ。Gym Equipment Profileは利用可能な`equipmentId`を保持する。
+- Decision: Training PlannerやExercise substitutionへAIを将来採用する場合も、BackendがCatalogを決定論的にFilterした後、候補`exerciseId`だけをAIへ渡す。AIによる自由なExercise名生成やCatalog外IDの確定を許可しない。
+- Decision: Substitutionは同じCatalogを使い、明示的Alternative、Muscle、Movement Pattern、利用可能Equipmentを満たす候補から対象Exerciseだけを変更する。
+- Scope: MVPでは主要Equipmentと代表Exerciseから開始し、Item追加で拡張できる構造にする。全世界のExercise、メーカー固有名、Gym固有Machineは対象外。
+- Rationale: `feature/exercise-catalog-foundation`でユーザーがCatalog境界、Metadata、決定論的Filter、AI候補制限を明示した。
+- Consequence: Exercise情報の正式な情報源・監修、Catalog Versioning、Persistence、AI選択ロジック、sets / reps / weightは別Decisionが必要。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -157,7 +167,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Streakの定義。
 - Recovery Questの必須Clear条件。
 - Beginner Questの発生・修了条件と監修。
-- Exercise Masterの情報源。
+- Exercise Masterの情報源、監修、Catalog Versioningと更新運用。
 - Training PlannerとSchedule再計画の詳細。
 - Nutrition / MealAIのMVP範囲。
 - 最終MVP範囲。
@@ -247,3 +257,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: 初版。Product Promptと`figma-reference/`監査結果を分離して記録。
 - 2026-09-21: Commit前レビュー。Responses API、Provider abstraction、Zod、Character自動成長をAcceptedから分離し、有力方針・候補・未決定へ再分類。
 - 2026-09-21: D-016としてnpm workspacesと`client/` / `server/` / `shared/`のProduction Foundation構成を採用。
+- 2026-09-21: D-017としてExercise / Equipment Catalog、Gym Equipment Profile、決定論的Filter、AIへ渡す候補境界を採用。

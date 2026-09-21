@@ -6,7 +6,7 @@
 
 ## 現在の状態
 
-Production Appの最小Foundationと、Exercise / Equipment CatalogのDomain Foundationを実装済みです。ゲーム進行、Database、Authentication、OpenAI連携はまだ実装していません。
+Production AppとTraining DomainのFoundation、OpenAI APIのDevelopment Smoke Boundaryを実装済みです。ゲーム進行、Database、Authentication、Production Training Planner endpointはまだ実装していません。
 
 このRepositoryには次が含まれます。
 
@@ -14,6 +14,7 @@ Production Appの最小Foundationと、Exercise / Equipment CatalogのDomain Fou
 - React / TypeScript / Viteの最小Frontend
 - Node.js / Express / TypeScriptの最小Backendと`GET /api/health`
 - Exercise / Equipment Catalog、Gym Equipment Profile型、決定論的Filterを持つ`shared` Workspace
+- Backendの公式OpenAI SDK / Responses API / Structured Outputsを使う明示実行のTraining Plan Smoke Script
 - Figma Makeの現状確認用Snapshotである`figma-reference/`（Production codeではありません）
 
 ## 基本ゲームループ
@@ -65,10 +66,10 @@ Onboarding
 - Frontend: React / TypeScript / Vite
 - Backend: Node.js / Express / TypeScript
 - AI: OpenAI APIをBackend経由で利用
+- Training Plan Integration: 公式OpenAI SDK、Responses API、Strict JSON Schema Structured Outputs、Domain再Validation
 
 有力方針：
 
-- OpenAI Responses API
 - `AiProvider` abstractionと`OpenAIProvider`
 
 候補・未決定：
@@ -78,13 +79,14 @@ Onboarding
 - Database: Supabase PostgreSQL候補
 - Authentication: Supabase Auth候補。MVPでの必要性も未決定
 - 開発用MockProvider
+- 最終Production Model、Production Prompt / User Context、Retry / Timeout / Cost policy
 
 ## Workspace構成
 
 ```text
 client/   React / TypeScript / Vite
 server/   Node.js / Express / TypeScript
-shared/   共有Domain。現在はTraining Catalog Foundationのみ
+shared/   共有Training Domain（Catalog、Candidate Builder、Plan Validation）
 docs/     Product / Architecture / DecisionのSource of Truth
 ```
 
@@ -107,6 +109,16 @@ npm run build:server
 npm run build:client
 npm run build
 ```
+
+## OpenAI Development Smoke Test
+
+Node.js 24の標準`--env-file-if-exists`を使い、`server/.env`を明示実行時だけ読み込みます。`server/.env.example`を参考に、API keyを自分で`server/.env`へ設定してください。実際の`.env`はGit管理外であり、Frontendへkeyを置きません。Development default modelは`gpt-5.6-luna`で、`OPENAI_MODEL`から変更可能です。
+
+```powershell
+npm run smoke:openai
+```
+
+このコマンドだけが実APIを呼び、料金が発生し得ます。固定Equipment Profileから`buildTrainingCandidates()`を呼び、候補情報だけを送信してStructured `TrainingPlanDraft`を生成し、`validateTrainingPlanDraft()`で再検証します。通常の`npm run test:shared` / `npm run test:server` / `npm run build`はAPIを呼びません。現在のSmoke PromptとModel defaultはDevelopment用であり、Productionの推奨内容を確定しません。
 
 ## 開発方針
 

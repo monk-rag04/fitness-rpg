@@ -154,12 +154,20 @@ Status:
 - Rationale: `feature/training-plan-schema`で、AI提案と権威あるTraining Quest / Load計算の境界をユーザーが明示した。
 - Consequence: D-018で未決定だったsets / repsはOutputの形だけを確定し、具体的な推奨数値・上限やTraining Volume Policyは未決定のままにする。OpenAI model、Responses API、Structured Outputs機能、SDK、Promptも採用しない。
 
+### D-021: OpenAI API Integration Foundation
+
+- Status: Accepted
+- Context: D-018のCandidateとD-020のDraft Validationを、Production endpointを作る前に実APIで検証可能にする。
+- Decision: 公式OpenAI JavaScript / TypeScript SDKを`server/`のみに追加し、Responses API + Strict JSON Schema Structured Outputsで`TrainingPlanDraft`を生成する。API keyはBackend環境変数だけから取得し、AI出力後は`shared/`の`validateTrainingPlanDraft()`で必ず再検証する。Function Callingは今回使用しない。
+- Development choice: `gpt-5.6-luna`を初期Defaultとし、`OPENAI_MODEL`で変更可能にする。最終Production Modelを確定しない。
+- Scope: 固定の小さなEquipment Profileを使う明示実行のSmoke Scriptのみ。通常のtest/buildは実APIを呼ばず、Production endpoint、Frontend連携、User Context、weight決定は含めない。
+- Consequence: SDK固有型はBackend Integration内に閉じる。`AiProvider` abstraction、Production Prompt / Context、最終Model、Retry / Timeout / Cost policy、Tool採用は引き続きOpen。Zod、dotenv、Agents SDKは導入しない。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
 |---|---|---|---|
 | P-001 | Stage幅 | 約+5kgごと | 種目、初心者、Goal差、停滞時のUX |
-| P-002 | OpenAI API style | Responses API | 必要機能、SDK、Tool / Structured Output要件 |
 | P-003 | AI boundary | `AiProvider` abstractionと`OpenAIProvider` | MVPで抽象化する価値、Interface粒度、Test方針 |
 | P-004 | Character Appearance | Level / EXP等に応じた自動成長 | 連動指標、段階、遷移条件、Asset運用 |
 | P-005 | MVP Vertical Slice | Onboarding → Roadmap → Quest → Clear → Map → Boss gate | Hackathon時間、Demo Scenario |
@@ -210,7 +218,6 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - PWA / Service Worker、Offline対応、Push Notification、Background syncの正式採用。
 - Capacitor等のNative packaging、App Store / Google Play配布、Native API利用の正式採用。
 - React Native / Expoへの移行、HealthKit / Google Health Connect等との連携。
-- Responses APIの正式採用。
 - `AiProvider` / `OpenAIProvider`の正式採用とInterface粒度。
 - Zodの正式採用。
 - Tailwind CSS正式採用。
@@ -220,7 +227,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Hosting / Deployment。
 - Timezone、Offline、Sync。
 - Logging / Monitoring / Data retention。
-- OpenAI Model、Prompt、Tool、Cost / Retry Policy。
+- 最終Production Model、Production Prompt / User Training Context Schema、Tool、Cost / Retry / Timeout Policy。
 
 ## Figma Prototype-only Logic
 
@@ -297,3 +304,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-018としてAI Training Planner前段の決定論的Training Candidate Builder境界を採用。
 - 2026-09-21: D-019としてSmartphone Primary ClientとReact / Vite Web ClientのMobile-first UXを採用。PWA / Native化は未決定のまま分離。
 - 2026-09-21: D-020としてTraining Plan DraftとCandidate Resultに対する決定論的Validation境界を採用。
+- 2026-09-21: D-021として公式OpenAI SDK、Responses API、Structured Outputs、Backend key、Domain再ValidationのDevelopment Integration Foundationを採用。Model / PromptのProduction仕様は未決定。

@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Exercise / Equipment Catalog Domain、Training Candidate Builder、Training Plan DraftのDomain Validationは実装済み。ゲーム進行、Database、Authentication、OpenAI SDKは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Training Domainに加え、BackendのOpenAI Integration Foundationと明示実行のSmoke Scriptは実装済み。ゲーム進行、Database、Authentication、Production Training Planner endpointは未実装。
 
 区分：
 
@@ -32,7 +32,7 @@ flowchart LR
     APP --> STORE[(Persistence: candidate / unresolved)]
 ```
 
-この図は決定済みのTrust boundaryだけを示す。`AiProvider` / `OpenAIProvider`、Responses API、`MockProvider`、Database製品はまだ固定しない。
+この図はTrust boundaryを示す。Responses APIとStructured OutputsはTraining Plan Smoke Boundaryで採用済み。`AiProvider` / `OpenAIProvider`、`MockProvider`、Database製品はまだ固定しない。
 
 ### Trust boundary
 
@@ -48,10 +48,10 @@ flowchart LR
 - Frontend: React / TypeScript / ViteのWeb Clientを維持し、スマートフォンをPrimary ClientとするMobile-first UIを実装する。DesktopはSecondary accessとして扱う。
 - Backend: Node.js / Express / TypeScript。以前共有されたProduct仕様で基本構成として明示されているため採用済みと扱う。
 - AI: OpenAI APIをBackend経由で使用し、API keyをFrontendへ出さない。
+- AI Integration Foundation: 公式OpenAI SDKを`server/`のみに置き、Responses API + Strict JSON Schema Structured Outputsを使用する。AI出力は`shared/`の`validateTrainingPlanDraft()`で再検証する。
 
 ### 有力方針
 
-- OpenAI API style: Responses API
 - AI boundary: `AiProvider` / `OpenAIProvider`をApplication層のPortとして採用し、OpenAI SDK固有型をDomainへ漏らさない
 
 ### 候補
@@ -70,11 +70,11 @@ flowchart LR
 - PWA / Service Worker、Offline、Push Notification、Background syncの採用と運用
 - Native packaging方法、App Store / Google Play配布、Native API利用
 - HealthKit / Google Health Connect等のHealth data連携
-- OpenAI model
-- Structured Output / Tool callを含む詳細なAPI style
+- 最終Production Model（Development defaultは`gpt-5.6-luna`、`OPENAI_MODEL`で変更可）
+- Production Prompt、User Training Context Schema、Tool call採用、Retry / Timeout / Cost policy
 - Deployment / Hosting構成
 
-有力方針と候補は導入前に`docs/DECISIONS.md`で正式採用を記録する。
+有力方針と候補は導入前に`docs/DECISIONS.md`で正式採用を記録する。今回の採用範囲はD-021を参照する。
 
 Mobile-firstはUI設計方針であり、Native App化を意味しない。現時点のProduction FrontendはWeb Clientで、PWAやCapacitorの設定は導入しない。
 
@@ -243,7 +243,7 @@ AIは次の処理を提案できる。
 
 Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
 
-`shared/`の`validateTrainingPlanDraft()`は、将来のAI出力を`TrainingCandidateResult`に対して再検証する決定論的Domain Boundaryである。構造化DraftはExerciseの順序、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。成功結果だけを後続のLoad / Progression Logicへ渡す。Backend API、Provider、Prompt、OpenAI Structured Outputs機能、実際のLoad計算は未実装・未決定。
+`shared/`の`validateTrainingPlanDraft()`は、AI出力を`TrainingCandidateResult`に対して再検証する決定論的Domain Boundaryである。構造化DraftはExerciseの順序、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。明示実行のSmoke Script以外にAPI Callはなく、Backend endpoint、Production Prompt、実際のLoad計算は未実装・未決定。
 
 AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正式採用する場合は、Model名やOpenAI固有Response typeをApplication / Domainへ公開しない。
 
@@ -345,17 +345,16 @@ Productionで再利用してよいのは、画面意図、用語、Interaction�
 - Repository構成、Domain model、Prompt
 - API契約とError model
 
-再利用時はFitness RPGの責務を優先し、その時点で正式採用したOpenAI API styleとValidation方式へ合わせてDecisionを残す。Responses APIとZodは現時点ではそれぞれ有力方針・候補である。
+再利用時はFitness RPGの責務を優先し、採用済みのResponses APIとDomain Validationへ合わせてDecisionを残す。Zodは引き続き候補であり、今回は導入していない。
 
 ## 未決定のArchitecture事項
 
 - Database正式採用とMigration方式
 - AuthenticationをMVPに含めるか
 - API styleとEndpoint contract
-- Responses APIの正式採用
 - `AiProvider` / `OpenAIProvider`の正式採用とinterface粒度
 - Request / Response Validation library
-- OpenAI model、Structured Output、Tool利用方法
+- 最終Production Model、Production Prompt / Context、Tool利用方法、Retry / Timeout / Cost policy
 - Deployment / Hosting
 - Background jobの必要性
 - Health data integration

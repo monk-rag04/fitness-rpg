@@ -12,9 +12,11 @@
     "dev:client": "npm run dev --workspace @fitness-rpg/client",
     "dev:server": "npm run dev --workspace @fitness-rpg/server",
     "test:shared": "npm test --workspace @fitness-rpg/shared",
+    "test:server": "npm run build:shared && npm run build:server && npm test --workspace @fitness-rpg/server",
     "build:shared": "npm run build --workspace @fitness-rpg/shared",
     "build:server": "npm run build --workspace @fitness-rpg/server",
     "build:client": "npm run build --workspace @fitness-rpg/client",
-    "build": "npm run build:shared && npm run build:server && npm run build:client"
+    "build": "npm run build:shared && npm run build:server && npm run build:client",
+    "smoke:openai": "npm run build:shared && npm run build:server && npm run smoke:openai --workspace @fitness-rpg/server"
   }
 }

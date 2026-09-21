@@ -1,11 +1,17 @@
-import type { TrainingCandidateResult, TrainingPlanDraft, ValidatedTrainingPlan } from '@fitness-rpg/shared';
-import { validateTrainingPlanDraft } from '@fitness-rpg/shared';
+import type {
+  TrainingCandidateResult,
+  TrainingPlanDraft,
+  TrainingSessionPlannerInput,
+  ValidatedTrainingPlan,
+} from '@fitness-rpg/shared';
+import { validateTrainingPlanDraft, validateTrainingSessionPlannerInput } from '@fitness-rpg/shared';
 import type OpenAI from 'openai';
 
 import { createOpenAIClient, getOpenAIModel } from './client.js';
 import { trainingPlanDraftFormat } from './trainingPlanSchema.js';
 
 export type TrainingPlanGenerationErrorCode =
+  | 'INVALID_INPUT'
   | 'OPENAI_API_ERROR'
   | 'STRUCTURED_OUTPUT_MISSING'
   | 'DOMAIN_VALIDATION_FAILED';
@@ -20,8 +26,12 @@ export class TrainingPlanGenerationError extends Error {
   }
 }
 
-export function buildTrainingPlanInput(candidates: TrainingCandidateResult): string {
-  return JSON.stringify(candidates);
+export function buildTrainingPlanInput(input: TrainingSessionPlannerInput): string {
+  return JSON.stringify({
+    candidates: input.candidates,
+    trainingExperienceMonths: input.context.trainingExperienceMonths,
+    sessionFocus: input.context.sessionFocus,
+  });
 }
 
 export function validateGeneratedTrainingPlan(
@@ -50,20 +60,31 @@ export function validateGeneratedTrainingPlan(
 }
 
 export async function generateTrainingPlan(
-  candidates: TrainingCandidateResult,
-  client: OpenAI = createOpenAIClient(),
+  input: TrainingSessionPlannerInput,
+  client?: OpenAI,
 ): Promise<ValidatedTrainingPlan> {
-  let response: Awaited<ReturnType<typeof client.responses.create>>;
+  const validation = validateTrainingSessionPlannerInput(input);
+  if (!validation.valid) {
+    throw new TrainingPlanGenerationError(
+      'INVALID_INPUT',
+      `TrainingSessionPlannerInput failed validation: ${validation.errors.map((error) => error.code).join(', ')}`,
+    );
+  }
+
+  const selectedClient = client ?? createOpenAIClient();
+  let response: Awaited<ReturnType<typeof selectedClient.responses.create>>;
   try {
-    response = await client.responses.create({
+    response = await selectedClient.responses.create({
       model: getOpenAIModel(),
       instructions: [
         'Generate a training plan only from the supplied exercise candidates.',
+        'Prioritize the supplied sessionFocus when selecting exercises.',
+        'Use trainingExperienceMonths as context for sets and repRange proposals.',
         'If mainExercise is present, include it exactly once with role main.',
         'Every other selected exercise must have role accessory.',
         'Return sets and repRange. Do not return weight or other fields.',
       ].join(' '),
-      input: buildTrainingPlanInput(candidates),
+      input: buildTrainingPlanInput(validation.value),
       text: { format: trainingPlanDraftFormat },
     });
   } catch {
@@ -78,5 +99,5 @@ export async function generateTrainingPlan(
     );
   }
 
-  return validateGeneratedTrainingPlan(response.output_text, candidates);
+  return validateGeneratedTrainingPlan(response.output_text, validation.value.candidates);
 }

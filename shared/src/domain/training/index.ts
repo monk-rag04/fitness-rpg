@@ -5,3 +5,4 @@ export * from './exerciseCatalog.js';
 export * from './filterExercises.js';
 export * from './trainingCandidates.js';
 export * from './trainingPlan.js';
+export * from './trainingSessionPlannerInput.js';

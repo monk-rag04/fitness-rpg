@@ -21,6 +21,16 @@ const candidates = buildTrainingCandidates({
     availableEquipmentIds: ['barbell', 'flat_bench'],
   },
 });
+const plannerInput = {
+  candidates,
+  context: {
+    trainingExperienceMonths: 8,
+    sessionFocus: {
+      targetMuscles: ['chest'],
+      targetMovementPatterns: ['horizontal_push'],
+    },
+  },
+};
 const validDraft = {
   exercises: [
     {
@@ -47,9 +57,13 @@ test('strict JSON Schema has only TrainingPlanDraft fields', () => {
   assert.ok(!Object.hasOwn(exercise.properties, 'weight'));
 });
 
-test('request contains only candidate result, not equipment profile', () => {
-  assert.deepEqual(JSON.parse(buildTrainingPlanInput(candidates)), candidates);
-  assert.ok(!buildTrainingPlanInput(candidates).includes('test-profile'));
+test('request contains candidates and session context, not equipment profile', () => {
+  assert.deepEqual(JSON.parse(buildTrainingPlanInput(plannerInput)), {
+    candidates,
+    trainingExperienceMonths: 8,
+    sessionFocus: plannerInput.context.sessionFocus,
+  });
+  assert.ok(!buildTrainingPlanInput(plannerInput).includes('test-profile'));
 });
 
 test('generated JSON is validated by shared domain', () => {
@@ -87,19 +101,33 @@ test('adapter sends strict schema and validates output without a network call', 
       },
     },
   };
-  const plan = await generateTrainingPlan(candidates, fakeClient);
+  const plan = await generateTrainingPlan(plannerInput, fakeClient);
   assert.deepEqual(plan, validDraft);
   assert.equal(request.text.format, trainingPlanDraftFormat);
-  assert.deepEqual(JSON.parse(request.input), candidates);
+  assert.deepEqual(JSON.parse(request.input), JSON.parse(buildTrainingPlanInput(plannerInput)));
+  assert.match(request.instructions, /sessionFocus/);
+  assert.match(request.instructions, /trainingExperienceMonths/);
+});
+
+test('invalid session input is rejected before the OpenAI client is called', async () => {
+  let called = false;
+  await assert.rejects(
+    generateTrainingPlan(
+      { ...plannerInput, context: { ...plannerInput.context, trainingExperienceMonths: -1 } },
+      { responses: { create: async () => { called = true; } } },
+    ),
+    (error) => error.code === 'INVALID_INPUT',
+  );
+  assert.equal(called, false);
 });
 
 test('API failure and missing output have distinct sanitized codes', async () => {
   await assert.rejects(
-    generateTrainingPlan(candidates, { responses: { create: async () => { throw new Error('sensitive request detail'); } } }),
+    generateTrainingPlan(plannerInput, { responses: { create: async () => { throw new Error('sensitive request detail'); } } }),
     (error) => error.code === 'OPENAI_API_ERROR' && !error.message.includes('sensitive'),
   );
   await assert.rejects(
-    generateTrainingPlan(candidates, { responses: { create: async () => ({ status: 'incomplete', output_text: '' }) } }),
+    generateTrainingPlan(plannerInput, { responses: { create: async () => ({ status: 'incomplete', output_text: '' }) } }),
     (error) => error.code === 'STRUCTURED_OUTPUT_MISSING',
   );
 });

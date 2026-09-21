@@ -8,3 +8,4 @@ export * from './trainingPlan.js';
 export * from './trainingSessionPlannerInput.js';
 export * from './e1rm.js';
 export * from './workoutResult.js';
+export * from './stagePlanning.js';

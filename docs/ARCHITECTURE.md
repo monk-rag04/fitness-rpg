@@ -190,6 +190,10 @@ e1RMのMVP Domain API（D-023）は`shared/src/domain/training/e1rm.ts`に置く
 
 Workout ResultのMVP Domain API（D-024）は`shared/src/domain/training/workoutResult.ts`に置く。未知入力をCatalog ID、role、予定Set / rep range、Set番号、正の有限重量、正の整数rep、timestamp、未知Fieldで決定論的に検証する。これは保存Draftではなく、少なくとも1 Setを完了したExercise Resultを表す。予定Set数未達、rep range外、plannedExerciseIdとperformedExerciseIdの相違はRecordを不正にしない。後者はSubstitutionの正当性を再計算せず、実施Exercise側へD-023の既存`calculateWorkoutE1rm()`を接続する。Plan SnapshotとのID、role、sets、rep range照合は小さな純粋関数に分離し、Quest Clear、Load Prescription、Progression、API、Databaseは含めない。
 
+Stage PlanningのMVP Domain API（D-025）は`shared/src/domain/training/stagePlanning.ts`に置く。`planNextStage()`は現在e1RMとFinal Goalから次のBoss Requirementだけを決定論的に返す。MVPの固定5kg stepとFinal Goal cap、baseline required、goal reached / goal update requiredを`stage-target-fixed-5kg-v1`で追跡する。Historical PB fallback、Final Goal変更、Roadmap Node、Boss state、Stage Clearはこの関数の責務外である。
+
+同じshared境界で`validateAchievementDurationEstimatorInput()`がDuration Estimator専用Inputを厳格に検証し、`validateAchievementDurationEstimate()`がAIの`estimatedAchievementDays`のみを再検証する。`selectRoadmapDuration()`は一箇所の`ROADMAP_DURATION_CANDIDATES`（14/21/28/35/42）からestimate以上の最小値を選ぶceiling ruleであり、42日超はclampせず`stage_replanning_required`を返す（`roadmap-duration-ceiling-v1`）。Schedule生成、曜日選択、Boss date、Boss Defeated、Quest / EXP / Mapは含めない。
+
 ### Repository Ports
 
 Application層はDatabase SDKを直接前提にせず、目的別のRepository interfaceを利用する。
@@ -240,6 +244,7 @@ MVPでIn-memory実装を使うか、最初からDatabaseを使うかは未決定
 AIは次の処理を提案できる。
 
 - Training Plan / Daily Training
+- Stage TargetへのAchievement Duration Estimate
 - Schedule変更時の再計画候補
 - Exercise / Alternative候補
 - Progress解釈
@@ -249,6 +254,8 @@ AIは次の処理を提案できる。
 Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
 
 `shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。明示実行のSmoke Script以外にAPI Callはなく、Backend endpoint、Production Prompt、実際のLoad計算は未実装・未決定。
+
+D-025のAchievement Duration EstimatorはTraining Planとは別Use Caseである。serverの`achievementDuration.ts` / `achievementDurationSchema.ts`は既存のbackend-only client、Responses API、SDK Error sanitizationを再利用するが、別Prompt / Schema Versionを持つ。AIへは`exerciseId`、current e1RM、決定論的Stage Target、経験月数、週頻度だけを渡し、`estimatedAchievementDays`だけを返させる。AIはStage Target、Product候補Duration、Boss date、Training / Recovery Node、曜日、Quest / EXP / Boss結果を決めない。通常test/buildは実APIを呼ばず、このUse CaseのSmoke Callも今回は追加しない。
 
 AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正式採用する場合は、Model名やOpenAI固有Response typeをApplication / Domainへ公開しない。
 

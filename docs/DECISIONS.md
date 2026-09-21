@@ -198,11 +198,26 @@ Status:
 - Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/workoutResult.ts`、`shared/src/domain/training/index.ts`、`shared/test/workoutResult.test.mjs`。
 - Date: 2026-09-22
 
+### D-025: Deterministic Stage Target and AI Achievement Duration Boundary
+
+- Status: Accepted
+- Context: Stage / RoadmapはFitness RPGの主進行だが、Figma Makeの`createStageRoadmap()`にある+5kg、Session数、nearest duration、固定日付はPrototype専用であり、Production仕様ではなかった。D-023のcurrent e1RMを入力に、AIが権威あるStage / Scheduleを決めない最小MVP境界が必要である。
+- Decision: Training Sessionは1回のWorkout、StageはFinal Strength Goalまでの中間進行単位、Stage TargetはそのStageのBoss Requirement、Roadmap DurationはStage Targetへ挑戦する期間と定義する。Stage TargetはAIでなくsharedの決定論的Domainで計算し、MVPは`min(finalGoalE1rmKg, currentE1rmKg + 5)`、Rule Versionは`stage-target-fixed-5kg-v1`とする。currentがfinal未満ならnext stageを作る。currentがfinalと等しい場合はgoal reached、finalを超える場合はgoal reached / goal update requiredとし、Final Goalを自動変更・Targetを引き下げない。
+- Decision: current e1RMがない場合はHistorical PB / 0kg / AI推定へfallbackせずbaseline requiredとしてStage PlanningおよびDuration Estimateを開始しない。Onboardingのmain exercise、current weight、repsからbaselineを作る将来導線は保存設計とは別にOpenとする。
+- Decision: Achievement Duration EstimatorはTraining Planとは別Use Caseである。Inputは`exerciseId`、`currentE1rmKg`、`stageTargetE1rmKg`、`trainingExperienceMonths`、`trainingFrequencyPerWeek`のみ。未知Field、Catalog外ID、正で有限でないcurrent、current以下または非有限Target、負または非整数の経験月数、正でないまたは非整数の頻度をshared Domainで拒否する。頻度のProduct上限は定めない。
+- Decision: AIはStrict Structured Outputで`{ estimatedAchievementDays: integer >= 1 }`だけを返す。confidence、reasoning、textを含めず、出力をshared Domainで再検証する。既存のbackend-only OpenAI client、Responses API、SDK Error sanitizationは再利用するが、Prompt / Schema VersionはTraining Planから別管理する。AIはStage Target、Roadmap Duration候補、Boss Requirement / date、Training / Recovery Node、曜日、Quest Clear、EXP、Boss Defeatedを選ばない。
+- Decision: Roadmap Duration候補はsharedに一箇所だけ`[14, 21, 28, 35, 42]`として置く。selectionはnearestではなくestimate以上の最小候補を選ぶceiling ruleとし、`<= 14`は14、`> 42`はclamp・自動Target変更・自動Stage分割をせず`stage_replanning_required`を返す。Rule Versionは`roadmap-duration-ceiling-v1`とする。
+- Decision: Boss Requirement e1RMはStage Target e1RMと同値とする。DurationはBossを倒せる保証ではない。Boss State / Defeated / Shieldは今回実装しないが、Roadmap終端到達時に`currentE1rm < stageTarget`なら将来Boss Shieldを表示する前提を置く。
+- Consequence: `shared/`に`planNextStage()`、`validateAchievementDurationEstimatorInput()`、`validateAchievementDurationEstimate()`、`selectRoadmapDuration()`とRegression Testを置く。serverには独立したDuration EstimatorのPrompt / Strict Schema / adapterとnetwork-free testを置く。Schedule / Roadmap Node、API endpoint、Database、Frontend、Onboarding persistence、Boss State、Quest / EXP / Map、Load / Progression、実API Smokeは今回含めない。
+- Alternatives: FigmaのSession数とnearest duration、AIによるStage TargetやDuration候補選択、42日へのclamp、Historical PB fallback、0kg baseline、Training Plan Inputとの混用は採用しない。
+- Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/AI.md`、`docs/DECISIONS.md`、`shared/src/domain/training/stagePlanning.ts`、`shared/src/domain/training/index.ts`、`shared/test/stagePlanning.test.mjs`、`server/src/openai/achievementDuration.ts`、`server/src/openai/achievementDurationSchema.ts`、`server/test/achievementDuration.test.mjs`。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
 |---|---|---|---|
-| P-001 | Stage幅 | 約+5kgごと | 種目、初心者、Goal差、停滞時のUX |
+| P-001 | Stage幅の将来変更 | D-025の固定+5kg MVP後に種目・経験・Goal差へ適応 | 将来の効果測定、停滞時UX、移行方針 |
 | P-003 | AI boundary | `AiProvider` abstractionと`OpenAIProvider` | MVPで抽象化する価値、Interface粒度、Test方針 |
 | P-004 | Character Appearance | Level / EXP等に応じた自動成長 | 連動指標、段階、遷移条件、Asset運用 |
 | P-005 | MVP Vertical Slice | Onboarding → Roadmap → Quest → Clear → Map → Boss gate | Hackathon時間、Demo Scenario |
@@ -227,8 +242,12 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 
 ### Product / Game rules
 
-- Stage分割アルゴリズム。
-- Stage所要日数算出。
+- 42日超estimate時のStage再分割Algorithm。
+- 5kg Stepの将来変更（経験別・割合ベースを含む）。
+- AI estimateの利用時点、再試行、fallback、評価。
+- Onboarding self-report persistenceとbaseline source。
+- trainingFrequencyのProduct上限。
+- Schedule生成・変更、Roadmap Node、Boss Shield / Defeated / Stage Clear、timezone。
 - 初心者開始重量の正式ロジック。
 - e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
 - `trainingMax`と決定論的Load / Progression Rule。
@@ -278,10 +297,10 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | Pull-up beginner | `round(BW * 0.65)`をCurrent e1RM相当として表示 | Productionへ採用しない |
 | Recommended Goal | Currentの114%〜121% | 正式推奨RuleはOpen |
 | Goal編集 | 1kg単位で上下 | UI / 単位はOpen |
-| Stage数 | `ceil((target-current)/5)` | +5kg案はProposed |
-| Stage target | Current + Stage×5kg、Goalでcap | 正式RuleはOpen |
+| Stage数 | `ceil((target-current)/5)` | D-025は次の1 Stageだけを固定+5kgで決定する。全Stage数・再分割は採用しない |
+| Stage target | Current + Stage×5kg、Goalでcap | D-025は`min(finalGoal, current + 5)`を正式採用。Prototypeのstage番号依存実装は採用しない |
 | Sessions / Stage | 週1〜2回なら7、週3〜4回なら8、週5回以上なら6 Session | 正式RuleはOpen |
-| Stage日数 | 算出日数に最も近い14/21/28/35/42日 | 正式RuleはOpen |
+| Stage日数 | 算出日数に最も近い14/21/28/35/42日 | D-025はAI estimate以上の最小候補を選ぶ。Session数算出とnearest ruleは採用しない |
 | Roadmap開始日 | 2026-09-22固定 | ProductionではUser timezone / Start dateが必要 |
 | Training配置 | 週Frequencyをfloor計算で均等配置 | Planner詳細はOpen |
 | Quest EXP | Training day: 100/20、Recovery day: 20/90 | EXP値はOpen |
@@ -346,3 +365,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-022として1回のTraining Session向けInput BoundaryとSchedule / Roadmapとの責務分離を採用。将来のTraining Logicに応じ変更可能とする。
 - 2026-09-22: D-023としてMVPのe1RM式、適格Set、Workout代表値、rolling 30日現在値、PB分離、未丸めBoss比較、対象Exerciseを採用。
 - 2026-09-22: D-024としてSet単位のWorkout Result、予定 / 実施Exerciseの分離、D-023 e1RM接続、Quest Clear・Load / Progressionとの責務分離を採用。
+- 2026-09-22: D-025として固定+5kgの決定論的Stage Target、AIのAchievement Duration Estimate、候補Durationのceiling選択と42日超のreplanning statusを採用。Schedule / Boss Stateは含めない。

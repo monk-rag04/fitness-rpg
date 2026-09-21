@@ -139,12 +139,16 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 
 **決定済み**:
 
+- Training Sessionは1回のWorkout、StageはFinal Strength Goalまでの中間的な進行単位として分離する。Stage TargetはそのStageのBoss Requirementとなる。
 - 現在StrengthからFinal Goalまでを複数Stageへ分ける。
 - 各Stageの最後にBossを配置する。
+- Stage TargetはAIでなく決定論的Domainで計算する。MVPでは`min(finalGoalE1rmKg, currentE1rmKg + 5)`により次のTargetを作り、最後のStageはFinal Goalでcapする（`stage-target-fixed-5kg-v1`）。
+- `currentE1rmKg`がない場合はHistorical PBや0kgへfallbackせず、baseline requiredとしてStageとDurationのPlanningを開始しない。`currentE1rmKg === finalGoalE1rmKg`はgoal reached、`currentE1rmKg > finalGoalE1rmKg`はgoal reached / goal update requiredであり、Final Goalを自動変更・Stage Targetを引き下げない。
+- Boss Requirementのe1RMはStage Target e1RMと同値である。Boss State / Defeated / Shieldは別Domainだが、Roadmapの終端に到達しても`currentE1rm < stageTarget`なら将来Boss Shieldを表示する前提を置く。
 
-**候補**: 約+5kgごとのStage分割。
+**決定済み**: Stage Targetへの到達日数はAIが`estimatedAchievementDays`だけを提案し、Productが決めたRoadmap Duration候補から決定論的に選ぶ。
 
-**未決定**: Stage分割アルゴリズム、Stage所要日数、Stage上限、停滞・後退・目標変更時の扱い。
+**未決定**: 42日超時のStage再分割Algorithm、5kg Stepの将来変更、経験別・割合ベースのStage幅、Stage上限、停滞・後退・目標変更時の扱い。
 
 ## Adventure Map / Roadmap
 
@@ -155,8 +159,10 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - ユーザーが毎日TrainingかRecoveryかを都度選ぶ設計にはしない。
 - Onboarding情報をもとに、SystemまたはAIがTraining / Recoveryを計画する。
 - Mapは単なるカレンダー表示にせず、現在地・次の行動・Bossまでの進行が理解できるUIにする。
+- Roadmap DurationはStage Targetへの挑戦期間であり、Boss撃破保証ではない。MVPの候補は`14 / 21 / 28 / 35 / 42`日である。AIの`estimatedAchievementDays`以上となる最小候補を選び、14日以下は14日、42日超はclampせずstage replanning requiredとする（`roadmap-duration-ceiling-v1`）。
+- AIはStage Target、Duration候補、Boss date、Training / Recovery Node、Quest Clear、EXP、Boss Defeatedを決めない。頻度はDuration推定と将来Scheduleの入力だが、AIが曜日やNodeを選択しない。
 
-**未決定**: Stageの期間算出、Training/Recoveryの配置、分岐、Event・Elite・Camp・Treasure NodeのProductionルール。
+**未決定**: 42日超時の再計画、Training/Recoveryの配置、Schedule変更、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの保存とbaseline source、trainingFrequencyのProduct上限、AI推定の利用時点。
 
 ## Daily Training Quest
 

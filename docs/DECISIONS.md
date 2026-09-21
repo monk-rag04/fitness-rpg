@@ -173,6 +173,19 @@ Status:
 - Rationale: `feature/training-session-planner-input`でユーザーがMVP時点の責務とInput形状を明示した。
 - Consequence: Candidate Builderの器具Filterは再実行しない。FocusとCandidateの重なり件数、Focusの最低・最大部位数、具体的なsets / reps、Schedule生成Ruleは未決定。Input Boundaryは将来Decisionで変更できる。
 
+### D-023: MVP Production e1RM Domain Rule
+
+- Status: Accepted
+- Context: D-004で決定論的なe1RM利用は採用済みだが、式、対象Record、現在値、丸めが未決定だった。Figma Makeの整数丸めEpleyはPrototype専用であり、その実装をProductionへコピーしない。
+- Decision: Setの式は1回なら実施重量、2〜10回なら未丸めEpley `weightKg * (1 + reps / 30)`。11回以上は正常Workout記録だがe1RM対象外。回数0以下・非整数、重量0以下、NaN / Infinity等はValidation Error。
+- Decision: 同一Exerciseの1 Workoutでは全適格Setから最大の未丸めe1RMを代表とする。Warmup分類はMVPに設けない。`currentE1rm`は同一Exerciseの直近30×24時間にあるWorkout代表値の最大。基準日時からちょうど30日前を含み、未来記録は含めない。適格な最近の記録がなければ値なしとし、古いPBへFallbackしない。`historicalBestE1rm`は全期間最大として別に扱う。
+- Decision: Boss Strength条件は未丸め`currentE1rm >= requiredE1rm`。MVPは期間内の1回の適格な到達でよい。撃破済み状態を後の現在値失効・低下で取り消さない。MVPのBoss対象は`barbell_bench_press`、`barbell_back_squat`、`barbell_deadlift`、`barbell_overhead_press`のみ。Pull-up / Weighted Pull-upはBoss e1RM対象外とし、Exercise Catalogからは削除しない。
+- Decision: 内部計算値とBoss比較値は丸めない。UI表示丸めはDomain coreから分離する。FormulaとWindowのRule Versionを保持できる計算境界とし、`Date.now()`に依存せず基準日時を引数にする。
+- Alternatives: Brzycki等の別式、10回より広い範囲、最新Workoutのみ、PBを現在値とする方式、複数回達成を要求する方式はMVPでは採用しない。
+- Consequence: `shared/`に計算用の純粋関数とRegression Testを置く。保存Schema、Boss state machine、Stage、Load / Progression、UI、APIは今回含めない。30日Windowの将来調整、Warmup / Working Set、RPE / RIR、種目別Formula、`trainingMax`、Pull-up総負荷、自己申告記録の信頼性・修正、UI表示精度とCopyはOpen。
+- Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/e1rm.ts`、`shared/test/e1rm.test.mjs`。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -205,7 +218,8 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Stage分割アルゴリズム。
 - Stage所要日数算出。
 - 初心者開始重量の正式ロジック。
-- e1RM式、丸め、Record採用Rule。
+- e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
+- `trainingMax`と決定論的Load / Progression Rule。
 - 推奨Final Goalと達成目安期間。
 - EXP値とCategory配分。
 - Level curve。
@@ -245,7 +259,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 
 | 領域 | Prototypeの仮ルール | 扱い |
 |---|---|---|
-| e1RM | Epley式 `round(weight * (1 + reps / 30))` | 正式式はOpen |
+| e1RM | Epley式 `round(weight * (1 + reps / 30))` | D-023は1回特例・1〜10回・未丸め・30日Windowを正式採用。Prototypeの整数丸め処理は採用しない |
 | Beginner weight | Bench 0.30×BW、Squat 0.50、Deadlift 0.60、OHP 0.20、5 reps | 正式ロジックはOpen |
 | Pull-up beginner | `round(BW * 0.65)`をCurrent e1RM相当として表示 | Productionへ採用しない |
 | Recommended Goal | Currentの114%〜121% | 正式推奨RuleはOpen |
@@ -316,3 +330,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-020としてTraining Plan DraftとCandidate Resultに対する決定論的Validation境界を採用。
 - 2026-09-21: D-021として公式OpenAI SDK、Responses API、Structured Outputs、Backend key、Domain再ValidationのDevelopment Integration Foundationを採用。Model / PromptのProduction仕様は未決定。
 - 2026-09-21: D-022として1回のTraining Session向けInput BoundaryとSchedule / Roadmapとの責務分離を採用。将来のTraining Logicに応じ変更可能とする。
+- 2026-09-22: D-023としてMVPのe1RM式、適格Set、Workout代表値、rolling 30日現在値、PB分離、未丸めBoss比較、対象Exerciseを採用。

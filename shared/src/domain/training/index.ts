@@ -6,3 +6,4 @@ export * from './filterExercises.js';
 export * from './trainingCandidates.js';
 export * from './trainingPlan.js';
 export * from './trainingSessionPlannerInput.js';
+export * from './e1rm.js';

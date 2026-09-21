@@ -186,6 +186,8 @@ Pure TypeScriptで決定論的に処理する。
 
 可能な限り副作用を持たない関数とし、入力、Rule Version、出力をテストできる形にする。
 
+e1RMのMVP Domain API（D-023）は`shared/src/domain/training/e1rm.ts`に置く。Set計算、同一種目Workout内の最大値、基準日時を引数とするrolling 30×24時間の現在値、全期間PBを純粋関数で分離する。11回以上は正常記録だが推定対象外、不正な数値・日時はValidation Errorとする。内部値とBoss比較値を丸めず、UI表示丸め、保存、Boss state machine、Load / Progressionは含めない。Boss対象の4種目はCatalog実IDで明示し、汎用Set計算自体はExercise IDへ依存させない。結果はRule Versionと根拠Setを追跡できる計算用型であり、永続Schemaではない。過去の別Version値との混合・再計算方針は保存設計時に決める。
+
 ### Repository Ports
 
 Application層はDatabase SDKを直接前提にせず、目的別のRepository interfaceを利用する。

@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。現時点では設計のみで、Frontend、Backend、Database、Authentication、OpenAI SDKは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小FoundationとHealth Checkは実装済み。ゲーム機能、Database、Authentication、OpenAI SDKは未実装。
 
 区分：
 
@@ -70,22 +70,21 @@ flowchart LR
 
 有力方針と候補は導入前に`docs/DECISIONS.md`で正式採用を記録する。
 
-## Repository Layout Proposal
+## Repository Layout
 
-正式なWorkspace構成は未決定。実装開始時は、少なくとも次の責務を混在させない。
+### 決定済み
+
+npm workspacesを使用し、次の責務で分離する。
 
 ```text
-apps/
-  web/          React UI
-  api/          Express API
-packages/       必要になった場合のみ
-  domain/       Pure TypeScript domain rules
-  contracts/    API schemas / shared DTOs
-docs/
-figma-reference/  Figma Snapshot; Production対象外
+client/           React / TypeScript / Vite
+server/           Node.js / Express / TypeScript
+shared/           将来のFrontend / Backend共有型
+docs/             Product / Architecture / Decision
+figma-reference/  Figma Snapshot; Production対象外・Git管理外
 ```
 
-Monorepo化、Package manager、Workspace toolは未決定。MVP規模で不要なら`packages/`を作らず、`apps/api/src/domain`等で開始してよい。
+`shared/`はFoundation段階では空の公開Entryだけとし、Domain Model、Prototype Data、未確定のAPI contractを先行実装しない。
 
 ## Frontend Responsibilities
 
@@ -312,8 +311,6 @@ Productionで再利用してよいのは、画面意図、用語、Interaction�
 
 ## 未決定のArchitecture事項
 
-- Repository / Workspace構成
-- Package manager
 - Database正式採用とMigration方式
 - AuthenticationをMVPに含めるか
 - API styleとEndpoint contract

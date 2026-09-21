@@ -26,6 +26,7 @@
 - Figma上の表示、Dummy Data、固定値、デモ用切替、仮計算をProduction仕様として扱わない。
 - Figma変更を伴うUI作業では、作業時点のFigmaまたは最新の`figma-reference/`を確認し、「Prototypeで確認した事実」と「Productとして確定した仕様」を分ける。
 - UI / Figmaに関わる変更を始める前に`docs/DEVELOPMENT_WORKFLOW.md`を読み、変更タイプに対応する同期Flowと影響範囲確認を行う。
+- Frontend / UI変更では`docs/DECISIONS.md`のMobile-first Decision（D-019）を確認し、Smartphone viewportをPrimaryとして検証する。Mobile-firstをPWA / Native App化の決定と混同しない。
 - 未決定事項を実装都合だけで確定しない。必要な場合は`docs/DECISIONS.md`へ提案と論点を記録する。
 
 ## `figma-reference/`の扱い

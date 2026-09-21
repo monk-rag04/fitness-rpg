@@ -88,7 +88,7 @@ Team確認
 4. CodexはFrontendだけでなく、Product、Data Model、Backend/API、AI、Test、docsへの影響を確認する。
 5. 対象branchでCodeと必要なdocsを変更する。
 6. 変更タイプに応じたtypecheck / test / buildを実行する。
-7. Previewで主要State、Error、Empty、Loading、Responsive、Keyboard操作を確認する。
+7. PreviewでSmartphone PortraitをPrimaryとして主要State、Error、Empty、Loading、Responsive、Touch、Keyboard操作を確認する。375〜430px程度を重点確認する目安とし、Desktop PreviewだけでUI完了としない。
 8. TeamがFigma意図、Product仕様、実際の動作を比較して確認する。
 
 Codeから始まったUI変更も同様に、Team確認後にFigmaへ反映する作業を別途行う。同期が完了するまでは、`docs/UX.md`またはPRへ未同期範囲を記録する。
@@ -104,6 +104,7 @@ Codeから始まったUI変更も同様に、Team確認後にFigmaへ反映す�
 3. Frontendを変更し、Component / visual state / accessibilityに必要なTestを更新する。
 4. typecheck / test / build、Preview、Team確認を行う。
 5. UI意図やPrototype差分が変わる場合は`docs/UX.md`も更新する。
+6. Mobile viewportで片手操作、Tap target、Hover非依存、主要Navigationを確認する。Desktop表示だけで完了判定しない。
 
 ### 2. UI + Data Model
 

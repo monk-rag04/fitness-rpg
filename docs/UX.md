@@ -134,6 +134,12 @@ Production UIはsharedが生成した`durationDays`件のCalendar Dayと、そ�
 
 UIが提供する将来日の変更は、同一Roadmap内でTraining Dayと後続Recovery Dayをswapする操作だけである。変更後もTraining数、Boss date、Duration、Stage Targetは不変であり、Quest Clear、EXP、Map Position、e1RM、Workout Result、Boss Stateを更新しない。永続化、過去日・完了日の扱い、競合、再計画UI、AIによる提案は未決定である。
 
+### D-027 Quest / Map View Boundary
+
+Production Map UI derives completed / available / locked nodes from `StageRoadmap` plus separate `StageProgress.currentDayIndex`. Its UI-independent read model exposes the current node, completed and locked nodes, Training / Recovery type, Training Session Focus, Boss Anchor, Boss availability, and completed / total counts. It deliberately excludes icons, copy, animation, EXP, Treasure, Boss Battle, and Stage Clear.
+
+The current quest is `roadmap.days[currentDayIndex]`. Calendar date, missed days, time passage, skip, expire, and automatic catch-up do not move it. Boss becomes available only after all daily nodes are clear; availability is not Boss Strength eligibility or Boss Defeated.
+
 ## Training Quest UX
 
 ### Prototype確認
@@ -153,6 +159,10 @@ UIが提供する将来日の変更は、同一Roadmap内でTraining Dayと後�
 - 代替時は元Exercise ID、採用Exercise ID、変更理由、提案元を保持する。
 - 代替後の負荷・reps・setsを元値のままにするか、換算するかは未決定。
 
+### D-027 completion interaction boundary
+
+For Training, all planned main and accessory exercises show completion only as derived from valid Workout Results. Recording results only makes the quest ready; the user explicitly clears it to advance one node. When `plannedExerciseId !== performedExerciseId`, the UI supplies the current Equipment Profile and relies on the existing Catalog substitution candidates. Direct performance needs no substitution check. Partial sets and out-of-range reps do not block D-027 clear.
+
 ## Recovery Quest UX
 
 ### Prototype確認
@@ -168,6 +178,10 @@ UIが提供する将来日の変更は、同一Roadmap内でTraining Dayと後�
 - Recovery DayのMain Clear条件を定義し、条件未達なら完了させない。
 - Character画面の即時回復ActionはProductionではQuest記録またはRecovery入力へ接続する。
 - HPはゲーム演出であり、医療状態や健康リスクの判定値として扱わない。
+
+### D-027 recovery interaction boundary
+
+Recovery has no MVP checklist. The user explicitly clears the current Recovery node; a date change or merely opening the screen does not clear it. The D-027 result advances one node only and does not decide EXP, HP, rewards, or overlay behavior.
 
 ## Beginner Quest UX
 

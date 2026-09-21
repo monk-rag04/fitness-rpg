@@ -227,6 +227,19 @@ Status:
 - Affected docs / code: `docs/PRODUCT.md`、`docs/UX.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/stageRoadmap.ts`、`shared/src/domain/training/index.ts`、`shared/test/stageRoadmap.test.mjs`。
 - Date: 2026-09-22
 
+### D-027: Quest Completion and Linear Stage Progression
+
+- Status: Accepted
+- Context: D-024 is the Workout Result boundary, D-025 defines Stage Target / Duration, and D-026 defines an immutable StageRoadmap. The remaining MVP boundary is how a Daily Quest clears and which event moves the map. Figma Prototype `mapPosition`, checkboxes, date behavior, moved-node jumps, fixed EXP, and Boss toggles are prototype-only observations, not Production rules.
+- Decision: Keep `StageRoadmap` immutable and use only `StageProgress = { currentDayIndex }` for MVP progress. Accept an integer from `0` through `roadmap.days.length`; derive completed / available / locked from its relation to each day index. The current quest is `roadmap.days[currentDayIndex]`. Calendar date, missed days, `Date.now`, skip, expire, and automatic catch-up do not move progress. Day index is the MVP quest identity; do not add a global Quest ID or a Roadmap Day ID to D-026.
+- Decision: All validated Training Plan `main` and `accessory` exercises are required. Each planned exercise needs exactly one Workout Result with at least one completed set that passes existing Workout Result and plan-snapshot validation. Partial sets and reps outside the planned range do not block clear. Checkboxes are derived rather than persisted. Only when planned and performed IDs differ, use existing `getSubstitutionCandidates()` with the provided GymEquipmentProfile; D-024 attribution remains with the performed exercise.
+- Decision: Recording a valid Workout Result or evaluating it does not advance progress. An explicit Training Clear or Recovery Clear advances the current index by exactly one; Recovery has no MVP checklist. An old index returns `already_completed`, a future index returns `not_current_quest`, and neither changes state. Schedule Change, e1RM, OpenAI output, EXP, and result storage do not advance progress.
+- Decision: When `currentDayIndex === roadmap.days.length`, the Boss Anchor is available. This only exposes the existing Stage Target for a later Boss domain; it does not implement Boss Strength eligibility, Shield, Challenge, Defeated, Stage Clear, Reward, EXP, HP, or Level.
+- Consequence: Add pure `stageProgress.ts`, `linear-stage-progress-v1`, and shared regression tests. No API endpoint, database / persistence schema, Frontend / Figma migration, OpenAI call, global Quest ID, checkbox persistence, Boss State, EXP / HP / Reward, or Stage Clear is added. D-007's exercise-level completion intent remains, but its earlier unique Quest ID wording is not a D-027 persistence decision.
+- Alternatives: Prototype map-position jumps, calendar auto-clear, automatic progression when a Workout Result is recorded, progression from Schedule Change, optional / bonus schema, free selection of any daily node, and Boss State in the same change are not adopted.
+- Affected docs / code: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/DECISIONS.md`, `shared/src/domain/training/stageProgress.ts`, `shared/src/domain/training/index.ts`, `shared/test/stageProgress.test.mjs`.
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -268,7 +281,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
 - `trainingMax`と決定論的Load / Progression Rule。
 - previous weight prefill、Load Prescription、Double Progression、automatic increase / decrease、重量増分。
-- Workout ResultをExercise completionまたはQuest Clearへ結び付ける正式条件と、自己申告Onboarding Recordの保存方法。
+- Workout Result / Quest Clearの保存・取消・複数Session集約Policyと、自己申告Onboarding Recordの保存方法。
 - 推奨Final Goalと達成目安期間。
 - EXP値とCategory配分。
 - Level curve。
@@ -279,7 +292,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Bossのゲーム条件、Battle失敗・再挑戦。
 - Treasureの効果、獲得条件、確率、重複。
 - Streakの定義。
-- Recovery Questの必須Clear条件。
+- Recovery Questの将来Checklist、睡眠 / 栄養 / 軽活動との連動、HP / Rewardへの影響。
 - Beginner Questの発生・修了条件と監修。
 - Exercise Masterの情報源、監修、Catalog Versioningと更新運用。
 - Training PlannerとSchedule再計画の詳細。
@@ -383,3 +396,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-024としてSet単位のWorkout Result、予定 / 実施Exerciseの分離、D-023 e1RM接続、Quest Clear・Load / Progressionとの責務分離を採用。
 - 2026-09-22: D-025として固定+5kgの決定論的Stage Target、AIのAchievement Duration Estimate、候補Durationのceiling選択と42日超のreplanning statusを採用。Schedule / Boss Stateは含めない。
 - 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focus、将来Recovery Dayへの純粋なSchedule swapを採用。永続化、UI、AI再計画、Game Stateは含めない。
+- 2026-09-22: D-027としてWorkout Resultから導出するTraining Clear、明示的Recovery Clear、day indexによるLinear Map進行、終端でのBoss availabilityを採用。EXP、Boss State、Stage Clear、永続化、UIは含めない。

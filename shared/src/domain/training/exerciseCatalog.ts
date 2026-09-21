@@ -397,12 +397,12 @@ export const EXERCISE_CATALOG = [
   },
 ] as const satisfies readonly ExerciseDefinition[];
 
-const exerciseById = new Map<ExerciseId, ExerciseDefinition>(
+const exerciseById = new Map<string, ExerciseDefinition>(
   EXERCISE_CATALOG.map((exercise) => [exercise.id, exercise]),
 );
 
 export function getExerciseById(
-  exerciseId: ExerciseId,
+  exerciseId: string,
 ): ExerciseDefinition | undefined {
   return exerciseById.get(exerciseId);
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-AI Integrationは未実装。この文書は、AIへ任せる責務、任せない責務、安全な実行Flow、およびProvider境界の有力案を定義する。
+OpenAI APIとの最小Integration FoundationをBackendに実装済み。明示実行のDevelopment Smoke ScriptでCandidate → Responses API → Structured Draft → Domain Validationを試せる。Production Planner、API endpoint、Frontend連携は未実装。
 
 ### 決定済み
 
@@ -15,10 +15,15 @@ AI Integrationは未実装。この文書は、AIへ任せる責務、任せな�
 - AI呼び出し前のTraining Candidate Builderは`shared/`の決定論的Domain Boundaryとし、Main ExerciseのCatalog所属・Equipment適合も検証する。
 - Training Planner出力は自由文ではなく`TrainingPlanDraft`として扱い、Candidate内の`exerciseId`、`main` / `accessory` role、sets、rep rangeだけを受ける。weightはAI Outputに含めず、後続の決定論的Load / Progression Logicへ分離する。
 - AI出力を今回の`TrainingCandidateResult`に対して`validateTrainingPlanDraft()`で再検証する。Catalog所属だけでは許可条件を満たさない。
+- Backendで公式OpenAI JavaScript / TypeScript SDK、Responses API、JSON SchemaによるStructured Outputsを採用する。Function Callingは今回使用しない。
+- API keyはBackend環境変数のみ。Structured Output取得後も`validateTrainingPlanDraft()`を必ず通す。
+
+### Development choice
+
+- 初期Development modelは`gpt-5.6-luna`。`OPENAI_MODEL`で変更可能であり、最終Production Modelの決定ではない。
 
 ### 有力方針
 
-- OpenAI Responses APIを利用する。
 - `AiProvider` abstractionと`OpenAIProvider`でSDK依存をApplication / Domainから隔離する。
 - AI出力はVersion付きSchemaで検証し、Productルールで再検証してから候補として扱う。
 
@@ -26,12 +31,20 @@ AI Integrationは未実装。この文書は、AIへ任せる責務、任せな�
 
 - 開発・Test用`MockProvider`
 - Schema validation libraryとしてZod
-- Structured OutputおよびBackendで制御するTool call
+- Backendで制御するTool call
 
 ### 未決定
 
-- Responses API、`AiProvider` / `OpenAIProvider`、`MockProvider`、Zod、Tool利用の正式採用
-- OpenAI model、Prompt、Schema詳細、Cost上限、Timeout / Retry Policy
+- `AiProvider` / `OpenAIProvider`、`MockProvider`、Zod、Tool利用の正式採用
+- 最終Production Model、Production Prompt、User Training Context Schema、Cost上限、Timeout / Retry Policy
+
+## 実装済みのDevelopment Smoke Boundary
+
+- `server/src/openai/client.ts`: Backend環境変数からkeyとmodelを読み、公式SDK clientを生成する。key未設定は識別可能なErrorにする。
+- `server/src/openai/trainingPlanSchema.ts`: `TrainingPlanDraft`の`exercises`、各Exerciseの`exerciseId` / `role` / `sets` / `repRange`だけを許すStrict JSON Schema。全Field必須、余分なField不可。正の整数をSchemaで制約し、`min <= max`や候補ID所属はDomainで再検証する。
+- `server/src/openai/trainingPlan.ts`: 候補ResultのみをResponses APIへ渡し、取得したJSONを`validateTrainingPlanDraft()`で再検証する。API Error、Output欠落、Domain Validation失敗を区別する。SDK Errorの生MessageはSecret保護のため外へ出さない。
+- `server/src/smokeOpenAI.ts`: 固定の小さなEquipment Profileで候補を組み立てる明示実行Script。`npm run smoke:openai`のみ実APIを呼ぶ。通常のtest/buildは呼ばない。2026-09-21にユーザーが実APIでSmokeを実行し、Structured Output取得と`validateTrainingPlanDraft()`による検証の成功を報告した。これはProduction Planner全体の検証完了を意味しない。
+- このSmoke PromptはDevelopment専用。Training history、goal、weight、Production推奨sets / repsを確定しない。
 
 ## Product上のAIの位置づけ
 
@@ -95,8 +108,8 @@ interface AiProvider {
 ### OpenAIProvider案
 
 - 採用する場合はBackendだけに配置する。
-- Responses APIを採用する場合は、そのRequest / Response変換を担当する。
-- Structured OutputやTool callを利用する場合は、その変換とRetry可能Errorの正規化を担当する。
+- 正式採用する場合は、現在`server/src/openai/`にあるResponses APIのRequest / Response変換を包む。
+- Structured Outputの変換とError正規化を担当する。Tool callは別途採用Decisionが必要。
 - Model固有Response、Token、Provider ErrorをDomainへ漏らさない。
 
 ### MockProvider候補
@@ -114,14 +127,14 @@ interface AiProvider {
 1. BackendがUserProfile、StrengthProfile、Goal、Gym Equipment Profile、Product制約を収集する。
 2. Backendが`buildTrainingCandidates()`を呼び、Production Exercise Catalogから許可された候補を絞る。Main Exercise指定時はCatalog所属とEquipment適合を先に検証する。
 3. 候補ごとの`exerciseId`、表示名、Primary / Secondary Muscle、Movement Pattern、Difficultyと、必要最小限のPersonal DataだけをProviderへ渡す。全Exercise Catalogや自由入力名を選択肢にしない。
-4. AIを採用した場合、`TrainingPlanDraft`相当の構造化Proposalを返す。OpenAI固有の出力制約方式は未決定。
+4. Development SmokeではResponses APIのStructured Outputsで`TrainingPlanDraft`を返す。Production PromptとContextは未決定。
 5. `validateTrainingPlanDraft()`が構造、Main Exercise、sets / rep rangeと、今回のCandidate ResultへのID所属を検証する。Catalogに存在しても今回Candidate外なら拒否する。
 6. 将来のApplication / Domain ValidatorがFrequency、日付、Recovery間隔、Goal等のPlan全体条件を別途検証する。
 7. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
 8. ValidなProposalをユーザーへ提示する。
 9. ユーザー確定後にActive Planとして保存する。
 
-現在実装済みなのは手順2のCandidate Builderと手順5のDomain Validationである。AI選択、Provider、Prompt、OpenAI Structured Outputs機能、候補件数、具体的なsets / reps推奨範囲、weightの決定は未実装・未決定。
+現在は手順2のCandidate Builder、手順4・5を試すDevelopment Smoke Boundary、Domain Validationを実装済み。Production Planner、Provider abstraction、Production Prompt、候補件数、具体的なsets / reps推奨範囲、weightの決定は未実装・未決定。
 
 ### Schedule revision
 
@@ -141,12 +154,12 @@ interface AiProvider {
 5. 選択した対象Exerciseだけを変更し、他Exerciseへ影響させない。
 6. 負荷換算は決定論的Ruleが確定するまで、ユーザー確認なしに自動確定しない。
 
-## Structured Output and Tools（採用候補）
+## Structured Output（採用済み）とTools（候補）
 
-Structured OutputとTool callを使うか、その具体的なOpenAI API styleは未決定。採用する場合は次を必須要件とする。
+Training Plan Draftの出力制約にはResponses APIのStructured Outputsを採用済み。Tool callは未採用。将来Toolを採用する場合は次を要件候補とする。
 
 - AI Responseは自由文ではなく、可能な限りVersion付きSchemaへ制約する。
-- 採用したSchema validatorでParseに失敗したOutputを保存・実行しない。Zodは候補。
+- Structured OutputのJSON Parseと既存Domain Validationに失敗したOutputを保存・実行しない。追加Schema validatorのZodは候補。
 - Tool callの引数も同じSchemaで検証する。
 - AIがToolを要求しても、Backendが許可したToolだけを実行する。
 - Tool実行結果をAIの主張ではなく、Backendの実結果として区別する。
@@ -237,10 +250,9 @@ Productionでは、決定論的計算をAIと誤表示せず、AIを利用した
 
 ## 未決定事項
 
-- OpenAI Model
-- OpenAI Responses APIの正式採用
-- Prompt / Schema / Tool設計
-- Tool call / Structured Outputの利用有無とAPI style
+- 最終Production Model（`gpt-5.6-luna`はDevelopment defaultのみ）
+- Production Prompt / User Training Context Schema / Tool設計
+- Tool callの利用有無とAPI style
 - `AiProvider` / `OpenAIProvider`の正式採用
 - Provider interfaceの粒度
 - Schema validation library（Zodは候補）

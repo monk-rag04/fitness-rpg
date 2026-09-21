@@ -45,7 +45,7 @@ flowchart LR
 
 ### 決定済み
 
-- Frontend: React / TypeScript / Vite
+- Frontend: React / TypeScript / ViteのWeb Clientを維持し、スマートフォンをPrimary ClientとするMobile-first UIを実装する。DesktopはSecondary accessとして扱う。
 - Backend: Node.js / Express / TypeScript。以前共有されたProduct仕様で基本構成として明示されているため採用済みと扱う。
 - AI: OpenAI APIをBackend経由で使用し、API keyをFrontendへ出さない。
 
@@ -56,6 +56,9 @@ flowchart LR
 
 ### 候補
 
+- Web App拡張: PWA、Service Worker、Push Notification
+- Native packaging: Capacitor
+- 別Frontend技術への将来移行: React Native / Expo
 - API Validation: Zod
 - Styling: Tailwind CSS
 - Database: Supabase PostgreSQL
@@ -64,11 +67,16 @@ flowchart LR
 
 ### 未決定
 
+- PWA / Service Worker、Offline、Push Notification、Background syncの採用と運用
+- Native packaging方法、App Store / Google Play配布、Native API利用
+- HealthKit / Google Health Connect等のHealth data連携
 - OpenAI model
 - Structured Output / Tool callを含む詳細なAPI style
 - Deployment / Hosting構成
 
 有力方針と候補は導入前に`docs/DECISIONS.md`で正式採用を記録する。
+
+Mobile-firstはUI設計方針であり、Native App化を意味しない。現時点のProduction FrontendはWeb Clientで、PWAやCapacitorの設定は導入しない。
 
 ## Repository Layout
 

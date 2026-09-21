@@ -165,6 +165,8 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - Schedule Generatorの頻度は構造上`1..7`の正整数とする。各相対7日blockでは`floor(i * 7 / frequency)`のoffsetをTraining、その他をRecoveryにする。Duration候補はすべて7の倍数のため、全期間のTraining数はfrequency × week数となる。
 - Training DayのSession FocusはMain ExerciseのCatalog `primaryMuscles`のみとし、`targetMovementPatterns`はMVPで設定しない。Exercise選択、sets、reps、weight、Full Body / Upper-Lower / PPLは含めない。
 - Schedule Changeは同一Roadmap内でTraining Dayと将来のRecovery Dayをswapするだけである。Training数、Boss date、Duration、Stage Targetを変更せず、Quest Clear、EXP、Map position、e1RM、Workout Result、Boss Stateを変更しない。
+- D-027ではRoadmap自体をQuest Clearで変更しない。別の`StageProgress.currentDayIndex`だけを進行Stateとし、`index < currentDayIndex`をcompleted、`===`をavailable、`>`をlockedとして導出する。`currentDayIndex === days.length`のときだけBoss Anchorがavailableになる。日付・missed day・Schedule Change・Workout Result記録・OpenAI・e1RM更新は進行させない。
+- Boss availabilityはRoadmap終端への到達だけを表す。Boss Strength判定、Shield、Challenge、Defeated、Stage Clear、Rewardは含めない。Boss Requirementは既存のStage Targetを後続Domainが参照する。
 
 **未決定**: 42日超時の再計画、Onboarding上のfrequency選択肢、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの保存・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの保存とbaseline source、AI推定の利用時点。
 
@@ -178,6 +180,8 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - NutritionなどのBonus QuestはMain Training Questの必須Clear条件に含めない。
 - Quest完了後にEXP、Map進行、必要なReward演出を処理する。
 
+All planned `main` / `accessory` Exercises are required for a D-027 Training Clear. Each must have exactly one valid Workout Result with at least one completed set and a matching plan snapshot. Partial sets and reps outside the planned range remain valid completion evidence. The result-derived exercise display is not stored as a checkbox; a user must explicitly Clear the ready quest to advance exactly one node. Old-day retries return `already_completed`; future-day attempts return `not_current_quest`.
+
 ## Workout Result
 
 **決定済み（D-024）**:
@@ -188,7 +192,7 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
 - Workout Resultの有効SetはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。
 
-**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Exercise completionとQuest Clearの正式条件、自己申告Onboarding Recordの保存方法。
+**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの保存方法。
 
 ## Exercise substitution
 
@@ -220,7 +224,9 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - 正しいRecoveryの完了によってMapを進められる。
 - RecoveryによってHPまたはRecovery Gaugeが回復する。
 
-**未決定**: Recovery Main Questの必須条件、HP回復量、睡眠・活動データの入力方法、外部Healthデータ連携。
+**未決定**: Recoveryの将来Checklist、HP回復量、睡眠・活動データの入力方法、外部Healthデータ連携。
+
+D-027 Recovery is also explicit: the user clears the current Recovery node without an MVP checklist. Calendar passage does not clear it. This operation advances exactly one node and does not define EXP, HP, or rewards.
 
 ## Beginner Quest
 

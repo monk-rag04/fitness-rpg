@@ -196,6 +196,10 @@ Stage PlanningのMVP Domain API（D-025）は`shared/src/domain/training/stagePl
 
 Stage Roadmap ScheduleのMVP Domain API（D-026）は`shared/src/domain/training/stageRoadmap.ts`に置く。`generateStageRoadmap()`はD-025で選択済みの候補Duration、厳格なローカル日付、週頻度`1..7`、Catalog上のMain Exercise、正のStage Targetから、`durationDays`件のTraining / Recovery Dayと`startDate + durationDays`のBoss Anchorを副作用なく生成する。各7日blockのTraining offsetは`floor(i * 7 / frequency)`であり、Training focusはMain Exerciseの`primaryMuscles`のみとする。`rescheduleTrainingDay()`は同一Roadmap内のTraining Dayと将来のRecovery Dayをswapする純粋関数で、Boss Anchor、Duration、Target、Training数、Game Stateを変えない。これは永続Schema、AI、API、UI、Quest / EXP / Map、Boss State、e1RM、Workout Result、Load / Progressionを含まない。
 
+Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/domain/training/stageProgress.ts`に置く。`StageRoadmap`を不変のScheduleとして保ち、`StageProgress = { currentDayIndex }`だけを進行Stateにする。`createInitialStageProgress()`、`deriveStageProgressView()`、`evaluateTrainingQuestCompletion()`、`completeTrainingQuest()`、`completeRecoveryQuest()`はすべてPure TypeScriptである。Map viewはcompleted / available / locked、現在Node、Session Focus、Boss Anchor、Boss availability、完了数を返すが、UI表現を持たない。
+
+Training Clear評価は既存`validateExerciseWorkoutResult()`と`validateWorkoutResultAgainstPlan()`を再利用する。全main / accessory Plan itemにちょうど1件の有効でPlan整合したResultを要求し、planned / performedが異なるときだけ既存`getSubstitutionCandidates()`とEquipment Profileを用いる。Resultの登録やevaluationは進行させず、明示的completionだけがcurrent indexを一つ進める。RecoveryはChecklistなしの明示的completionである。日付、Schedule Change、e1RM、OpenAI、EXP、Boss State、Stage Clear、API、Database、Frontendはこの境界に含めない。
+
 ### Repository Ports
 
 Application層はDatabase SDKを直接前提にせず、目的別のRepository interfaceを利用する。
@@ -213,7 +217,11 @@ MVPでIn-memory実装を使うか、最初からDatabaseを使うかは未決定
 
 ## Core Workflows
 
-### Quest completion
+### Quest completion (D-027 current boundary)
+
+D-027では日別QuestのIdentityをRoadmap day indexとし、global Quest IDやAPI transactionはまだ導入しない。TrainingはWorkout Resultを評価して`readyToClear`を得た後、RecoveryはChecklistなしで、どちらも明示的Clear operationが成功したときだけ`currentDayIndex`を一つ進める。再送された過去indexは`already_completed`、未来indexは`not_current_quest`となりStateを変えない。EXP、HP、Reward、Level Up、永続化時のidempotency keyは後続の責務である。
+
+### Future API / persistence workflow
 
 1. ClientがQuest IDとExercise completion情報を送る。
 2. APIがSchema、User、Quest ownership、Quest statusを検証する。

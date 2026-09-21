@@ -233,6 +233,10 @@ AI出力は`AchievementDurationEstimate`の`estimatedAchievementDays`のみで�
 
 `rescheduleTrainingDay()`は保存済み変更履歴やUser stateを受け取らず、生成済みRoadmapのsource Training Dayと将来のtarget Recovery Dayを入れ替える計算用関数である。Training数、Boss Anchor、Duration、Stage Targetは不変とし、過去日・完了日・競合・永続化のPolicyは未決定のまま残す。
 
+**D-027の計算用進行境界（保存Schemaではない）**: `StageProgress`は`{ currentDayIndex: number }`だけを持つ。`0..roadmap.days.length`の整数だけを許可し、Roadmap本体や日別Nodeに完了Stateを書き込まない。indexより前はcompleted、同じindexはavailable、後ろはlockedとして`StageProgressView`へ導出する。indexがdaily node総数と等しいときBoss Anchorはavailableだが、Boss State、Strength判定、Defeated、Stage Clear、Rewardを表さない。
+
+`TrainingQuestCompletionEvaluation`は保存するCheckbox集合ではない。Validated Training Planの各main / accessory Exerciseについて、有効な`ExerciseWorkoutResult`が予定Snapshotと整合し、各planned Exerciseにちょうど1件存在するかを導出する。予定Set数未達とrep range外はResultを無効にしない。planned / performedが異なる場合だけEquipment Profileと既存CatalogのSubstitution候補で確認し、実績・e1RMの帰属先を変更しない。Evaluationは進行Stateを更新せず、明示的なTraining / Recovery completionだけがindexを1進める。
+
 ### RoadmapNode / ScheduledActivity（追加候補）
 
 **概念上の責務案**: 日付付きTraining / Recovery / Boss等のNodeと状態を表す。
@@ -268,9 +272,9 @@ Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps�
 
 `validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、正の有限重量、正の整数rep、timestamp、未知Fieldを検査する。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
 
-`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。Quest Clear、Exercise completionの最終条件、Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
+`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
 
-### Quest
+### Quest（保存候補。D-027 MVPのidentityではない）
 
 **概念上の責務案**: 当日の攻略条件と結果を表す。
 

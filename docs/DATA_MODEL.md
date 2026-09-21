@@ -254,6 +254,12 @@ AI生成結果は`proposed`として検証し、確定後に`active`へする。
 
 Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps、sets、完了、substitution理由。
 
+**MVP時点の決定済みDomain境界（D-024）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、`performedAt`を持つ。各Setは`weightKg`と`reps`を持ち、Exercise全体へ一つの重量を固定しない。これは正式なTable / 保存Schemaではない。
+
+`validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、正の有限重量、正の整数rep、timestamp、未知Fieldを検査する。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
+
+`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。Quest Clear、Exercise completionの最終条件、Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
+
 ### Quest
 
 **概念上の責務案**: 当日の攻略条件と結果を表す。

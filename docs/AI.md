@@ -10,6 +10,8 @@ AI Integrationは未実装。この文書は、AIへ任せる責務、任せな�
 - Browserから直接呼ばず、Node.js / Express / TypeScript Backend経由にする。
 - OpenAI API keyをFrontendへ出さず、`.env`をGitへcommitしない。
 - e1RM、Quest完了、EXP、Boss、Schedule制約等のProduct判定をAIへ委ねない。
+- Training PlannerやExercise substitutionへAIを採用する場合も、Production Exercise Catalog内の`exerciseId`だけを選択対象にする。
+- BackendがMuscle、Movement Pattern、Difficulty、利用可能Equipmentで決定論的に候補をFilterし、全Catalogではなく候補ExerciseだけをAIへ渡す。
 
 ### 有力方針
 
@@ -65,6 +67,7 @@ AI提案と決定論的なProduct判定を混同しない。AIが応答しなく
 - Security
 - API key管理
 - Rewardの最終確定（Random Rewardを採用する場合を含む）
+- Exercise Catalogへの所属確認とEquipment適合判定
 
 AIがこれらの値を文章内で提案しても、権威ある結果として利用しない。
 
@@ -105,14 +108,15 @@ interface AiProvider {
 
 ### Training plan proposal
 
-1. BackendがUserProfile、StrengthProfile、Goal、許可Exercise、Product制約を収集する。
-2. 必要なPersonal DataだけをProviderへ渡す。
-3. AIがSchemaに沿ったPlan Proposalを返す。
-4. 採用したSchema validatorで構造を検証する。Zodは候補。
-5. Domain ValidatorがFrequency、日付、Exercise ID、Recovery間隔、Goal整合性を検証する。
-6. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
-7. ValidなProposalをユーザーへ提示する。
-8. ユーザー確定後にActive Planとして保存する。
+1. BackendがUserProfile、StrengthProfile、Goal、Gym Equipment Profile、Product制約を収集する。
+2. Backendの決定論的FilterがProduction Exercise Catalogから許可された候補を絞る。
+3. 必要なPersonal Dataと候補`exerciseId`だけをProviderへ渡す。全Exerciseや自由入力名を選択肢にしない。
+4. AIがSchemaに沿ったPlan Proposalを返す。
+5. 採用したSchema validatorで構造を検証する。Zodは候補。
+6. Domain ValidatorがFrequency、日付、Exercise IDのCatalog所属、Equipment、Recovery間隔、Goal整合性を再検証する。
+7. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
+8. ValidなProposalをユーザーへ提示する。
+9. ユーザー確定後にActive Planとして保存する。
 
 ### Schedule revision
 
@@ -125,11 +129,12 @@ interface AiProvider {
 
 ### Exercise alternative
 
-1. 対象Exercise ID、Equipment制約、Plan上の目的、User制約を入力する。
-2. AIまたはRule-based Selectorが候補IDを返す。
-3. Exercise Masterに存在し、制約・目的に合う候補だけを許可する。
-4. 選択した1 Exerciseだけを変更する。
-5. 負荷換算は決定論的Ruleが確定するまで、ユーザー確認なしに自動確定しない。
+1. 対象Exercise IDとGym Equipment Profileを入力する。
+2. Domainが同じExercise Catalogの`alternativeExerciseIds`から、Primary Muscle、Movement Pattern、利用可能Equipmentを満たす候補を決定論的に返す。
+3. AIを将来採用する場合も、この候補IDだけから提案させる。
+4. Catalog所属とEquipment条件をBackendで再検証する。
+5. 選択した対象Exerciseだけを変更し、他Exerciseへ影響させない。
+6. 負荷換算は決定論的Ruleが確定するまで、ユーザー確認なしに自動確定しない。
 
 ## Structured Output and Tools（採用候補）
 

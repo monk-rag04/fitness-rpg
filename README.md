@@ -6,14 +6,14 @@
 
 ## 現在の状態
 
-Production Appの最小Foundationを実装済みです。ゲーム機能、Database、Authentication、OpenAI連携はまだ実装していません。
+Production Appの最小Foundationと、Exercise / Equipment CatalogのDomain Foundationを実装済みです。ゲーム進行、Database、Authentication、OpenAI連携はまだ実装していません。
 
 このRepositoryには次が含まれます。
 
 - Source of TruthとなるProduct・UX・Architecture設計
 - React / TypeScript / Viteの最小Frontend
 - Node.js / Express / TypeScriptの最小Backendと`GET /api/health`
-- 将来の共有型用の空の`shared` Workspace
+- Exercise / Equipment Catalog、Gym Equipment Profile型、決定論的Filterを持つ`shared` Workspace
 - Figma Makeの現状確認用Snapshotである`figma-reference/`（Production codeではありません）
 
 ## 基本ゲームループ
@@ -84,7 +84,7 @@ Onboarding
 ```text
 client/   React / TypeScript / Vite
 server/   Node.js / Express / TypeScript
-shared/   将来の共有型用。Domain Modelは未実装
+shared/   共有Domain。現在はTraining Catalog Foundationのみ
 docs/     Product / Architecture / DecisionのSource of Truth
 ```
 
@@ -101,6 +101,7 @@ npm run dev:client
 Workspace別および全体のBuild：
 
 ```powershell
+npm run test:shared
 npm run build:shared
 npm run build:server
 npm run build:client

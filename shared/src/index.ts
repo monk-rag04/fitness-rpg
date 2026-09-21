@@ -1,1 +1,1 @@
-export {};
+export * from './domain/training/index.js';

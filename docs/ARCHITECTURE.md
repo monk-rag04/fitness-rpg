@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小FoundationとHealth Checkは実装済み。ゲーム機能、Database、Authentication、OpenAI SDKは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Exercise / Equipment Catalog Domainは実装済み。ゲーム進行、Database、Authentication、OpenAI SDKは未実装。
 
 区分：
 
@@ -79,12 +79,28 @@ npm workspacesを使用し、次の責務で分離する。
 ```text
 client/           React / TypeScript / Vite
 server/           Node.js / Express / TypeScript
-shared/           将来のFrontend / Backend共有型
+shared/           Frontend / Backend共有型と決定論的Domain
 docs/             Product / Architecture / Decision
 figma-reference/  Figma Snapshot; Production対象外・Git管理外
 ```
 
-`shared/`はFoundation段階では空の公開Entryだけとし、Domain Model、Prototype Data、未確定のAPI contractを先行実装しない。
+`shared/`にはFrontend / Backendの両方から利用できる純粋なTypeScript Domainを置く。Prototype Dataや未確定のAPI contractは持ち込まない。
+
+## Training Catalog Domain
+
+### 決定済み
+
+`shared/src/domain/training/`に、Equipment Master、Exercise Master、Gym Equipment Profile型、決定論的Filterを置く。
+
+- EquipmentとExerciseを別Catalogとして管理し、安定したIDで参照する。
+- ExerciseはPrimary / Secondary Muscle、Movement Pattern、Difficulty、必要Equipmentの選択肢、Alternative Exercise IDを持つ。
+- Gym Equipment Profileは利用可能な`equipmentId`を保持する。UserやDatabaseへの保存方法はこのDomainへ含めない。
+- Exercise FilterはPrimary Muscle、Movement Pattern、Difficulty、Gym Equipment Profileの指定された条件だけを適用する純粋関数とする。
+- 必要Equipmentは、Exerciseに定義された完全なEquipment SetのいずれかをProfileが満たす場合だけ利用可能と判定する。
+- Substitution候補は同じCatalogの明示的なAlternativeから、Muscle、Movement Pattern、利用可能Equipmentを決定論的に検証して返す。
+- MVPは主要Equipmentと代表Exerciseだけを収録し、Catalog Item追加で拡張する。全世界のExerciseやメーカー固有Machineは網羅しない。
+
+Exercise情報の正式な情報源、監修、Catalog Versioningと更新運用は未決定。
 
 ## Frontend Responsibilities
 
@@ -151,6 +167,8 @@ Pure TypeScriptで決定論的に処理する。
 - Date / Timezone計算
 - Stage番号とBoss条件
 - Schedule制約Validation
+- Exercise Catalog FilterとEquipment適合判定
+- Exercise substitution候補の決定論的絞り込み
 - Reward確定ルール（採用時）
 - Input / State transition validation
 
@@ -212,6 +230,8 @@ AIは次の処理を提案できる。
 - Meal提案
 - NPC / Flavor text
 
+Training PlannerやExercise提案へAIを採用する場合、BackendがProduction Exercise Catalogを決定論的にFilterし、候補`exerciseId`だけをAIへ渡す。AIによる自由なExercise名生成やCatalog外IDの確定を許可しない。
+
 AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正式採用する場合は、Model名やOpenAI固有Response typeをApplication / Domainへ公開しない。
 
 ## Persistence / Consistency
@@ -250,6 +270,9 @@ AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正
 
 ### Domain unit tests
 
+- Exercise / Equipment CatalogのID・参照・Equipment Option整合性
+- Exercise FilterのMuscle・Movement・Difficulty・Equipment条件
+- Exercise substitutionの明示的Alternative・Muscle・Movement・Equipment条件
 - e1RM境界値
 - Exercise completion guard
 - Bonus QuestがMain Clearを阻害しないこと

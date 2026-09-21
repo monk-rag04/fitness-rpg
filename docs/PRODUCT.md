@@ -168,6 +168,18 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - NutritionなどのBonus QuestはMain Training Questの必須Clear条件に含めない。
 - Quest完了後にEXP、Map進行、必要なReward演出を処理する。
 
+## Workout Result
+
+**決定済み（D-024）**:
+
+- MVPではTraining Planが`exerciseId`、role、sets、rep rangeを提示し、AIやSystemがTraining Weightを自動決定しない。
+- Main / Accessoryを問わず、ユーザーが実施した各Setの`weightKg`と`reps`を記録する。Strength HistoryがないExerciseへ根拠のない初期重量を生成しない。
+- Workout Resultは予定Exercise IDと実施Exercise IDを別に保持する。代替Exerciseの実績は実施したExerciseの履歴・e1RM根拠となり、元Exerciseのe1RMや重量履歴を自動移管しない。
+- rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
+- Workout Resultの有効SetはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。
+
+**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Exercise completionとQuest Clearの正式条件、自己申告Onboarding Recordの保存方法。
+
 ## Exercise substitution
 
 **決定済み**:

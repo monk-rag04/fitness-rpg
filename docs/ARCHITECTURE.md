@@ -188,6 +188,8 @@ Pure TypeScriptで決定論的に処理する。
 
 e1RMのMVP Domain API（D-023）は`shared/src/domain/training/e1rm.ts`に置く。Set計算、同一種目Workout内の最大値、基準日時を引数とするrolling 30×24時間の現在値、全期間PBを純粋関数で分離する。11回以上は正常記録だが推定対象外、不正な数値・日時はValidation Errorとする。内部値とBoss比較値を丸めず、UI表示丸め、保存、Boss state machine、Load / Progressionは含めない。Boss対象の4種目はCatalog実IDで明示し、汎用Set計算自体はExercise IDへ依存させない。結果はRule Versionと根拠Setを追跡できる計算用型であり、永続Schemaではない。過去の別Version値との混合・再計算方針は保存設計時に決める。
 
+Workout ResultのMVP Domain API（D-024）は`shared/src/domain/training/workoutResult.ts`に置く。未知入力をCatalog ID、role、予定Set / rep range、Set番号、正の有限重量、正の整数rep、timestamp、未知Fieldで決定論的に検証する。これは保存Draftではなく、少なくとも1 Setを完了したExercise Resultを表す。予定Set数未達、rep range外、plannedExerciseIdとperformedExerciseIdの相違はRecordを不正にしない。後者はSubstitutionの正当性を再計算せず、実施Exercise側へD-023の既存`calculateWorkoutE1rm()`を接続する。Plan SnapshotとのID、role、sets、rep range照合は小さな純粋関数に分離し、Quest Clear、Load Prescription、Progression、API、Databaseは含めない。
+
 ### Repository Ports
 
 Application層はDatabase SDKを直接前提にせず、目的別のRepository interfaceを利用する。

@@ -186,6 +186,18 @@ Status:
 - Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/e1rm.ts`、`shared/test/e1rm.test.mjs`。
 - Date: 2026-09-22
 
+### D-024: Workout Result Domain Boundary
+
+- Status: Accepted
+- Context: D-020はAIが作る1回のTraining PlanをExercise、role、sets、rep rangeへ限定し、weightを後段の決定論的処理へ分離した。D-023のe1RMには、実施済みSetを種目単位で追跡できる入力境界が必要である。
+- Decision: MVPではAI / SystemがTraining Weightを自動決定せず、Main / Accessoryを問わずユーザーが実施した各Setの正の有限`weightKg`と正の整数`reps`を記録する。Strength HistoryがないExerciseへ根拠のない初期重量を生成しない。
+- Decision: `ExerciseWorkoutResult`は予定Exercise IDと実施Exercise ID、role、予定Set数・rep range、Set番号ごとの完了Set、timestampを持つ。予定Set数未達とrep range外は有効なWorkout Recordを不正にしない。少なくとも1 Setを持たない入力はWorkout Resultではなく、途中DraftとしてもこのDomainへ保存しない。
+- Decision: plannedExerciseIdとperformedExerciseIdの相違を許容し、Substitutionの正当性はここで再計算しない。e1RMは実施Exercise IDと実施Setから既存D-023 APIで計算し、元Exerciseのe1RM・重量履歴へ自動移管しない。
+- Decision: Workout Result validation成功、Exercise completion、Quest Clear、Load Prescription、Progressionを別責務とする。Plan Snapshotとの予定Exercise・role・sets・rep range照合は可能だが、実重量・実repをPlan validation条件にしない。
+- Consequence: `shared/`に未知入力を検証する純粋なWorkout Result APIとD-023 adapterを置く。API endpoint、Database、Frontend、Quest / EXP / Map / Boss、Schedule、重量推薦、previous weight prefill、Double Progression、RPE / RIR、Training Max、重量増分は今回実装しない。
+- Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/workoutResult.ts`、`shared/src/domain/training/index.ts`、`shared/test/workoutResult.test.mjs`。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -220,6 +232,8 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - 初心者開始重量の正式ロジック。
 - e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
 - `trainingMax`と決定論的Load / Progression Rule。
+- previous weight prefill、Load Prescription、Double Progression、automatic increase / decrease、重量増分。
+- Workout ResultをExercise completionまたはQuest Clearへ結び付ける正式条件と、自己申告Onboarding Recordの保存方法。
 - 推奨Final Goalと達成目安期間。
 - EXP値とCategory配分。
 - Level curve。
@@ -331,3 +345,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-021として公式OpenAI SDK、Responses API、Structured Outputs、Backend key、Domain再ValidationのDevelopment Integration Foundationを採用。Model / PromptのProduction仕様は未決定。
 - 2026-09-21: D-022として1回のTraining Session向けInput BoundaryとSchedule / Roadmapとの責務分離を採用。将来のTraining Logicに応じ変更可能とする。
 - 2026-09-22: D-023としてMVPのe1RM式、適格Set、Workout代表値、rolling 30日現在値、PB分離、未丸めBoss比較、対象Exerciseを採用。
+- 2026-09-22: D-024としてSet単位のWorkout Result、予定 / 実施Exerciseの分離、D-023 e1RM接続、Quest Clear・Load / Progressionとの責務分離を採用。

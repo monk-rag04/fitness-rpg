@@ -45,6 +45,17 @@
 - MVPの目的は筋力向上・筋肥大に限定する。
 - 筋トレを始めても継続しにくい、記録だけでは楽しめない、身体の成果が見える前に離脱しやすいユーザーを主に想定する。
 
+## Primary Client / MVPの利用形態
+
+**決定済み**:
+
+- Fitness RPGの日常利用におけるPrimary Clientはスマートフォンとする。
+- MVP FrontendはReact / TypeScript / ViteによるWeb Clientを維持し、Mobile-firstで設計・実装する。
+- DesktopはDevelopment / Preview / Secondary accessとして扱う。完全非対応にはしないが、Desktop DashboardをPrimary UXにしない。
+- Production UIはスマートフォンでの片手操作とTouch操作を優先する。
+
+これは「今すぐNative App化する」という決定ではない。PWA、Native packaging、App Store / Google Play配布、Native API、Offline、通知、Health data連携の採用は未決定。詳細は`docs/DECISIONS.md`のD-019を参照する。
+
 ## Product原則
 
 **決定済み**:

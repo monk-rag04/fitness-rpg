@@ -10,16 +10,31 @@
 
 Prototype Snapshot確認日: 2026-09-21。
 
+## Mobile-first Production UX
+
+**決定済み**: スマートフォンを日常利用のPrimary Clientとし、React / TypeScript / ViteのWeb FrontendをMobile-firstで設計する。DesktopはDevelopment / Preview / Secondary accessであり、完全非対応にはしない。
+
+- PortraitをPrimaryとし、片手で主要Actionへ到達しやすい情報階層・画面遷移を優先する。Desktop幅へ引き伸ばしたDashboardを基本形にしない。
+- Touchで操作・状態確認が完結するようにし、小さすぎるTap targetやHoverだけで発見・実行できるInteractionを避ける。Keyboard操作等のAccessibilityも損なわない。
+- NavigationはMobile App的な構造を前提とし、全画面に近いScreen transitionと明確な現在地を設計する。Bottom Navigationは基本候補だが、Tab数・固定配置・遷移方式の詳細は未決定。
+- Safe Areaを将来考慮できるLayoutとする。具体的な余白・Tap targetのPixel値はこのProduct Decisionでは固定しない。
+
+**UX確認の目安（固定仕様ではない）**: 375〜430px程度の一般的なスマートフォン幅を重点確認し、Portrait、Touch、主要Actionの到達性をPreviewで検証する。Desktop Previewだけで完了としない。
+
+**Figma → Production**: Smartphone viewportを基準にUI意図を照合する。Prototypeの見た目・Hover装飾・固定寸法をそのままProduction仕様とはせず、Touch / Responsive / Accessibility要件へ合わせて再設計する。
+
+**Prototype確認**: `figma-reference/src/App.tsx`には最大430pxのPhone ColumnとBottom Navigationがある。これはMobile-firstのUI意図と整合するが、Productionの固定幅・Navigation実装の確定根拠ではない。
+
 ## ProductionのInformation Architecture
 
-Onboarding完了後の主要Navigationは次の4領域とする方向で進める。
+Onboarding完了後の主要Navigationは次の4領域とする方向で進める。領域構成は有力方針であり、Bottom Navigationの正式なTab構成は未決定。
 
 1. **MAP**: Adventure Map、現在地、Stage、Bossへの道のり。
 2. **QUEST**: 当日のTraining / Recovery、Nutritionを含むBonus Quest。
 3. **CHARACTER**: Level、EXP、HP、Play Style、Strength / Support Stats、Body Status。
 4. **PROGRESS**: Strength・Body Weight・Boss・継続の履歴。
 
-BossはBottom Navigationへ常設せず、MapのBoss Nodeから遷移する。NutritionとRecoveryは独立した主Navigationにせず、QuestまたはCharacterから到達できる構成とする。
+Bossは基本候補のBottom Navigationへ常設せず、MapのBoss Nodeから遷移する方向とする。NutritionとRecoveryは独立した主Navigationにせず、QuestまたはCharacterから到達できる構成とする。
 
 ## Figma Prototypeで確認できたScreen一覧
 
@@ -54,6 +69,7 @@ BossはBottom Navigationへ常設せず、MapのBoss Nodeから遷移する。Nu
 
 ### Production要件
 
+- Mobile App的なNavigationを前提とし、Smartphone Portraitで現在地・次の主要Action・戻り先を分かりやすくする。Bottom Navigationは基本候補であり、Prototypeの4 Tabを正式仕様として固定しない。
 - 当日Questへ直接アクセスするNavigationは許容するが、「どの日付・どの計画NodeのQuestか」を常に一意にする。
 - BossはMap上のBoss Nodeから遷移させる。
 - Overlay表示中は背面操作を防ぎ、完了Actionの多重実行を防ぐ。

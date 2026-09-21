@@ -125,6 +125,16 @@ Status:
 - Rationale: `feature/exercise-catalog-foundation`でユーザーがCatalog境界、Metadata、決定論的Filter、AI候補制限を明示した。
 - Consequence: Exercise情報の正式な情報源・監修、Catalog Versioning、Persistence、AI選択ロジック、sets / reps / weightは別Decisionが必要。
 
+### D-019: Smartphone Primary Client / Mobile-first Web UX
+
+- Status: Accepted
+- Context: Fitness RPGは日々のTraining / Recoveryで利用する。Desktop Dashboardではなく、スマートフォンで主要Actionへ到達しやすいUXを優先する。
+- Decision: Primary Clientはスマートフォン。MVP FrontendはReact / TypeScript / ViteのWeb Clientを維持し、Mobile-first、Touch、片手操作を優先する。DesktopはDevelopment / Preview / Secondary accessとして扱い、完全非対応にはしない。
+- UX guidance: Portraitと375〜430px程度のSmartphone幅を重点確認する。具体的なPixel値をProduction仕様として固定しない。
+- Decision: Production UIとFigmaからの移植はSmartphone viewportを基準にする。Mobile App的なNavigationを前提とし、小さすぎるTap targetとHover依存のInteractionを避ける。Bottom Navigationは基本候補だが、詳細構成は未決定。
+- Rationale: `docs/mobile-first-direction`でユーザーがPrimary ClientとMVPのUI方向を明示した。現行Figma SnapshotのPhone Column / Bottom Navigationとも方向は整合するが、Prototypeの固定寸法や実装をProduction仕様にはしない。
+- Consequence: Desktop PreviewだけでUI完了とせず、Mobile viewportで主要Flowを確認する。PWA、Native packaging、Store配布、Native API等はこのDecisionで採用しない。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -146,6 +156,10 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | C-003 | Database | Supabase PostgreSQL | MVP persistence、RLS、Migration、運用負荷 |
 | C-004 | Authentication | Supabase Auth | HackathonでMulti-user / Cloud保存が必要か |
 | C-005 | AI Development | MockProvider | Fixture、Failure test、実API Cost |
+| C-006 | Web App拡張 | PWA、Service Worker、Push Notification、Offline / Background sync | 利用価値、Browser対応、運用・Test負荷 |
+| C-007 | Native packaging | Capacitor、App Store / Google Play配布、Native API利用 | 配布要件、審査、保守、Platform依存 |
+| C-008 | 別Frontend技術 | React Native / Expoへの将来移行 | Web Clientで満たせない要件、移行Cost |
+| C-009 | Health data連携 | HealthKit / Google Health Connect等 | MVP範囲、Privacy、権限、Platform依存 |
 
 ## Open Decisions
 
@@ -174,6 +188,9 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 
 ### Architecture / Operations
 
+- PWA / Service Worker、Offline対応、Push Notification、Background syncの正式採用。
+- Capacitor等のNative packaging、App Store / Google Play配布、Native API利用の正式採用。
+- React Native / Expoへの移行、HealthKit / Google Health Connect等との連携。
 - Responses APIの正式採用。
 - `AiProvider` / `OpenAIProvider`の正式採用とInterface粒度。
 - Zodの正式採用。
@@ -258,3 +275,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: Commit前レビュー。Responses API、Provider abstraction、Zod、Character自動成長をAcceptedから分離し、有力方針・候補・未決定へ再分類。
 - 2026-09-21: D-016としてnpm workspacesと`client/` / `server/` / `shared/`のProduction Foundation構成を採用。
 - 2026-09-21: D-017としてExercise / Equipment Catalog、Gym Equipment Profile、決定論的Filter、AIへ渡す候補境界を採用。
+- 2026-09-21: D-019としてSmartphone Primary ClientとReact / Vite Web ClientのMobile-first UXを採用。PWA / Native化は未決定のまま分離。

@@ -144,6 +144,16 @@ Status:
 - Rationale: `docs/mobile-first-direction`でユーザーがPrimary ClientとMVPのUI方向を明示した。現行Figma SnapshotのPhone Column / Bottom Navigationとも方向は整合するが、Prototypeの固定寸法や実装をProduction仕様にはしない。
 - Consequence: Desktop PreviewだけでUI完了とせず、Mobile viewportで主要Flowを確認する。PWA、Native packaging、Store配布、Native API等はこのDecisionで採用しない。
 
+### D-020: Training Plan Draft / Candidate Validation Boundary
+
+- Status: Accepted
+- Context: D-018のCandidate Builderから将来AIへ渡した後も、AI OutputをCatalog所属だけで信用せず、今回許可されたCandidate集合に対して再検証する必要がある。
+- Decision: Training Planner Outputは自由文ではなく構造化`TrainingPlanDraft`とする。順序付きExerciseは`exerciseId`、`main` / `accessory` role、sets、rep range（min / max）だけを持つ。
+- Decision: AIはCandidate内のExercise ID、sets、rep range、roleを提案できる。`validateTrainingPlanDraft()`は空Plan、Candidate外ID、重複、Main Exerciseの存在・role、複数Main、正の整数sets / rep range、定義済みroleを決定論的に検証する。Catalogに存在するだけでは許可しない。
+- Decision: weightはDraftへ含めず、Validated Planの後段にある決定論的Load / Progression Logicへ分離する。
+- Rationale: `feature/training-plan-schema`で、AI提案と権威あるTraining Quest / Load計算の境界をユーザーが明示した。
+- Consequence: D-018で未決定だったsets / repsはOutputの形だけを確定し、具体的な推奨数値・上限やTraining Volume Policyは未決定のままにする。OpenAI model、Responses API、Structured Outputs機能、SDK、Promptも採用しない。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -286,3 +296,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-017としてExercise / Equipment Catalog、Gym Equipment Profile、決定論的Filter、AIへ渡す候補境界を採用。
 - 2026-09-21: D-018としてAI Training Planner前段の決定論的Training Candidate Builder境界を採用。
 - 2026-09-21: D-019としてSmartphone Primary ClientとReact / Vite Web ClientのMobile-first UXを採用。PWA / Native化は未決定のまま分離。
+- 2026-09-21: D-020としてTraining Plan DraftとCandidate Resultに対する決定論的Validation境界を採用。

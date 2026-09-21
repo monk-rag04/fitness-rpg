@@ -166,7 +166,19 @@ Exercise候補のEquipment判定では、Exerciseの必要Equipment Setをこの
 
 各Planner向け候補は`exerciseId`、`displayName`、`primaryMuscles`、`secondaryMuscles`、`movementPattern`、`difficulty`を持つ。Persistence、Userとの関連、AI Response Schemaではない。
 
-不明な`mainExerciseId`と、Profileで実施不可能なMain Exerciseは、それぞれ識別可能なErrorとして返す。候補数、選択順、Main Liftの配置、sets / reps / weightは未決定で、この型へ固定しない。
+不明な`mainExerciseId`と、Profileで実施不可能なMain Exerciseは、それぞれ識別可能なErrorとして返す。候補数、Main Liftの配置、具体的なsets / reps推奨範囲、weightの決定は未決定で、このCandidate型へ固定しない。後段のDraft形状はD-020を参照する。
+
+### TrainingPlanDraft / Domain Validation
+
+**決定済みのDomain責務**: 将来のTraining Planner出力は自由文ではなく構造化Draftとし、`TrainingCandidateResult`に対して決定論的に再検証する。これは下記の期間・User・Statusを持つ概念`TrainingPlan`やDatabase Schemaとは別の境界である。
+
+- `TrainingPlanDraft.exercises`: 順序付きの`PlannedExercise[]`。Array順をExercise順とし、別の`order` Fieldは持たない。
+- `PlannedExercise`: `exerciseId`、`role`（`main` / `accessory`）、正の整数`sets`、`repRange`（正の整数`min` / `max`、`min <= max`）。
+- `weight`は含めない。将来のValidated Planの後段にある決定論的Load / Progression Logicで扱う。
+
+`validateTrainingPlanDraft(draft, candidates)`は未知の実行時入力を受け、空Plan、今回のCandidate外ID、Exercise重複、必須Mainの欠落・Role不一致、複数Main、Role・sets・rep range・Field形状を検査する。成功時のみ正規化されたPlanを返し、失敗時はcodeとpathを持つError一覧を返す。Catalogにあるだけでは今回の選択を許可しない。
+
+具体的なsets / reps推奨範囲、Training Volumeの妥当性、実重量、AI Output保存形式、Questへの変換は未決定。OpenAI固有SchemaやStructured Outputs機能の採用を意味しない。
 
 ### TrainingPlan
 
@@ -461,6 +473,7 @@ locked
 - Exercise候補がGym Equipment Profileで満たせる完全なEquipment Setを少なくとも1つ持つこと。
 - Training CandidateのMain ExerciseがCatalogに存在し、Gym Equipment Profileで実施可能であること。
 - Plannerへ渡す全Candidate IDがCatalogに存在し、Gym Equipment Profileで実施可能であること。
+- Training Plan Draft内の全Exercise IDが、そのRequestの`TrainingCandidateResult`で許可されていること。
 - Weight、reps、sets、Training frequencyの許容範囲。
 - Main Exerciseがe1RM対応か。
 - AllergyとMeal提案の衝突。

@@ -161,8 +161,12 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - Mapは単なるカレンダー表示にせず、現在地・次の行動・Bossまでの進行が理解できるUIにする。
 - Roadmap DurationはStage Targetへの挑戦期間であり、Boss撃破保証ではない。MVPの候補は`14 / 21 / 28 / 35 / 42`日である。AIの`estimatedAchievementDays`以上となる最小候補を選び、14日以下は14日、42日超はclampせずstage replanning requiredとする（`roadmap-duration-ceiling-v1`）。
 - AIはStage Target、Duration候補、Boss date、Training / Recovery Node、Quest Clear、EXP、Boss Defeatedを決めない。頻度はDuration推定と将来Scheduleの入力だが、AIが曜日やNodeを選択しない。
+- D-026では、D-025で選択済みのDuration、`startDate`、`trainingFrequencyPerWeek`、`mainExerciseId`、Stage Targetから、Duration日数ぶんのTraining / Recovery Calendar Dayと1件のBoss Anchorを決定論的に生成する。DurationはBoss Challengeまでのelapsed calendar daysであり、Boss Anchorは`startDate + durationDays`である。
+- Schedule Generatorの頻度は構造上`1..7`の正整数とする。各相対7日blockでは`floor(i * 7 / frequency)`のoffsetをTraining、その他をRecoveryにする。Duration候補はすべて7の倍数のため、全期間のTraining数はfrequency × week数となる。
+- Training DayのSession FocusはMain ExerciseのCatalog `primaryMuscles`のみとし、`targetMovementPatterns`はMVPで設定しない。Exercise選択、sets、reps、weight、Full Body / Upper-Lower / PPLは含めない。
+- Schedule Changeは同一Roadmap内でTraining Dayと将来のRecovery Dayをswapするだけである。Training数、Boss date、Duration、Stage Targetを変更せず、Quest Clear、EXP、Map position、e1RM、Workout Result、Boss Stateを変更しない。
 
-**未決定**: 42日超時の再計画、Training/Recoveryの配置、Schedule変更、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの保存とbaseline source、trainingFrequencyのProduct上限、AI推定の利用時点。
+**未決定**: 42日超時の再計画、Onboarding上のfrequency選択肢、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの保存・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの保存とbaseline source、AI推定の利用時点。
 
 ## Daily Training Quest
 
@@ -203,9 +207,9 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - 予定どおりTrainingできない場合、明日以降の具体的な日付へ移動できる。
 - Schedule変更はQuest Clearではない。
 - 予定変更だけではEXP付与、Map進行、QUEST CLEAR表示を行わない。
-- 必要に応じ、その後のTraining / Recovery Scheduleも再調整する。
+- D-026のMVPでは同一RoadmapのTraining Dayと将来のRecovery Dayを入れ替える。Boss日、Stage Target、Duration、Training数と、それ以外のDayを変えない。
 
-**未決定**: 再計画範囲、連続Trainingの制約、過去日の扱い、競合時の優先順位、AI提案と決定論的Validationの境界。
+**未決定**: 再計画範囲、連続Trainingの制約、過去日・完了日の扱い、競合時の優先順位、AI提案と決定論的Validationの境界、保存・変更履歴。
 
 ## Recovery
 

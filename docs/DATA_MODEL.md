@@ -147,6 +147,27 @@ AIは自由なExercise名を確定せず、このCatalogに存在する`exercise
 
 Exercise候補のEquipment判定では、Exerciseの必要Equipment SetをこのProfileが満たすことを必須とする。
 
+### Training Candidate Boundary
+
+**決定済みのDomain責務**: AI Training Plannerへ渡す前に、Exercise Catalogから許可された候補を決定論的に構築する。これはDatabase Schemaや完成したTraining Planではない。
+
+`TrainingCandidateRequest`:
+
+- `equipmentProfile`: 必須
+- `mainExerciseId`: 任意。外部入力の検証境界とするため文字列を受け、Catalog所属とEquipment適合を検証する
+- `targetMuscles`: 任意
+- `targetMovementPatterns`: 任意
+- `difficulty`: 任意
+
+`TrainingCandidateResult`:
+
+- `mainExercise`: 有効なMain Exercise指定時だけ存在し、他候補と分けて保持する
+- `candidateExercises`: Main Exerciseを除く、条件とEquipmentを満たしたCatalog由来候補
+
+各Planner向け候補は`exerciseId`、`displayName`、`primaryMuscles`、`secondaryMuscles`、`movementPattern`、`difficulty`を持つ。Persistence、Userとの関連、AI Response Schemaではない。
+
+不明な`mainExerciseId`と、Profileで実施不可能なMain Exerciseは、それぞれ識別可能なErrorとして返す。候補数、選択順、Main Liftの配置、sets / reps / weightは未決定で、この型へ固定しない。
+
 ### TrainingPlan
 
 **概念上の責務案**: 期間、頻度、Main Goalに基づくPlanning結果を保持する。
@@ -438,6 +459,8 @@ locked
 
 - Equipment / Exercise Catalog内のIDが重複せず、全Equipment参照とAlternative Exercise参照がCatalogに存在すること。
 - Exercise候補がGym Equipment Profileで満たせる完全なEquipment Setを少なくとも1つ持つこと。
+- Training CandidateのMain ExerciseがCatalogに存在し、Gym Equipment Profileで実施可能であること。
+- Plannerへ渡す全Candidate IDがCatalogに存在し、Gym Equipment Profileで実施可能であること。
 - Weight、reps、sets、Training frequencyの許容範囲。
 - Main Exerciseがe1RM対応か。
 - AllergyとMeal提案の衝突。

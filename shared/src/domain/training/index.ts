@@ -3,3 +3,4 @@ export * from './equipmentCatalog.js';
 export * from './exercise.js';
 export * from './exerciseCatalog.js';
 export * from './filterExercises.js';
+export * from './trainingCandidates.js';

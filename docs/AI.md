@@ -12,6 +12,7 @@ AI Integrationは未実装。この文書は、AIへ任せる責務、任せな�
 - e1RM、Quest完了、EXP、Boss、Schedule制約等のProduct判定をAIへ委ねない。
 - Training PlannerやExercise substitutionへAIを採用する場合も、Production Exercise Catalog内の`exerciseId`だけを選択対象にする。
 - BackendがMuscle、Movement Pattern、Difficulty、利用可能Equipmentで決定論的に候補をFilterし、全Catalogではなく候補ExerciseだけをAIへ渡す。
+- AI呼び出し前のTraining Candidate Builderは`shared/`の決定論的Domain Boundaryとし、Main ExerciseのCatalog所属・Equipment適合も検証する。
 
 ### 有力方針
 
@@ -109,14 +110,16 @@ interface AiProvider {
 ### Training plan proposal
 
 1. BackendがUserProfile、StrengthProfile、Goal、Gym Equipment Profile、Product制約を収集する。
-2. Backendの決定論的FilterがProduction Exercise Catalogから許可された候補を絞る。
-3. 必要なPersonal Dataと候補`exerciseId`だけをProviderへ渡す。全Exerciseや自由入力名を選択肢にしない。
+2. Backendが`buildTrainingCandidates()`を呼び、Production Exercise Catalogから許可された候補を絞る。Main Exercise指定時はCatalog所属とEquipment適合を先に検証する。
+3. 候補ごとの`exerciseId`、表示名、Primary / Secondary Muscle、Movement Pattern、Difficultyと、必要最小限のPersonal DataだけをProviderへ渡す。全Exercise Catalogや自由入力名を選択肢にしない。
 4. AIがSchemaに沿ったPlan Proposalを返す。
 5. 採用したSchema validatorで構造を検証する。Zodは候補。
 6. Domain ValidatorがFrequency、日付、Exercise IDのCatalog所属、Equipment、Recovery間隔、Goal整合性を再検証する。
 7. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
 8. ValidなProposalをユーザーへ提示する。
 9. ユーザー確定後にActive Planとして保存する。
+
+現在実装済みなのは手順2の決定論的Candidate Builderまでである。AI選択、Provider、Prompt、Structured Output、候補件数・順序、sets / reps / weightの決定は未実装・未決定。
 
 ### Schedule revision
 

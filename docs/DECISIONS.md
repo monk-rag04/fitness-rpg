@@ -125,6 +125,15 @@ Status:
 - Rationale: `feature/exercise-catalog-foundation`でユーザーがCatalog境界、Metadata、決定論的Filter、AI候補制限を明示した。
 - Consequence: Exercise情報の正式な情報源・監修、Catalog Versioning、Persistence、AI選択ロジック、sets / reps / weightは別Decisionが必要。
 
+### D-018: Training Planner Candidate Boundary
+
+- Status: Accepted
+- Decision: AI Training Plannerへ渡す前に、`shared/`の決定論的Candidate BuilderでExercise CatalogをMuscle、Movement Pattern、Difficulty、Gym Equipment Profileにより絞る。AIへ全Catalogを渡さず、Builderが返したCatalog由来候補だけを選択可能にする。
+- Decision: Main Exercise指定時はCatalog所属とEquipment適合を検証し、有効なら他候補と分離して結果へ保持する。不明なIDまたは実施不可能なMain Exerciseは無視せず、呼び出し側が識別できるErrorにする。
+- Decision: Planner候補には`exerciseId`、表示名、Primary / Secondary Muscle、Movement Pattern、Difficultyを含める。
+- Rationale: `feature/training-planner-boundary`で、将来のAIがExercise名やCatalog外IDを自由生成・確定しないための安全な入力境界をユーザーが明示した。
+- Consequence: AI応答は将来Backendで候補ID所属を再検証する。AI Provider、Model、Prompt、Structured Output、候補件数・順序、Training Planアルゴリズム、sets / reps / weightは未決定・未実装のままとする。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -258,3 +267,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: Commit前レビュー。Responses API、Provider abstraction、Zod、Character自動成長をAcceptedから分離し、有力方針・候補・未決定へ再分類。
 - 2026-09-21: D-016としてnpm workspacesと`client/` / `server/` / `shared/`のProduction Foundation構成を採用。
 - 2026-09-21: D-017としてExercise / Equipment Catalog、Gym Equipment Profile、決定論的Filter、AIへ渡す候補境界を採用。
+- 2026-09-21: D-018としてAI Training Planner前段の決定論的Training Candidate Builder境界を採用。

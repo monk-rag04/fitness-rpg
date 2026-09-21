@@ -163,6 +163,16 @@ Status:
 - Scope: 固定の小さなEquipment Profileを使う明示実行のSmoke Scriptのみ。通常のtest/buildは実APIを呼ばず、Production endpoint、Frontend連携、User Context、weight決定は含めない。
 - Consequence: SDK固有型はBackend Integration内に閉じる。`AiProvider` abstraction、Production Prompt / Context、最終Model、Retry / Timeout / Cost policy、Tool採用は引き続きOpen。Zod、dotenv、Agents SDKは導入しない。
 
+### D-022: Training Session Planner Input Boundary
+
+- Status: Accepted（MVP時点。将来のTraining LogicやSchedule / Roadmap設計に応じて変更可能）
+- Context: D-018のCandidate ResultとD-020のDraftの間に、1回のSessionの目的とTraining経験を明示するInput Boundaryが必要。週次Schedule全体のPlannerと混同しない。
+- Decision: 現行`TrainingPlanDraft`は1回のTraining Sessionを表す。Schedule / Roadmap Plannerが週頻度、Training / Recovery配置、Session Focusを担当し、Session Plannerは`TrainingSessionPlannerInput`のCandidate Result、事実値の`trainingExperienceMonths`、`sessionFocus`だけをAIへ渡す。Focusは必須の`targetMuscles`配列と任意の`targetMovementPatterns`配列。
+- Decision: 週頻度、Strength Record、e1RM、Final Goal、Stage target、Gym Equipment Profile、実重量、Nutrition / Game StateをSession Planner Inputへ直接含めない。Main Exercise IDはCandidate Result内にあるため重複しない。実重量は後続の決定論的Load / Progression側で決める。
+- Decision: Inputの未知Field、CandidateのCatalog ID / Metadata、経験月数の有限整数・0以上、Focusの配列・既知Muscle / Movementを決定論的に検証する。経験月数による初心者・中級者等の閾値は設けない。
+- Rationale: `feature/training-session-planner-input`でユーザーがMVP時点の責務とInput形状を明示した。
+- Consequence: Candidate Builderの器具Filterは再実行しない。FocusとCandidateの重なり件数、Focusの最低・最大部位数、具体的なsets / reps、Schedule生成Ruleは未決定。Input Boundaryは将来Decisionで変更できる。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -227,7 +237,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Hosting / Deployment。
 - Timezone、Offline、Sync。
 - Logging / Monitoring / Data retention。
-- 最終Production Model、Production Prompt / User Training Context Schema、Tool、Cost / Retry / Timeout Policy。
+- 最終Production Model、Production Prompt / Session Contextの取得・更新方法と将来拡張、Tool、Cost / Retry / Timeout Policy。
 
 ## Figma Prototype-only Logic
 
@@ -305,3 +315,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-21: D-019としてSmartphone Primary ClientとReact / Vite Web ClientのMobile-first UXを採用。PWA / Native化は未決定のまま分離。
 - 2026-09-21: D-020としてTraining Plan DraftとCandidate Resultに対する決定論的Validation境界を採用。
 - 2026-09-21: D-021として公式OpenAI SDK、Responses API、Structured Outputs、Backend key、Domain再ValidationのDevelopment Integration Foundationを採用。Model / PromptのProduction仕様は未決定。
+- 2026-09-21: D-022として1回のTraining Session向けInput BoundaryとSchedule / Roadmapとの責務分離を採用。将来のTraining Logicに応じ変更可能とする。

@@ -1,4 +1,4 @@
-import { buildTrainingCandidates } from '@fitness-rpg/shared';
+import { buildTrainingCandidates, type TrainingSessionPlannerInput } from '@fitness-rpg/shared';
 
 import { MissingOpenAIKeyError } from './openai/client.js';
 import { generateTrainingPlan, TrainingPlanGenerationError } from './openai/trainingPlan.js';
@@ -15,7 +15,18 @@ async function main(): Promise<void> {
     },
   });
 
-  const plan = await generateTrainingPlan(candidates);
+  const input: TrainingSessionPlannerInput = {
+    candidates,
+    context: {
+      trainingExperienceMonths: 0,
+      sessionFocus: {
+        targetMuscles: ['chest'],
+        targetMovementPatterns: ['horizontal_push'],
+      },
+    },
+  };
+
+  const plan = await generateTrainingPlan(input);
   console.log('OpenAI smoke test passed: TrainingPlanDraft validated.');
   console.log(JSON.stringify(plan, null, 2));
 }

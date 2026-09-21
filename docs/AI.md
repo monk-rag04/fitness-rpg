@@ -2,7 +2,7 @@
 
 ## Status
 
-OpenAI APIとの最小Integration FoundationをBackendに実装済み。明示実行のDevelopment Smoke ScriptでCandidate → Responses API → Structured Draft → Domain Validationを試せる。Production Planner、API endpoint、Frontend連携は未実装。
+OpenAI APIとの最小Integration FoundationをBackendに実装済み。Training Session単位のInput Boundaryを追加したが、Production Planner全体、API endpoint、Frontend連携は未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
 
 ### 決定済み
 
@@ -17,6 +17,7 @@ OpenAI APIとの最小Integration FoundationをBackendに実装済み。明示�
 - AI出力を今回の`TrainingCandidateResult`に対して`validateTrainingPlanDraft()`で再検証する。Catalog所属だけでは許可条件を満たさない。
 - Backendで公式OpenAI JavaScript / TypeScript SDK、Responses API、JSON SchemaによるStructured Outputsを採用する。Function Callingは今回使用しない。
 - API keyはBackend環境変数のみ。Structured Output取得後も`validateTrainingPlanDraft()`を必ず通す。
+- 現行`TrainingPlanDraft`は1回のTraining Sessionを表す。Schedule / Roadmap計画とは分離し、Session PlannerへはCandidate、事実値のTraining経験月数、Session Focusだけを渡す。週頻度、Strength Record、e1RM、Goal、実重量は渡さない（D-022）。
 
 ### Development choice
 
@@ -36,15 +37,15 @@ OpenAI APIとの最小Integration FoundationをBackendに実装済み。明示�
 ### 未決定
 
 - `AiProvider` / `OpenAIProvider`、`MockProvider`、Zod、Tool利用の正式採用
-- 最終Production Model、Production Prompt、User Training Context Schema、Cost上限、Timeout / Retry Policy
+- 最終Production Model、Production Prompt、Session Contextの取得・更新方法、Cost上限、Timeout / Retry Policy
 
 ## 実装済みのDevelopment Smoke Boundary
 
 - `server/src/openai/client.ts`: Backend環境変数からkeyとmodelを読み、公式SDK clientを生成する。key未設定は識別可能なErrorにする。
 - `server/src/openai/trainingPlanSchema.ts`: `TrainingPlanDraft`の`exercises`、各Exerciseの`exerciseId` / `role` / `sets` / `repRange`だけを許すStrict JSON Schema。全Field必須、余分なField不可。正の整数をSchemaで制約し、`min <= max`や候補ID所属はDomainで再検証する。
-- `server/src/openai/trainingPlan.ts`: 候補ResultのみをResponses APIへ渡し、取得したJSONを`validateTrainingPlanDraft()`で再検証する。API Error、Output欠落、Domain Validation失敗を区別する。SDK Errorの生MessageはSecret保護のため外へ出さない。
+- `server/src/openai/trainingPlan.ts`: `validateTrainingSessionPlannerInput()`の成功後、Candidate Result、Training経験月数、Session FocusだけをResponses APIへ渡し、取得したJSONを`validateTrainingPlanDraft()`で再検証する。Input不正、API Error、Output欠落、Domain Validation失敗を区別する。SDK Errorの生MessageはSecret保護のため外へ出さない。
 - `server/src/smokeOpenAI.ts`: 固定の小さなEquipment Profileで候補を組み立てる明示実行Script。`npm run smoke:openai`のみ実APIを呼ぶ。通常のtest/buildは呼ばない。2026-09-21にユーザーが実APIでSmokeを実行し、Structured Output取得と`validateTrainingPlanDraft()`による検証の成功を報告した。これはProduction Planner全体の検証完了を意味しない。
-- このSmoke PromptはDevelopment専用。Training history、goal、weight、Production推奨sets / repsを確定しない。
+- このSmoke PromptはDevelopment専用。Training経験月数は文脈として使うが、月数による固定sets / reps Rule、Goal、weight、Production推奨sets / repsを確定しない。2026-09-21にユーザーが新しい`TrainingSessionPlannerInput`経路で実API Smokeを実行し、Structured `TrainingPlanDraft`取得とDomain Validationの成功を報告した。Production Planner全体の検証完了は意味しない。
 
 ## Product上のAIの位置づけ
 
@@ -124,17 +125,17 @@ interface AiProvider {
 
 ### Training plan proposal
 
-1. BackendがUserProfile、StrengthProfile、Goal、Gym Equipment Profile、Product制約を収集する。
-2. Backendが`buildTrainingCandidates()`を呼び、Production Exercise Catalogから許可された候補を絞る。Main Exercise指定時はCatalog所属とEquipment適合を先に検証する。
-3. 候補ごとの`exerciseId`、表示名、Primary / Secondary Muscle、Movement Pattern、Difficultyと、必要最小限のPersonal DataだけをProviderへ渡す。全Exercise Catalogや自由入力名を選択肢にしない。
-4. Development SmokeではResponses APIのStructured Outputsで`TrainingPlanDraft`を返す。Production PromptとContextは未決定。
+1. 将来のSchedule / Roadmap層がTraining / Recovery配置と、今回のSession Focusを決める。週頻度、Strength Record、e1RM、GoalはSession Plannerへ直接渡さない。
+2. Backendが`buildTrainingCandidates()`を呼び、Equipment、Main Exercise、Session FocusからProduction Exercise Catalogの許可候補を絞る。Main Exercise指定時はCatalog所属とEquipment適合を先に検証する。
+3. `TrainingSessionPlannerInput`として候補、Training経験月数、Session Focusを検証してProviderへ渡す。全Exercise Catalogや自由入力名を選択肢にしない。
+4. Development SmokeではResponses APIのStructured Outputsで1回のSessionの`TrainingPlanDraft`を返す。Production PromptとContext取得方法は未決定。
 5. `validateTrainingPlanDraft()`が構造、Main Exercise、sets / rep rangeと、今回のCandidate ResultへのID所属を検証する。Catalogに存在しても今回Candidate外なら拒否する。
-6. 将来のApplication / Domain ValidatorがFrequency、日付、Recovery間隔、Goal等のPlan全体条件を別途検証する。
+6. 将来のSchedule / Roadmap側がFrequency、日付、Recovery間隔、Goal等を別途扱う。Session Draftだけで週次計画の正当性を判定しない。
 7. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
 8. ValidなProposalをユーザーへ提示する。
 9. ユーザー確定後にActive Planとして保存する。
 
-現在は手順2のCandidate Builder、手順4・5を試すDevelopment Smoke Boundary、Domain Validationを実装済み。Production Planner、Provider abstraction、Production Prompt、候補件数、具体的なsets / reps推奨範囲、weightの決定は未実装・未決定。
+現在は手順2のCandidate Builder、手順3のSession Input Validation、手順4・5を試すDevelopment Smoke Boundary、Domain Validationを実装済み。Production Planner全体、Provider abstraction、Production Prompt、候補件数、具体的なsets / reps推奨範囲、weightの決定は未実装・未決定。
 
 ### Schedule revision
 
@@ -251,7 +252,7 @@ Productionでは、決定論的計算をAIと誤表示せず、AIを利用した
 ## 未決定事項
 
 - 最終Production Model（`gpt-5.6-luna`はDevelopment defaultのみ）
-- Production Prompt / User Training Context Schema / Tool設計
+- Production Prompt / Session Contextの取得・更新方法と将来拡張 / Tool設計
 - Tool callの利用有無とAPI style
 - `AiProvider` / `OpenAIProvider`の正式採用
 - Provider interfaceの粒度

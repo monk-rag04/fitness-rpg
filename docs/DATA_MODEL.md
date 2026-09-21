@@ -168,9 +168,17 @@ Exercise候補のEquipment判定では、Exerciseの必要Equipment Setをこの
 
 不明な`mainExerciseId`と、Profileで実施不可能なMain Exerciseは、それぞれ識別可能なErrorとして返す。候補数、Main Liftの配置、具体的なsets / reps推奨範囲、weightの決定は未決定で、このCandidate型へ固定しない。後段のDraft形状はD-020を参照する。
 
+### TrainingSessionPlannerInput / Input Validation
+
+**MVP時点の決定済みDomain境界（D-022）**: 1回のTraining Session向け入力。`TrainingCandidateResult`に、`context.trainingExperienceMonths`（0以上の有限整数）と`context.sessionFocus.targetMuscles`（必須配列）、任意の`targetMovementPatterns`を添える。Muscle / Movementは既存CatalogのTypeを再利用し、経験月数から初心者等の派生Levelを作らない。
+
+`validateTrainingSessionPlannerInput(unknown)`は未知Field、候補のCatalog ID / Metadata・重複、経験月数、Focusの配列と既知値を検査し、`{ valid: true, value }`または`{ valid: false, errors }`を返す。Equipment ProfileをInputへ含めないため器具Filterは再実行せず、Candidate Builderが生成した結果を受ける境界とする。Focusと候補が重なる最低件数やFocus部位数の上限は未決定で、Validationに固定しない。
+
+週頻度、Strength Record、e1RM、Final Goal、Stage target、実重量、Nutrition / Game StateはSession Planner Inputへ含めない。週頻度とTraining / Recovery配置はSchedule / Roadmap側、実重量は後続の決定論的Load / Progression側の責務。これはPersistence Schemaではなく、将来のSchedule設計に応じ変更可能なMVP Input Boundaryである。
+
 ### TrainingPlanDraft / Domain Validation
 
-**決定済みのDomain責務**: 将来のTraining Planner出力は自由文ではなく構造化Draftとし、`TrainingCandidateResult`に対して決定論的に再検証する。これは下記の期間・User・Statusを持つ概念`TrainingPlan`やDatabase Schemaとは別の境界である。
+**決定済みのDomain責務**: 1回のTraining SessionのPlanner出力は自由文ではなく構造化Draftとし、`TrainingCandidateResult`に対して決定論的に再検証する。これは下記の期間・User・Statusを持つ概念`TrainingPlan`やDatabase Schemaとは別の境界である。
 
 - `TrainingPlanDraft.exercises`: 順序付きの`PlannedExercise[]`。Array順をExercise順とし、別の`order` Fieldは持たない。
 - `PlannedExercise`: `exerciseId`、`role`（`main` / `accessory`）、正の整数`sets`、`repRange`（正の整数`min` / `max`、`min <= max`）。
@@ -178,7 +186,7 @@ Exercise候補のEquipment判定では、Exerciseの必要Equipment Setをこの
 
 `validateTrainingPlanDraft(draft, candidates)`は未知の実行時入力を受け、空Plan、今回のCandidate外ID、Exercise重複、必須Mainの欠落・Role不一致、複数Main、Role・sets・rep range・Field形状を検査する。成功時のみ正規化されたPlanを返し、失敗時はcodeとpathを持つError一覧を返す。Catalogにあるだけでは今回の選択を許可しない。
 
-具体的なsets / reps推奨範囲、Training Volumeの妥当性、実重量、AI Output保存形式、Questへの変換は未決定。OpenAI固有SchemaやStructured Outputs機能の採用を意味しない。
+具体的なsets / reps推奨範囲、Training Volumeの妥当性、実重量、AI Output保存形式、Questへの変換は未決定。D-020単独ではOpenAI固有SchemaやStructured Outputs機能の採用を意味せず、それらは後続のD-021で採用した。
 
 ### TrainingPlan
 

@@ -86,7 +86,7 @@ Onboarding
 ```text
 client/   React / TypeScript / Vite
 server/   Node.js / Express / TypeScript
-shared/   共有Training Domain（Catalog、Candidate Builder、Plan Validation）
+shared/   共有Training Domain（Catalog、Candidate Builder、Session Input / Plan Validation）
 docs/     Product / Architecture / DecisionのSource of Truth
 ```
 
@@ -118,7 +118,7 @@ Node.js 24の標準`--env-file-if-exists`を使い、`server/.env`を明示実�
 npm run smoke:openai
 ```
 
-このコマンドだけが実APIを呼び、料金が発生し得ます。固定Equipment Profileから`buildTrainingCandidates()`を呼び、候補情報だけを送信してStructured `TrainingPlanDraft`を生成し、`validateTrainingPlanDraft()`で再検証します。通常の`npm run test:shared` / `npm run test:server` / `npm run build`はAPIを呼びません。現在のSmoke PromptとModel defaultはDevelopment用であり、Productionの推奨内容を確定しません。
+このコマンドだけが実APIを呼び、料金が発生し得ます。固定Equipment Profileから`buildTrainingCandidates()`を呼び、候補・Training経験月数・Session Focusを検証して送信します。1回のSessionのStructured `TrainingPlanDraft`を生成し、`validateTrainingPlanDraft()`で再検証します。通常の`npm run test:shared` / `npm run test:server` / `npm run build`はAPIを呼びません。新Inputでの実API Smokeはユーザーが成功を報告済みです。現在のSmoke PromptとModel defaultはDevelopment用であり、Productionの推奨内容を確定しません。
 
 ## 開発方針
 

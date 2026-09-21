@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Exercise / Equipment Catalog Domain、Training Candidate Builderは実装済み。ゲーム進行、Database、Authentication、OpenAI SDKは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Exercise / Equipment Catalog Domain、Training Candidate Builder、Training Plan DraftのDomain Validationは実装済み。ゲーム進行、Database、Authentication、OpenAI SDKは未実装。
 
 区分：
 
@@ -111,7 +111,7 @@ figma-reference/  Figma Snapshot; Production対象外・Git管理外
 - Planner向け候補は`exerciseId`、表示名、Primary / Secondary Muscle、Movement Pattern、Difficultyに限定したDomain Dataであり、PromptやAI Provider契約ではない。
 - MVPは主要Equipmentと代表Exerciseだけを収録し、Catalog Item追加で拡張する。全世界のExerciseやメーカー固有Machineは網羅しない。
 
-Exercise情報の正式な情報源、監修、Catalog Versioningと更新運用、候補からの最終選択、件数、順序、sets / reps / weightは未決定。
+Exercise情報の正式な情報源、監修、Catalog Versioningと更新運用、候補からの最終選択、件数、具体的なsets / reps推奨範囲、weightの決定は未決定。Draftのsets / rep range形状とCandidate再検証はD-020で決定済み。
 
 ## Frontend Responsibilities
 
@@ -241,7 +241,9 @@ AIは次の処理を提案できる。
 - Meal提案
 - NPC / Flavor text
 
-Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。AI応答の再検証は将来のBackend / Application責務であり、今回のBuilderはAI選択やPromptを実装しない。
+Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
+
+`shared/`の`validateTrainingPlanDraft()`は、将来のAI出力を`TrainingCandidateResult`に対して再検証する決定論的Domain Boundaryである。構造化DraftはExerciseの順序、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。成功結果だけを後続のLoad / Progression Logicへ渡す。Backend API、Provider、Prompt、OpenAI Structured Outputs機能、実際のLoad計算は未実装・未決定。
 
 AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正式採用する場合は、Model名やOpenAI固有Response typeをApplication / Domainへ公開しない。
 
@@ -285,6 +287,7 @@ AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正
 - Exercise FilterのMuscle・Movement・Difficulty・Equipment条件
 - Exercise substitutionの明示的Alternative・Muscle・Movement・Equipment条件
 - Training Candidate BuilderのMain Exercise validation、Equipment適合、Catalog所属、Muscle / Movement絞り込み
+- Training Plan Draftの構造、Candidate ID再検証、Main Exercise role、重複、正の整数sets / rep range
 - e1RM境界値
 - Exercise completion guard
 - Bonus QuestがMain Clearを阻害しないこと

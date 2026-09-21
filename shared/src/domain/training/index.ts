@@ -4,3 +4,4 @@ export * from './exercise.js';
 export * from './exerciseCatalog.js';
 export * from './filterExercises.js';
 export * from './trainingCandidates.js';
+export * from './trainingPlan.js';

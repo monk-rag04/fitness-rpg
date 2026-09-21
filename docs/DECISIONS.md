@@ -108,6 +108,13 @@ Status:
 - Decision: Structured Output、Provider / AgentTool abstraction、Backend Tool execution等、有効な設計だけを評価して再利用する。CodeやArchitectureを無条件にコピーしない。
 - Consequence: Gemini固有実装を持ち込まず、Fitness RPGのOpenAI方針とDomainへ適合させる。
 
+### D-016: Production FoundationのWorkspace構成
+
+- Status: Accepted
+- Decision: npm workspacesを採用し、Production codeを`client/`、`server/`、`shared/`へ分離する。`shared/`は将来のFrontend / Backend共有型用とし、FoundationではDomain Modelを実装しない。
+- Rationale: `setup/app-foundation`でユーザーがDirectory構成とnpm workspaces採用を明示した。
+- Consequence: Root scriptsから各Workspaceを実行し、Figma Snapshotや未決定技術をProduction依存へ含めない。
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -129,7 +136,6 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | C-003 | Database | Supabase PostgreSQL | MVP persistence、RLS、Migration、運用負荷 |
 | C-004 | Authentication | Supabase Auth | HackathonでMulti-user / Cloud保存が必要か |
 | C-005 | AI Development | MockProvider | Fixture、Failure test、実API Cost |
-| C-006 | Workspace | Web / API分離構成 | Package manager、Deploy、共有型の範囲 |
 
 ## Open Decisions
 
@@ -164,7 +170,6 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - Tailwind CSS正式採用。
 - Supabase PostgreSQL正式採用。
 - AuthenticationのMVP採用。
-- Repository / Workspace構成とPackage manager。
 - API contract、Persistence開始時期、Migration。
 - Hosting / Deployment。
 - Timezone、Offline、Sync。
@@ -241,3 +246,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 
 - 2026-09-21: 初版。Product Promptと`figma-reference/`監査結果を分離して記録。
 - 2026-09-21: Commit前レビュー。Responses API、Provider abstraction、Zod、Character自動成長をAcceptedから分離し、有力方針・候補・未決定へ再分類。
+- 2026-09-21: D-016としてnpm workspacesと`client/` / `server/` / `shared/`のProduction Foundation構成を採用。

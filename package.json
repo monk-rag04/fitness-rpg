@@ -1,0 +1,19 @@
+{
+  "name": "fitness-rpg",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace @fitness-rpg/client",
+    "dev:server": "npm run dev --workspace @fitness-rpg/server",
+    "build:shared": "npm run build --workspace @fitness-rpg/shared",
+    "build:server": "npm run build --workspace @fitness-rpg/server",
+    "build:client": "npm run build --workspace @fitness-rpg/client",
+    "build": "npm run build:shared && npm run build:server && npm run build:client"
+  }
+}

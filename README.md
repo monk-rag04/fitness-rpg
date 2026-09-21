@@ -6,11 +6,14 @@
 
 ## 現在の状態
 
-現在は設計フェーズです。Productionアプリ、Backend、Database、Authentication、OpenAI連携はまだ実装していません。
+Production Appの最小Foundationを実装済みです。ゲーム機能、Database、Authentication、OpenAI連携はまだ実装していません。
 
 このRepositoryには次が含まれます。
 
 - Source of TruthとなるProduct・UX・Architecture設計
+- React / TypeScript / Viteの最小Frontend
+- Node.js / Express / TypeScriptの最小Backendと`GET /api/health`
+- 将来の共有型用の空の`shared` Workspace
 - Figma Makeの現状確認用Snapshotである`figma-reference/`（Production codeではありません）
 
 ## 基本ゲームループ
@@ -76,6 +79,34 @@ Onboarding
 - Authentication: Supabase Auth候補。MVPでの必要性も未決定
 - 開発用MockProvider
 
+## Workspace構成
+
+```text
+client/   React / TypeScript / Vite
+server/   Node.js / Express / TypeScript
+shared/   将来の共有型用。Domain Modelは未実装
+docs/     Product / Architecture / DecisionのSource of Truth
+```
+
+npm workspacesを使用します。
+
+```powershell
+npm install
+npm run dev:server
+npm run dev:client
+```
+
+`dev:server`と`dev:client`は別Terminalで実行します。FrontendはVite proxy経由で`GET /api/health`を呼び出します。
+
+Workspace別および全体のBuild：
+
+```powershell
+npm run build:shared
+npm run build:server
+npm run build:client
+npm run build
+```
+
 ## 開発方針
 
 - `main`を常に動作可能に保ち、`develop`は使いません。
@@ -86,4 +117,4 @@ Onboarding
 
 ## 次のStep
 
-次は未決定事項のうちMVP Blocking項目を絞り、最小のVertical Slice（Onboarding → Roadmap → 1日のQuest → Quest Clear → Map進行）について、受け入れ条件と実装計画を確定する段階です。詳細は[Decisions](docs/DECISIONS.md)を参照してください。
+次は未決定事項のうちMVP Blocking項目を絞り、最小のVertical Slice（Onboarding → Roadmap → 1日のQuest → Quest Clear → Map進行）について、受け入れ条件と実装計画を確定する段階です。未決定技術をFoundationへ追加せず、採用Decisionを先に記録します。詳細は[Decisions](docs/DECISIONS.md)を参照してください。

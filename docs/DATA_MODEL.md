@@ -92,7 +92,9 @@ Product要件を正しく説明するために必要な履歴Entity候補。
 - `formulaVersion`
 - `source`: manual / workout-session / import候補
 
-正式なe1RM式とRecord採用規則は未決定。
+D-023でMVPのe1RM式とRecord採用規則は決定済み。1回は実重量、2〜10回は未丸めEpley、11回以上は推定対象外。Workoutごとに同一種目の適格Setから最大値を選び、現在値は基準日時を含む直近30×24時間のWorkout代表値の最大、PBは全期間最大とする。`shared/`の`StrengthSetInput`と`WorkoutE1rmResult`は計算用型であり、このField一覧やTable分割を正式な保存Schemaにしない。`sourceSetIndex`と`ruleVersion`は計算根拠の追跡に使う。
+
+保存時に元の重量・回数・日時・種目とRule Versionを残せるようにする。現在値が失効しても過去PBや撃破済みBossを消さない。Warmup / Working Set、RPE / RIR、Self-reported Recordの確定・修正、異Versionの再計算・移行は未決定。
 
 ### Goal
 
@@ -491,7 +493,7 @@ locked
 - Boss判定に使うStrength Recordの種目、鮮度、Formula Version。
 - EXP、Reward、Stage処理のIdempotency。
 
-正式な値域とError messageは未決定。
+e1RM対象Setの値域とrolling WindowはD-023で決定済み。その他の値域とError message、永続Schemaは未決定。
 
 ## Database未決定事項
 

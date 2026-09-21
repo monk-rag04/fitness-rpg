@@ -124,8 +124,16 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - 毎回の実1RM挑戦を要求しない。
 - e1RMはAIではなく決定論的なTypeScript ServiceまたはToolで計算する。
 - 計算に使った重量、reps、式Versionを追跡可能にする。
+- MVPの式はEpley。1回は実施重量そのもの、2〜10回は`weightKg * (1 + reps / 30)`を用いる。内部値は丸めない。
+- 11回以上は正常なWorkout記録として扱えるがe1RM対象外。回数が0以下・整数以外、重量が0以下、非有限値は不正記録とする。
+- 同一種目のWorkout内では、適格Setの未丸めe1RMの最大値を代表値にする。適格Setがなければ値はない。
+- `currentE1rm`は同一種目の直近30×24時間内のWorkout代表値の最大。基準日時からちょうど30日前を含み、対象記録がなければ値なしとする。古いPersonal BestへFallbackしない。
+- `historicalBestE1rm`は全期間の適格記録から求め、現在値とは分離する。
+- BossのStrength条件は未丸め`currentE1rm >= requiredE1rm`で判定し、MVPでは期間内の1回の適格な到達でよい。撃破済み状態は、その後の現在値の失効・低下で取り消さない。
+- MVPのe1RM Boss対象はBarbell Bench Press、Barbell Back Squat、Barbell Deadlift、Barbell Overhead Pressの正式Catalog IDとする。Pull-up / Weighted Pull-upは対象外だがCatalogからは削除しない。
+- UI表示の丸めはDomain coreと分離する。式とWindowのRule Versionを追跡可能にする。
 
-**未決定**: 採用する正式なe1RM式、丸め規則、低rep・高rep時の有効範囲、種目別補正。
+**未決定**: 30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷計算、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy、Load / Progressionと`trainingMax`。
 
 ## Stage
 

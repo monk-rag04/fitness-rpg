@@ -213,6 +213,20 @@ Status:
 - Affected docs / code: `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/AI.md`、`docs/DECISIONS.md`、`shared/src/domain/training/stagePlanning.ts`、`shared/src/domain/training/index.ts`、`shared/test/stagePlanning.test.mjs`、`server/src/openai/achievementDuration.ts`、`server/src/openai/achievementDurationSchema.ts`、`server/test/achievementDuration.test.mjs`。
 - Date: 2026-09-22
 
+### D-026: Deterministic Stage Roadmap Schedule
+
+- Status: Accepted
+- Context: D-025で決定論的Stage Targetと選択済みRoadmap Durationの境界は定義したが、そのDurationをどのCalendar DayにTraining / Recoveryとして配置し、Boss日をどう扱うかは未決定だった。Figma Makeの`createStageRoadmap()`は固定開始日、Session数、nearest duration、画面Stateを含むPrototype専用の仮実装であり、Productionへ移植しない。
+- Decision: `generateStageRoadmap()`はD-025で選択済みの`durationDays`、`startDate`、`trainingFrequencyPerWeek`、Catalog `mainExerciseId`、正の`stageTargetE1rmKg`を受ける純粋なshared Domain関数とする。DurationはBoss Challengeまでのelapsed calendar daysとし、Day Nodeは`startDate`から`durationDays`件、Boss Anchorは`startDate + durationDays`に1件だけ置く。入力のDurationはD-025の`ROADMAP_DURATION_CANDIDATES`（14 / 21 / 28 / 35 / 42）以外を拒否する。
+- Decision: Schedule生成専用の週頻度は構造上`1..7`の正整数とする。この範囲はD-025 Achievement Duration EstimatorのProduct上のfrequency rangeを変更しない。各相対7日blockについて`floor(i * 7 / frequency)`（`i = 0..frequency-1`）をTraining offset、その他をRecoveryとし、Duration候補が7の倍数であるため全期間のTraining数はfrequency × week数となる。
+- Decision: Training Dayの`sessionFocus`はMain ExerciseのCatalog `primaryMuscles`だけを持つ。`targetMovementPatterns`、Exercise選択、sets、reps、weight、Full Body / Upper-Lower / PPL、Main Exercise fatigue制約はこのDomainに含めない。Schedule生成はBoss e1RM対象ExerciseのAllowlistを検証しない。
+- Decision: ローカル日付は厳格な`YYYY-MM-DD`だけを受け、純粋なUTC calendar arithmeticで加算する。`Date.now()`、host timezone、DST、Browser localeへ依存しない。User timezoneの正式Policyは別Decisionとして残す。
+- Decision: `rescheduleTrainingDay(roadmap, sourceDate, targetDate)`は、同一Roadmap内のTraining Dayを後続のRecovery Dayへswapする純粋関数とする。sourceとtargetの一致、Roadmap外、source非Training、target非Recovery、targetがsource以前、Boss日を拒否する。Training数、Boss Anchor、Duration、Stage Target、無関係なDayは保持する。Quest Clear、EXP、Map Position、e1RM、Workout Result、Boss State、進行ロジックを更新しない。
+- Consequence: sharedに生成・変更API、入力エラー、Rule Version（`stage-roadmap-even-spread-v1`）とRegression Testを置く。API endpoint、Database、Frontend / Figma実装、AI Call、Schedule再計画、Quest / EXP / Map / Boss Stateは今回含めない。
+- Alternatives: Figmaの固定開始日、Session数からの日数算出、nearest duration、Prototype Stateの更新、AIによる曜日・Node・Boss date選択、任意のTraining / Recovery自由選択、全日付の再計画は採用しない。
+- Affected docs / code: `docs/PRODUCT.md`、`docs/UX.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/stageRoadmap.ts`、`shared/src/domain/training/index.ts`、`shared/test/stageRoadmap.test.mjs`。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -247,7 +261,9 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - AI estimateの利用時点、再試行、fallback、評価。
 - Onboarding self-report persistenceとbaseline source。
 - trainingFrequencyのProduct上限。
-- Schedule生成・変更、Roadmap Node、Boss Shield / Defeated / Stage Clear、timezone。
+- Onboarding上のtrainingFrequency選択肢、Full Body / Upper-Lower / PPL、Main Exercise fatigue制約、Recovery Quest内容。
+- Schedule Changeの保存・履歴、過去日・完了日の扱い、競合、AI再計画の詳細、Roadmap Nodeの永続Schema。
+- Boss Shield / Defeated / Stage Clear、timezone。
 - 初心者開始重量の正式ロジック。
 - e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
 - `trainingMax`と決定論的Load / Progression Rule。
@@ -302,7 +318,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | Sessions / Stage | 週1〜2回なら7、週3〜4回なら8、週5回以上なら6 Session | 正式RuleはOpen |
 | Stage日数 | 算出日数に最も近い14/21/28/35/42日 | D-025はAI estimate以上の最小候補を選ぶ。Session数算出とnearest ruleは採用しない |
 | Roadmap開始日 | 2026-09-22固定 | ProductionではUser timezone / Start dateが必要 |
-| Training配置 | 週Frequencyをfloor計算で均等配置 | Planner詳細はOpen |
+| Training配置 | 週Frequencyをfloor計算で均等配置 | D-026は`floor(i * 7 / frequency)`のoffsetを採用するが、Figmaの開始日・画面State・Session数Ruleは採用しない |
 | Quest EXP | Training day: 100/20、Recovery day: 20/90 | EXP値はOpen |
 | Nutrition EXP | Nutrition Bonusが1件でもDoneなら60、未Doneでも40 | Productionへ採用しない |
 | Level | 1 Level = 1000 EXP固定 | Level curveはOpen |
@@ -318,7 +334,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | Support Stats | 固定値。Leg Pressが常にLagging | ProductionではTrend評価予定 |
 | Progress | 8週Trend、Boss履歴、7日Streakが固定 | 保存Dataから集計する |
 | Beginner Quest | 手動Toggle、Chest / Bench固定、40kg×8×2 | 発生・重量・ContentはOpen |
-| Schedule update | 2 Nodeだけを書換え「以降もAI調整」と表示 | 実再計画ではない |
+| Schedule update | 2 Nodeだけを書換え「以降もAI調整」と表示 | D-026はTraining Dayと将来Recovery Dayの純粋swapのみ。AI調整・UI State更新・再計画は含めない |
 
 ## Known Prototype Gaps / Contradictions
 
@@ -366,3 +382,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-023としてMVPのe1RM式、適格Set、Workout代表値、rolling 30日現在値、PB分離、未丸めBoss比較、対象Exerciseを採用。
 - 2026-09-22: D-024としてSet単位のWorkout Result、予定 / 実施Exerciseの分離、D-023 e1RM接続、Quest Clear・Load / Progressionとの責務分離を採用。
 - 2026-09-22: D-025として固定+5kgの決定論的Stage Target、AIのAchievement Duration Estimate、候補Durationのceiling選択と42日超のreplanning statusを採用。Schedule / Boss Stateは含めない。
+- 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focus、将来Recovery Dayへの純粋なSchedule swapを採用。永続化、UI、AI再計画、Game Stateは含めない。

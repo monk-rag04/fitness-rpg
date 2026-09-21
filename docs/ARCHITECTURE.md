@@ -194,6 +194,8 @@ Stage PlanningのMVP Domain API（D-025）は`shared/src/domain/training/stagePl
 
 同じshared境界で`validateAchievementDurationEstimatorInput()`がDuration Estimator専用Inputを厳格に検証し、`validateAchievementDurationEstimate()`がAIの`estimatedAchievementDays`のみを再検証する。`selectRoadmapDuration()`は一箇所の`ROADMAP_DURATION_CANDIDATES`（14/21/28/35/42）からestimate以上の最小値を選ぶceiling ruleであり、42日超はclampせず`stage_replanning_required`を返す（`roadmap-duration-ceiling-v1`）。Schedule生成、曜日選択、Boss date、Boss Defeated、Quest / EXP / Mapは含めない。
 
+Stage Roadmap ScheduleのMVP Domain API（D-026）は`shared/src/domain/training/stageRoadmap.ts`に置く。`generateStageRoadmap()`はD-025で選択済みの候補Duration、厳格なローカル日付、週頻度`1..7`、Catalog上のMain Exercise、正のStage Targetから、`durationDays`件のTraining / Recovery Dayと`startDate + durationDays`のBoss Anchorを副作用なく生成する。各7日blockのTraining offsetは`floor(i * 7 / frequency)`であり、Training focusはMain Exerciseの`primaryMuscles`のみとする。`rescheduleTrainingDay()`は同一Roadmap内のTraining Dayと将来のRecovery Dayをswapする純粋関数で、Boss Anchor、Duration、Target、Training数、Game Stateを変えない。これは永続Schema、AI、API、UI、Quest / EXP / Map、Boss State、e1RM、Workout Result、Load / Progressionを含まない。
+
 ### Repository Ports
 
 Application層はDatabase SDKを直接前提にせず、目的別のRepository interfaceを利用する。

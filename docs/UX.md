@@ -128,6 +128,12 @@ Step 3:
 - Schedule変更だけではMap Positionを進めない。
 - Treasure / Event / Elite / CampをMVPに含めるかは最終MVP Scopeで決める。
 
+### D-026 Schedule / Roadmap UI Boundary
+
+Production UIはsharedが生成した`durationDays`件のCalendar Dayと、その翌日のBoss Anchorを表示する。Training / Recoveryの配置は`trainingFrequencyPerWeek`から決定論的に得る。Training DayにはMain ExerciseのPrimary Muscle由来のSession Focusだけを表示用に受け渡せるが、Exercise list、sets、reps、weight、Movement PatternはこのRoadmapの出力に含めない。Boss AnchorはStage Targetと同じRequirementを示す境界であり、Boss State / Shield / Defeatedを表すものではない。
+
+UIが提供する将来日の変更は、同一Roadmap内でTraining Dayと後続Recovery Dayをswapする操作だけである。変更後もTraining数、Boss date、Duration、Stage Targetは不変であり、Quest Clear、EXP、Map Position、e1RM、Workout Result、Boss Stateを更新しない。永続化、過去日・完了日の扱い、競合、再計画UI、AIによる提案は未決定である。
+
 ## Training Quest UX
 
 ### Prototype確認

@@ -229,6 +229,10 @@ AI生成結果は`proposed`として検証し、確定後に`active`へする。
 
 AI出力は`AchievementDurationEstimate`の`estimatedAchievementDays`のみで、sharedの`validateAchievementDurationEstimate()`を通す。`RoadmapDurationSelectionResult`はestimateと選択候補または`stage_replanning_required`、Duration Selection Rule Versionを持つ計算結果であり、Boss dateやNodeを含めない。将来保存する場合にStage Planning Rule、Duration Selection Rule、AI Prompt / Schema Version、model metadataをどのEntityへ保持するかは未決定。
 
+**D-026の計算用境界（保存Schemaではない）**: `StageRoadmapGenerationInput`は`startDate`（厳格な`YYYY-MM-DD`）、D-025の`RoadmapDurationDays`、構造上`1..7`の`trainingFrequencyPerWeek`、Catalog `mainExerciseId`、正で有限の`stageTargetE1rmKg`を持つ。`generateStageRoadmap()`は同数の`StageRoadmapDay[]`と、`startDate + durationDays`の`StageBossAnchor`を返す。Training Dayは`sessionFocus.targetMuscles`だけを持ち、値はMain ExerciseのCatalog `primaryMuscles`から得る。これはExercise plan、sets、reps、weight、movement focus、Quest / EXP / Map / Boss Stateを表さない。
+
+`rescheduleTrainingDay()`は保存済み変更履歴やUser stateを受け取らず、生成済みRoadmapのsource Training Dayと将来のtarget Recovery Dayを入れ替える計算用関数である。Training数、Boss Anchor、Duration、Stage Targetは不変とし、過去日・完了日・競合・永続化のPolicyは未決定のまま残す。
+
 ### RoadmapNode / ScheduledActivity（追加候補）
 
 **概念上の責務案**: 日付付きTraining / Recovery / Boss等のNodeと状態を表す。

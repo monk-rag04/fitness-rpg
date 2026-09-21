@@ -223,6 +223,12 @@ AI生成結果は`proposed`として検証し、確定後に`active`へする。
 - `startsOn` / `endsOnCandidate`
 - `generationRuleVersion`
 
+**D-025の計算用境界（保存Schemaではない）**: `StagePlanningInput`はoptional / nullのcurrent e1RMとFinal Goalを受け、`planNextStage()`が`StagePlanningResult`を返す。baselineがなければ`baseline_required`、currentがgoal以上なら`goal_reached`（goal超過時は`goalUpdateRequired`）、それ以外は次の`stageTargetE1rmKg`を返す。ここでFinal Goalを変更せず、Historical PBも参照しない。
+
+`AchievementDurationEstimatorInput`は`exerciseId`、`currentE1rmKg`、`stageTargetE1rmKg`、`trainingExperienceMonths`、`trainingFrequencyPerWeek`だけを持つAI Use Case専用のInput Boundaryである。未知Field、Catalog外Exercise、非有限または不正なe1RM境界、経験月数、頻度を`validateAchievementDurationEstimatorInput()`で検証する。これは`TrainingSessionPlannerInput`、User Profile、Onboarding persistence、ScheduleやRoadmap Nodeの保存形状ではない。
+
+AI出力は`AchievementDurationEstimate`の`estimatedAchievementDays`のみで、sharedの`validateAchievementDurationEstimate()`を通す。`RoadmapDurationSelectionResult`はestimateと選択候補または`stage_replanning_required`、Duration Selection Rule Versionを持つ計算結果であり、Boss dateやNodeを含めない。将来保存する場合にStage Planning Rule、Duration Selection Rule、AI Prompt / Schema Version、model metadataをどのEntityへ保持するかは未決定。
+
 ### RoadmapNode / ScheduledActivity（追加候補）
 
 **概念上の責務案**: 日付付きTraining / Recovery / Boss等のNodeと状態を表す。

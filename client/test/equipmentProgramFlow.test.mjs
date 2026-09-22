@@ -253,6 +253,36 @@ test('double submit keeps one concurrent request', async () => {
   assert.equal(harness.readyCalls, 1);
 });
 
+test('StrictMode effect cleanup cancels the attempt without permanently disposing the controller', async () => {
+  let resolveFirst;
+  let requestCount = 0;
+  const harness = createHarness({
+    request: () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return new Promise((resolve) => { resolveFirst = resolve; });
+      }
+      return Promise.resolve({ status: 'stage_training_program_ready', program: createProgram(harness.roadmap) });
+    },
+  });
+
+  // React StrictMode runs an effect cleanup before the second setup in
+  // development. The component cleanup uses this non-terminal operation.
+  const first = harness.controller.submit(['barbell', 'flat_bench']);
+  assert.equal(harness.controller.isInFlight, true);
+  harness.controller.cancelActiveAttempt();
+  resolveFirst({ status: 'stage_training_program_ready', program: createProgram(harness.roadmap) });
+  await first;
+
+  assert.equal(harness.cacheWrites.length, 0);
+  await harness.controller.submit(['barbell', 'flat_bench']);
+
+  assert.equal(harness.profileWrites.length, 2);
+  assert.equal(harness.calls.length, 2);
+  assert.equal(harness.cacheWrites.length, 1);
+  assert.equal(harness.readyCalls, 1);
+});
+
 test('missing session context and cache failure never request or expose a partial Program', async () => {
   const noContextStates = [];
   let profileWrites = 0;

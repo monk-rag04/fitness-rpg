@@ -64,7 +64,7 @@ export function EquipmentProgramFlow() {
   }
   const controller = controllerRef.current;
 
-  useEffect(() => () => controller.dispose(), [controller]);
+  useEffect(() => () => controller.cancelActiveAttempt(), [controller]);
 
   function returnToAdventureMap() {
     controller.cancelActiveAttempt();

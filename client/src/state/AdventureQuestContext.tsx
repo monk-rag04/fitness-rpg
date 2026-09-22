@@ -5,6 +5,7 @@ import {
   deriveStageProgressView,
   evaluateTrainingQuestCompletion,
   validateExerciseWorkoutResult,
+  type EquipmentId,
   type GymEquipmentProfile,
   type ExerciseWorkoutResult,
   type QuestCompletionResult,
@@ -28,6 +29,8 @@ import {
   cacheStageTrainingProgram as cacheStageTrainingProgramForRoadmap,
   cacheTrainingPlanForDay as cacheTrainingPlanForRoadmapDay,
   getTrainingPlanForDay,
+  setStageEquipmentProfile as setStageEquipmentProfileForSession,
+  type StageEquipmentProfileStatus,
   type StageTrainingProgramCacheStatus,
   type TrainingPlanCacheStatus,
 } from './adventureSession';
@@ -40,7 +43,7 @@ interface DomainState {
   readonly roadmap: StageRoadmap;
   readonly progress: StageProgress;
   readonly planByDay: Readonly<Partial<Record<number, ValidatedTrainingPlan>>>;
-  readonly equipmentProfile: GymEquipmentProfile | null;
+  readonly equipmentProfile: GymEquipmentProfile | undefined;
   readonly workoutResultsByDay: Readonly<
     Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>
   >;
@@ -62,6 +65,7 @@ type Action =
   | { readonly type: 'returnToMap' }
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
+  | { readonly type: 'setStageEquipmentProfile'; readonly domain: DomainState }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
   | { readonly type: 'completeQuest'; readonly progress: StageProgress }
   | { readonly type: 'showValidationMessage'; readonly message: string }
@@ -81,7 +85,7 @@ function createInitialState(session: AdventureQuestSession): AdventureQuestState
       roadmap: session.roadmap,
       progress: session.initialProgress,
       planByDay: session.planByDay,
-      equipmentProfile: session.equipmentProfile ?? null,
+      equipmentProfile: session.equipmentProfile,
       workoutResultsByDay: {},
     },
     ui: {
@@ -125,6 +129,11 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         domain: { ...state.domain, planByDay: cacheResult.planByDay },
       };
     }
+    case 'setStageEquipmentProfile':
+      return {
+        ...state,
+        domain: action.domain,
+      };
     case 'saveWorkoutResult': {
       const dayIndex = state.domain.progress.currentDayIndex;
       const resultsForDay = state.domain.workoutResultsByDay[dayIndex] ?? {};
@@ -174,6 +183,7 @@ interface AdventureQuestContextValue {
   readonly progressView: ReturnType<typeof deriveStageProgressView>;
   readonly trainingPlan: ValidatedTrainingPlan | null;
   readonly isTrainingPlanPending: boolean;
+  readonly equipmentProfile: GymEquipmentProfile | undefined;
   readonly workoutResults: readonly ExerciseWorkoutResult[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
@@ -182,6 +192,7 @@ interface AdventureQuestContextValue {
   returnToMap: () => void;
   cacheTrainingPlanForDay: (dayIndex: number, plan: ValidatedTrainingPlan) => TrainingPlanCacheStatus;
   cacheStageTrainingProgram: (program: ValidatedStageTrainingProgram) => StageTrainingProgramCacheStatus;
+  setStageEquipmentProfile: (equipmentIds: readonly EquipmentId[]) => StageEquipmentProfileStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
@@ -226,6 +237,7 @@ export function AdventureQuestProvider({
     progressView,
     trainingPlan,
     isTrainingPlanPending,
+    equipmentProfile: state.domain.equipmentProfile,
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
@@ -254,6 +266,13 @@ export function AdventureQuestProvider({
         dispatch({ type: 'cacheStageTrainingProgram', program });
       }
       return cacheResult.status;
+    },
+    setStageEquipmentProfile: (equipmentIds) => {
+      const profileResult = setStageEquipmentProfileForSession(state.domain, equipmentIds);
+      if (profileResult.status === 'set') {
+        dispatch({ type: 'setStageEquipmentProfile', domain: profileResult.target });
+      }
+      return profileResult.status;
     },
     saveWorkoutResult: (input) => {
       const validation = validateExerciseWorkoutResult(input);
@@ -287,7 +306,7 @@ export function AdventureQuestProvider({
           currentNode.dayIndex,
           trainingPlan ?? undefined,
           workoutResults,
-          state.domain.equipmentProfile ?? undefined,
+          state.domain.equipmentProfile,
         )
         : completeRecoveryQuest(
           state.domain.roadmap,

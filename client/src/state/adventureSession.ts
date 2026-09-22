@@ -1,4 +1,6 @@
+import { EQUIPMENT_IDS } from '@fitness-rpg/shared';
 import type {
+  EquipmentId,
   GymEquipmentProfile,
   StageProgress,
   StageRoadmap,
@@ -48,6 +50,27 @@ export interface StageTrainingProgramCacheTarget {
   readonly roadmap?: StageRoadmap | null;
   readonly planByDay: TrainingPlanByDay;
 }
+
+export type StageEquipmentProfileStatus =
+  | 'set'
+  | 'already_set'
+  | 'invalid_equipment_ids'
+  | 'equipment_locked';
+
+export interface StageEquipmentProfileWriteResult<TTarget extends StageEquipmentProfileTarget> {
+  readonly status: StageEquipmentProfileStatus;
+  readonly target: TTarget;
+  readonly equipmentProfile: GymEquipmentProfile | undefined;
+}
+
+/** The State boundary needs only the Stage cache and its shared profile. */
+export interface StageEquipmentProfileTarget {
+  readonly planByDay: TrainingPlanByDay;
+  readonly equipmentProfile?: GymEquipmentProfile;
+}
+
+const STAGE_EQUIPMENT_PROFILE_ID = 'stage-equipment-profile';
+const STAGE_EQUIPMENT_PROFILE_DISPLAY_NAME = 'Stage Equipment';
 
 function isRoadmapDayIndex(roadmap: StageRoadmap, dayIndex: unknown): dayIndex is number {
   return typeof dayIndex === 'number' &&
@@ -143,6 +166,67 @@ export function cacheStageTrainingProgram(
     nextPlanByDay[session.dayIndex] = session.plan;
   }
   return { status: 'cached', planByDay: nextPlanByDay };
+}
+
+function normalizeEquipmentIds(input: unknown): readonly EquipmentId[] | null {
+  if (!Array.isArray(input) ||
+      !input.every((equipmentId) =>
+        typeof equipmentId === 'string' && EQUIPMENT_IDS.includes(equipmentId as EquipmentId),
+      ) ||
+      new Set(input).size !== input.length) {
+    return null;
+  }
+  const selectedIds = new Set(input as readonly EquipmentId[]);
+  return EQUIPMENT_IDS.filter((equipmentId) => selectedIds.has(equipmentId));
+}
+
+function hasSameEquipmentIds(
+  profile: GymEquipmentProfile,
+  equipmentIds: readonly EquipmentId[],
+): boolean {
+  return profile.availableEquipmentIds.length === equipmentIds.length &&
+    profile.availableEquipmentIds.every((equipmentId, index) => equipmentId === equipmentIds[index]);
+}
+
+/**
+ * Register or update the current Stage's shared Equipment Profile before a
+ * Stage Program has been cached. Main-exercise availability is intentionally
+ * left to the Stage Program boundary.
+ */
+export function setStageEquipmentProfile<TTarget extends StageEquipmentProfileTarget>(
+  target: TTarget,
+  equipmentIds: unknown,
+): StageEquipmentProfileWriteResult<TTarget> {
+  const normalizedEquipmentIds = normalizeEquipmentIds(equipmentIds);
+  if (normalizedEquipmentIds === null) {
+    return {
+      status: 'invalid_equipment_ids',
+      target,
+      equipmentProfile: target.equipmentProfile,
+    };
+  }
+  if (Object.keys(target.planByDay).length > 0) {
+    return {
+      status: 'equipment_locked',
+      target,
+      equipmentProfile: target.equipmentProfile,
+    };
+  }
+  if (target.equipmentProfile !== undefined &&
+      hasSameEquipmentIds(target.equipmentProfile, normalizedEquipmentIds)) {
+    return { status: 'already_set', target, equipmentProfile: target.equipmentProfile };
+  }
+
+  const equipmentProfile: GymEquipmentProfile = {
+    id: STAGE_EQUIPMENT_PROFILE_ID,
+    displayName: STAGE_EQUIPMENT_PROFILE_DISPLAY_NAME,
+    availableEquipmentIds: normalizedEquipmentIds,
+  };
+  return {
+    status: 'set',
+    target: { ...target, equipmentProfile },
+    equipmentProfile,
+  };
 }
 
 /** An onboarding result starts with no generated plan and no Demo fixture. */

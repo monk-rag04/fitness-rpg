@@ -6,10 +6,12 @@ import {
   cacheTrainingPlanForDay,
   createOnboardingAdventureSession,
   getTrainingPlanForDay,
+  setStageEquipmentProfile,
 } from '../src/state/adventureSession.ts';
 import { DEMO_EQUIPMENT_PROFILE, DEMO_TRAINING_PLAN } from '../src/demo/fixture.ts';
 import {
   createInitialStageProgress,
+  EQUIPMENT_IDS,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
 } from '@fitness-rpg/shared';
@@ -237,4 +239,139 @@ test('an existing partial day cache is preserved rather than silently overwritte
   assert.equal(result.status, 'already_cached');
   assert.equal(result.planByDay, partialPlanByDay);
   assert.deepEqual(partialPlanByDay, { 0: DEMO_TRAINING_PLAN });
+});
+
+test('registers a normalized Stage Equipment Profile without mutating the onboarding session or input', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const equipmentIds = ['dumbbell', 'barbell'];
+  const equipmentIdsSnapshot = [...equipmentIds];
+  const sessionSnapshot = structuredClone(session);
+  const result = setStageEquipmentProfile(session, equipmentIds);
+
+  assert.equal(result.status, 'set');
+  assert.deepEqual(result.equipmentProfile, {
+    id: 'stage-equipment-profile',
+    displayName: 'Stage Equipment',
+    availableEquipmentIds: ['barbell', 'dumbbell'],
+  });
+  assert.notEqual(result.target, session);
+  assert.deepEqual(result.target.equipmentProfile, result.equipmentProfile);
+  assert.deepEqual(equipmentIds, equipmentIdsSnapshot);
+  assert.deepEqual(session, sessionSnapshot);
+  assert.equal(session.equipmentProfile, undefined);
+});
+
+test('empty equipment is an explicit configured no-equipment Profile, distinct from undefined', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const result = setStageEquipmentProfile(session, []);
+
+  assert.equal(session.equipmentProfile, undefined);
+  assert.equal(result.status, 'set');
+  assert.notEqual(result.equipmentProfile, undefined);
+  assert.deepEqual(result.equipmentProfile.availableEquipmentIds, []);
+});
+
+test('rejects unknown or duplicate Equipment IDs without changing existing State', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const initial = setStageEquipmentProfile(session, ['barbell']);
+  const configuredSession = { ...session, equipmentProfile: initial.equipmentProfile };
+  const planByDaySnapshot = structuredClone(configuredSession.planByDay);
+
+  for (const invalidIds of [
+    ['unknown_equipment'],
+    ['barbell', 'barbell'],
+    'barbell',
+  ]) {
+    const result = setStageEquipmentProfile(configuredSession, invalidIds);
+    assert.equal(result.status, 'invalid_equipment_ids');
+    assert.equal(result.target, configuredSession);
+    assert.equal(result.equipmentProfile, initial.equipmentProfile);
+    assert.deepEqual(configuredSession.planByDay, planByDaySnapshot);
+  }
+});
+
+test('does not create a Full Gym default and permits pre-program Equipment changes', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const first = setStageEquipmentProfile(session, ['barbell']);
+  const configuredSession = { ...session, equipmentProfile: first.equipmentProfile };
+  const changed = setStageEquipmentProfile(configuredSession, ['flat_bench', 'barbell']);
+
+  assert.equal(first.status, 'set');
+  assert.deepEqual(first.equipmentProfile.availableEquipmentIds, ['barbell']);
+  assert.notDeepEqual(first.equipmentProfile.availableEquipmentIds, EQUIPMENT_IDS);
+  assert.equal(changed.status, 'set');
+  assert.deepEqual(changed.equipmentProfile.availableEquipmentIds, ['barbell', 'flat_bench']);
+  assert.deepEqual(configuredSession.planByDay, {});
+});
+
+test('reapplying the same normalized Profile is idempotent before Program caching', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const first = setStageEquipmentProfile(session, ['barbell', 'dumbbell']);
+  const configuredSession = { ...session, equipmentProfile: first.equipmentProfile };
+  const identical = setStageEquipmentProfile(configuredSession, ['dumbbell', 'barbell']);
+
+  assert.equal(identical.status, 'already_set');
+  assert.equal(identical.target, configuredSession);
+  assert.equal(identical.equipmentProfile, first.equipmentProfile);
+});
+
+test('locks Equipment and preserves Profile and Program after a Stage Program is cached', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const profile = setStageEquipmentProfile(session, ['barbell', 'flat_bench']);
+  const withProfile = { ...session, equipmentProfile: profile.equipmentProfile };
+  const programCache = cacheStageTrainingProgram(withProfile, createProgram(roadmap));
+  const cachedSession = {
+    ...withProfile,
+    planByDay: programCache.planByDay,
+  };
+  const planByDaySnapshot = structuredClone(cachedSession.planByDay);
+  const locked = setStageEquipmentProfile(cachedSession, ['dumbbell']);
+
+  assert.equal(programCache.status, 'cached');
+  assert.equal(locked.status, 'equipment_locked');
+  assert.equal(locked.equipmentProfile, profile.equipmentProfile);
+  assert.deepEqual(cachedSession.planByDay, planByDaySnapshot);
+  assert.equal(Object.keys(locked.equipmentProfile.availableEquipmentIds).length, 2);
+});
+
+test('Demo Equipment remains isolated and cannot become a Production fallback', () => {
+  const roadmap = createRoadmap();
+  const demoLikeSession = {
+    source: 'demo',
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+    planByDay: { 0: DEMO_TRAINING_PLAN },
+    equipmentProfile: DEMO_EQUIPMENT_PROFILE,
+  };
+  const result = setStageEquipmentProfile(demoLikeSession, ['dumbbell']);
+
+  assert.equal(result.status, 'equipment_locked');
+  assert.equal(result.equipmentProfile, DEMO_EQUIPMENT_PROFILE);
+  assert.deepEqual(DEMO_EQUIPMENT_PROFILE.availableEquipmentIds, [
+    'barbell', 'dumbbell', 'flat_bench', 'cable_machine',
+  ]);
 });

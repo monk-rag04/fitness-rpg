@@ -1,0 +1,244 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  generateStageRoadmap,
+  getCanonicalStageTrainingDays,
+} from '@fitness-rpg/shared';
+import { createApp } from '../dist/app.js';
+import {
+  StageTrainingProgramGenerationError,
+  generateStageTrainingProgram,
+} from '../dist/openai/stageTrainingProgram.js';
+
+function createRoadmap(frequency = 3) {
+  return generateStageRoadmap({
+    startDate: '2026-09-22',
+    durationDays: 14,
+    trainingFrequencyPerWeek: frequency,
+    mainExerciseId: 'barbell_bench_press',
+    stageTargetE1rmKg: 75,
+  });
+}
+
+function validPlan() {
+  return {
+    exercises: [{
+      exerciseId: 'barbell_bench_press',
+      role: 'main',
+      sets: 3,
+      repRange: { min: 5, max: 8 },
+    }],
+  };
+}
+
+function validProgram(roadmap) {
+  return {
+    sessions: getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
+      dayIndex,
+      plan: validPlan(),
+    })),
+  };
+}
+
+function validRequest(roadmap = createRoadmap()) {
+  return {
+    equipmentIds: ['barbell', 'flat_bench'],
+    mainExerciseId: 'barbell_bench_press',
+    currentE1rmKg: 70,
+    stageTargetE1rmKg: 75,
+    trainingExperienceMonths: 8,
+    trainingFrequencyPerWeek: roadmap.trainingFrequencyPerWeek,
+    roadmap,
+  };
+}
+
+async function callEndpoint(app, body, raw = false) {
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/stage-training-program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: raw ? body : JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() };
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+function createFakeStageGenerator() {
+  const calls = [];
+  let providerCalls = 0;
+  const generator = (input) => generateStageTrainingProgram(input, {
+    responses: {
+      create: async () => {
+        providerCalls += 1;
+        return {
+          status: 'completed',
+          output_text: JSON.stringify(validProgram(input.roadmap)),
+        };
+      },
+    },
+  }).then((program) => {
+    calls.push(input);
+    return program;
+  });
+  return { generator, calls, getProviderCalls: () => providerCalls };
+}
+
+test('valid request returns only the validated Stage Program and calls generation once', async () => {
+  const fake = createFakeStageGenerator();
+  const roadmap = createRoadmap();
+  const result = await callEndpoint(createApp(undefined, undefined, fake.generator), validRequest(roadmap));
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { program: validProgram(roadmap) });
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.getProviderCalls(), 1);
+  assert.deepEqual(fake.calls[0].equipmentProfile.availableEquipmentIds, ['barbell', 'flat_bench']);
+  assert.equal(Object.hasOwn(result.body, 'candidates'), false);
+});
+
+test('twelve Training Days still use one Stage generation operation', async () => {
+  const fake = createFakeStageGenerator();
+  const roadmap = createRoadmap(6);
+  const result = await callEndpoint(createApp(undefined, undefined, fake.generator), validRequest(roadmap));
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.program.sessions.length, 12);
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.getProviderCalls(), 1);
+});
+
+test('empty equipment is accepted at request validation but unavailable Main returns 422 with zero provider calls', async () => {
+  const fake = createFakeStageGenerator();
+  const result = await callEndpoint(
+    createApp(undefined, undefined, fake.generator),
+    { ...validRequest(), equipmentIds: [] },
+  );
+
+  assert.equal(result.status, 422);
+  assert.deepEqual(result.body, { error: { code: 'MAIN_EXERCISE_UNAVAILABLE' } });
+  assert.equal(fake.calls.length, 0);
+  assert.equal(fake.getProviderCalls(), 0);
+});
+
+test('invalid equipment, duplicates, unknown fields, and malformed JSON stop before generation', async () => {
+  let calls = 0;
+  const generator = async () => {
+    calls += 1;
+    return validProgram(createRoadmap());
+  };
+  const body = validRequest();
+  const invalidBodies = [
+    { ...body, equipmentIds: ['unknown_equipment'] },
+    { ...body, equipmentIds: ['barbell', 'barbell'] },
+    { ...body, candidateExercises: [] },
+    { ...body, roadmap: { ...body.roadmap, unexpected: true } },
+    { ...body, roadmap: { ...body.roadmap, days: [] } },
+    {
+      ...body,
+      roadmap: {
+        ...body.roadmap,
+        days: body.roadmap.days.map((day, index) => index === 1
+          ? { ...day, date: body.roadmap.days[0].date }
+          : day),
+      },
+    },
+    { ...body, roadmap: { ...body.roadmap, days: body.roadmap.days.map((day, index) => index === 0 && day.type === 'training' ? { ...day, sessionFocus: { ...day.sessionFocus, unknown: true } } : day) } },
+    { ...body, currentE1rmKg: 0 },
+    { ...body, stageTargetE1rmKg: Number.NaN },
+    { ...body, trainingExperienceMonths: 1.5 },
+    { ...body, trainingFrequencyPerWeek: 8 },
+  ];
+
+  for (const invalidBody of invalidBodies) {
+    const result = await callEndpoint(createApp(undefined, undefined, generator), invalidBody);
+    assert.equal(result.status, 400);
+    assert.deepEqual(result.body, { error: { code: 'INVALID_REQUEST' } });
+  }
+
+  const malformedJson = await callEndpoint(createApp(undefined, undefined, generator), '{not json', true);
+  assert.equal(malformedJson.status, 400);
+  assert.deepEqual(malformedJson.body, { error: { code: 'INVALID_REQUEST' } });
+  assert.equal(calls, 0);
+});
+
+test('invalid Main, Stage Target, and frequency mismatches are rejected', async () => {
+  const body = validRequest();
+  const generator = async () => {
+    throw new Error('must not be called');
+  };
+  const cases = [
+    { ...body, mainExerciseId: 'push_up' },
+    { ...body, stageTargetE1rmKg: 76 },
+    { ...body, trainingFrequencyPerWeek: 4 },
+  ];
+
+  for (const invalidBody of cases) {
+    const result = await callEndpoint(createApp(undefined, undefined, generator), invalidBody);
+    assert.equal(result.status, 400);
+    assert.deepEqual(result.body, { error: { code: 'INVALID_REQUEST' } });
+  }
+});
+
+test('Stage Adapter errors map to safe public HTTP codes without provider details', async () => {
+  const body = validRequest();
+  const cases = [
+    ['OPENAI_API_ERROR', 502, 'PROVIDER_FAILURE'],
+    ['STRUCTURED_OUTPUT_MISSING', 502, 'INVALID_STRUCTURED_OUTPUT'],
+    ['DOMAIN_VALIDATION_FAILED', 502, 'INVALID_STRUCTURED_OUTPUT'],
+    ['INVALID_INPUT', 400, 'INVALID_REQUEST'],
+  ];
+
+  for (const [code, status, publicCode] of cases) {
+    const result = await callEndpoint(
+      createApp(undefined, undefined, async () => {
+        throw new StageTrainingProgramGenerationError(code, 'sensitive internal detail');
+      }),
+      body,
+    );
+    assert.equal(result.status, status);
+    assert.deepEqual(result.body, { error: { code: publicCode } });
+    assert.ok(!JSON.stringify(result.body).includes('sensitive'));
+  }
+
+  const unexpected = await callEndpoint(
+    createApp(undefined, undefined, async () => {
+      throw new Error('sensitive unexpected detail');
+    }),
+    body,
+  );
+  assert.equal(unexpected.status, 500);
+  assert.deepEqual(unexpected.body, { error: { code: 'INTERNAL_ERROR' } });
+  assert.ok(!JSON.stringify(unexpected.body).includes('sensitive'));
+});
+
+test('existing per-day Training Plan endpoint remains available', async () => {
+  const result = await (async () => {
+    const server = createApp(undefined, async () => validPlan()).listen(0, '127.0.0.1');
+    try {
+      await new Promise((resolve) => server.once('listening', resolve));
+      const address = server.address();
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/training-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          equipmentIds: ['barbell', 'flat_bench'],
+          trainingExperienceMonths: 8,
+          mainExerciseId: 'barbell_bench_press',
+          sessionFocus: { targetMuscles: ['chest'] },
+        }),
+      });
+      return { status: response.status, body: await response.json() };
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  })();
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { plan: validPlan() });
+});

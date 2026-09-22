@@ -18,6 +18,7 @@ import {
   type MuscleGroup,
   type TrainingCandidateResult,
   type TrainingSessionPlannerInput,
+  type ValidatedStageTrainingProgram,
   type ValidatedTrainingPlan,
 } from '@fitness-rpg/shared';
 import {
@@ -30,6 +31,14 @@ import {
   TrainingPlanGenerationError,
   generateTrainingPlan,
 } from './openai/trainingPlan.js';
+import {
+  StageTrainingProgramGenerationError,
+  generateStageTrainingProgram,
+  type StageTrainingProgramGenerationInput,
+} from './openai/stageTrainingProgram.js';
+import {
+  validateStageTrainingProgramRequest,
+} from './stageTrainingProgramRequest.js';
 
 type DurationEstimator = (
   input: AchievementDurationEstimatorInput,
@@ -38,6 +47,10 @@ type DurationEstimator = (
 type TrainingPlanGenerator = (
   input: TrainingSessionPlannerInput,
 ) => Promise<ValidatedTrainingPlan>;
+
+type StageTrainingProgramGenerator = (
+  input: StageTrainingProgramGenerationInput,
+) => Promise<ValidatedStageTrainingProgram>;
 
 interface TrainingPlanRequest {
   readonly equipmentIds: readonly EquipmentId[];
@@ -154,6 +167,7 @@ function createServerEquipmentProfile(
 export function createApp(
   estimateDuration: DurationEstimator = generateAchievementDurationEstimate,
   generatePlan: TrainingPlanGenerator = generateTrainingPlan,
+  generateStageProgram: StageTrainingProgramGenerator = generateStageTrainingProgram,
 ) {
   const app = express();
   app.use(express.json());
@@ -299,6 +313,42 @@ export function createApp(
       if (error instanceof TrainingPlanGenerationError) {
         if (error.code === 'INVALID_INPUT') {
           response.status(400).json({ error: { code: 'INVALID_REQUEST' } });
+          return;
+        }
+        const publicCode = error.code === 'OPENAI_API_ERROR'
+          ? 'PROVIDER_FAILURE'
+          : 'INVALID_STRUCTURED_OUTPUT';
+        response.status(502).json({ error: { code: publicCode } });
+        return;
+      }
+      response.status(500).json({ error: { code: 'INTERNAL_ERROR' } });
+    }
+  });
+
+  app.post('/api/stage-training-program', async (request, response) => {
+    const requestValidation = validateStageTrainingProgramRequest(request.body);
+    if (!requestValidation.valid) {
+      response.status(400).json({ error: { code: 'INVALID_REQUEST' } });
+      return;
+    }
+
+    const { equipmentIds, ...stageContext } = requestValidation.value;
+    const input: StageTrainingProgramGenerationInput = {
+      ...stageContext,
+      equipmentProfile: createServerEquipmentProfile(equipmentIds),
+    };
+
+    try {
+      const program = await generateStageProgram(input);
+      response.json({ program });
+    } catch (error) {
+      if (error instanceof StageTrainingProgramGenerationError) {
+        if (error.code === 'INVALID_INPUT') {
+          response.status(400).json({ error: { code: 'INVALID_REQUEST' } });
+          return;
+        }
+        if (error.code === 'MAIN_EXERCISE_UNAVAILABLE') {
+          response.status(422).json({ error: { code: 'MAIN_EXERCISE_UNAVAILABLE' } });
           return;
         }
         const publicCode = error.code === 'OPENAI_API_ERROR'

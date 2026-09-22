@@ -35,12 +35,14 @@ interface WorkoutResultFormProps {
   readonly plan: ValidatedPlannedExercise;
   readonly exerciseName: string;
   readonly existingResult?: ExerciseWorkoutResult;
+  readonly onValidRecord?: () => void;
 }
 
 export function WorkoutResultForm({
   plan,
   exerciseName,
   existingResult,
+  onValidRecord,
 }: WorkoutResultFormProps) {
   const { saveWorkoutResult } = useAdventureQuest();
   const [drafts, setDrafts] = useState<SetDraft[]>(() => createInitialDrafts(plan.sets, existingResult));
@@ -96,18 +98,19 @@ export function WorkoutResultForm({
       performedAt: new Date().toISOString(),
     });
 
-    setMessage(
-      validation.valid
-        ? `${exerciseName}を記録しました。`
-        : `記録できません: ${formatDomainErrors(validation.errors)}`,
-    );
+    if (validation.valid) {
+      setMessage(`${exerciseName}を記録しました。`);
+      onValidRecord?.();
+    } else {
+      setMessage(`記録できません: ${formatDomainErrors(validation.errors)}`);
+    }
   }
 
   return (
     <form className="workout-result-form" onSubmit={submit} noValidate>
       <fieldset>
-        <legend>Workout Result</legend>
-        <p className="form-help">空欄のSETは未記録として除外されます。Partial setsも記録できます。</p>
+        <legend>Set記録</legend>
+        <p className="form-help">空欄のSETは未記録です。Partial setsも記録できます。</p>
         <div className="set-input-list">
           {drafts.map((draft, index) => {
             const setNumber = index + 1;
@@ -116,7 +119,7 @@ export function WorkoutResultForm({
               <div className="set-input-row" key={setNumber}>
                 <span className="set-label">SET {setNumber}</span>
                 <label htmlFor={`${inputPrefix}-weight`}>
-                  <span>weightKg</span>
+                  <span>重量 kg</span>
                   <input
                     id={`${inputPrefix}-weight`}
                     type="number"
@@ -129,7 +132,7 @@ export function WorkoutResultForm({
                   />
                 </label>
                 <label htmlFor={`${inputPrefix}-reps`}>
-                  <span>reps</span>
+                  <span>回数 reps</span>
                   <input
                     id={`${inputPrefix}-reps`}
                     type="number"
@@ -147,7 +150,7 @@ export function WorkoutResultForm({
         </div>
       </fieldset>
       {message !== null && <p className="form-message" role="status">{message}</p>}
-      <button className="button button-secondary" type="submit">記録する</button>
+      <button className="quest-record-button" type="submit">記録する</button>
     </form>
   );
 }

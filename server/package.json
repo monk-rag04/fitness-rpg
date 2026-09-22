@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node --env-file=.env --import tsx src/devStartup.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.mjs",
-    "start": "node dist/index.js",
+    "start": "node dist/productionStartup.js",
     "smoke:openai": "node --env-file-if-exists=.env dist/smokeOpenAI.js"
   },
   "dependencies": {

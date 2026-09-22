@@ -43,7 +43,7 @@ const demoPlanDraft: TrainingPlanDraft = {
       exerciseId: 'barbell_bench_press',
       role: 'main',
       sets: 3,
-      repRange: { min: 8, max: 12 },
+      repRange: { min: 8, max: 10 },
     },
     {
       exerciseId: 'dumbbell_bench_press',

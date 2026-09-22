@@ -71,9 +71,9 @@ export async function generateTrainingPlan(
     );
   }
 
-  const selectedClient = client ?? createOpenAIClient();
-  let response: Awaited<ReturnType<typeof selectedClient.responses.create>>;
+  let response: Awaited<ReturnType<OpenAI['responses']['create']>>;
   try {
+    const selectedClient = client ?? createOpenAIClient();
     response = await selectedClient.responses.create({
       model: getOpenAIModel(),
       instructions: [
@@ -82,6 +82,8 @@ export async function generateTrainingPlan(
         'Use trainingExperienceMonths as context for sets and repRange proposals.',
         'If mainExercise is present, include it exactly once with role main.',
         'Every other selected exercise must have role accessory.',
+        'Use 1 to 5 sets per exercise, with at most 6 exercises and 20 working sets total.',
+        'Use a main repRange within 1 to 10 and accessory repRanges within 5 to 20.',
         'Return sets and repRange. Do not return weight or other fields.',
       ].join(' '),
       input: buildTrainingPlanInput(validation.value),

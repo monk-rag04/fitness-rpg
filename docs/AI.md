@@ -2,7 +2,7 @@
 
 ## Status
 
-OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAchievement Duration専用のClient向けExpress endpointと、まだ画面に接続していないClient Application helperを追加した。Training Plan endpointとProduction Planner全体のFrontend連携は未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
+OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAchievement Duration専用のClient向けExpress endpointとClient Application helperを追加し、現在はProduction Onboarding UIからRoadmap生成へ接続済みである。D-030ではServerがCandidate Builderを実行するTraining Plan endpoint、Client application helper、React Session内のDay cacheを追加した。D-031では、Equipment確定後にStage全体のTraining Programを1回の生成操作で編成する方針を採用した。既存per-day endpointは再利用候補として保持するが、Stage-wide Production Flowへの接続は未実装である。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
 
 ### 決定済み
 
@@ -21,6 +21,9 @@ OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAch
 - D-025ではTraining Planと別のAchievement Duration Estimator Use Caseを採用する。AIは`exerciseId`、current e1RM、決定論的なnext Stage Target、Training経験月数、週頻度を入力として、`estimatedAchievementDays`（1以上の整数）だけをStructured Outputで返す。sharedのInput / Output Validationを必ず通す。
 - AIはStage Target、Roadmap Duration候補、Boss Requirement / date、Training / Recovery Node、曜日、Quest Clear、EXP、Boss Defeatedを決定しない。Duration候補のceiling選択はProduct-owned shared Domainの責務である。
 - D-029ではClientは`POST /api/achievement-duration`だけを呼び、BrowserからOpenAI SDK / API keyを使用しない。Backendは既存Estimator Input ValidationとStructured OutputのDomain再Validationを維持し、`estimatedAchievementDays`だけを返す。42日超はClient/sharedの`selectRoadmapDuration()`が`stage_replanning_required`とし、Demo日数へfallbackしない。
+- D-030ではTraining Plan生成をTraining Node初回Open時の独立Use Caseとし、ClientはEquipment IDs、Training経験月数、Main Exercise ID、D-022 `sessionFocus`だけを送信する境界を定めた。D-031は生成タイミングをStage-wide Training Programへ置き換えるが、Candidate ResultをClientから受け取らないこと、ServerがEquipmentを検証して`buildTrainingCandidates()`と`TrainingSessionPlannerInput`を実行すること、Main Exercise unavailableを`MAIN_EXERCISE_UNAVAILABLE`として停止することは維持する。
+- D-031では、Equipment Profile確定後にStage Target、Main Exercise、current e1RM、Training経験月数、週頻度、Stage duration、全Training Day、各Dayの`sessionFocus`を文脈として、Stage全体のProgramを1回の生成操作で編成する。AIはWeight、Roadmap配置、Quest Clear、EXP、Boss Stateを決めない。Outputは既存`ValidatedTrainingPlan`を`dayIndex`へ割り当てるStage Program形状とし、全Training Dayを過不足なく含める。
+- D-030のPlanは`planByDay[dayIndex]`相当のReact Adventure Session stateへ保存する。D-031では全SessionのValidation成功後にAtomicに一括保存し、部分cacheを禁止する。同じStage内のTraining Node再Openでは保存済みPlanを再利用し、Recovery DayとBossでは生成しない。失敗時のDemo / 固定Plan / silent fallback、自動Retryは禁止し、`maxRetries: 0`と明示的なUser Retryを維持する。既存の6 Exercises、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsのdeterministic runtime guardrailと、AIがTraining Weightを決めない境界も維持する。
 
 ### Development choice
 
@@ -137,11 +140,20 @@ interface AiProvider {
 4. Development SmokeではResponses APIのStructured Outputsで1回のSessionの`TrainingPlanDraft`を返す。Production PromptとContext取得方法は未決定。
 5. `validateTrainingPlanDraft()`が構造、Main Exercise、sets / rep rangeと、今回のCandidate ResultへのID所属を検証する。Catalogに存在しても今回Candidate外なら拒否する。
 6. 将来のSchedule / Roadmap側がFrequency、日付、Recovery間隔、Goal等を別途扱う。Session Draftだけで週次計画の正当性を判定しない。
-7. Invalidなら修正Retry、Fallback、またはユーザーへ確認する。
+7. Invalidなら明示Errorを表示し、D-030のTraining PlanではFallbackせず、ユーザー操作によるRetryまたは入力確認へ進む。
 8. ValidなProposalをユーザーへ提示する。
 9. ユーザー確定後にActive Planとして保存する。
 
-現在は手順2のCandidate Builder、手順3のSession Input Validation、手順4・5を試すDevelopment Smoke Boundary、Domain Validationを実装済み。Production Planner全体、Provider abstraction、Production Prompt、候補件数、具体的なsets / reps推奨範囲、weightの決定は未実装・未決定。
+現在は手順2のCandidate Builder、手順3のSession Input Validation、手順4・5を試すDevelopment Smoke Boundary、Domain Validation、D-030のper-day endpoint / Client helper / Session cacheを実装済み。D-031でStage-wide Programの入力概念、全Training Day coverage、Atomic cache、failure policyを決定したが、Stage-wide endpoint、既存endpointの内部再利用、Client接続、Quest統合、Provider abstraction、Production Prompt、Schema Version、最終Model、Periodization Algorithmは未実装または未決定である。
+
+### Stage-wide Training Program（D-031）
+
+1. Equipment Profileが確定した最初のTraining Nodeで、Stage全体のTraining Day一覧と各DayのSession Focusを集める。Onboarding直後、Recovery Day、Boss Anchorでは生成しない。
+2. BackendがStage共通Equipment、Main Exercise、current e1RM、Stage Target、Training経験月数、週頻度、Stage duration、Training Day contextを検証する。ClientはCandidate Exerciseを注入しない。
+3. Candidate Builderと既存の`TrainingSessionPlannerInput` / `validateTrainingPlanDraft()`を再利用し、各Sessionの`ValidatedTrainingPlan`を生成・検証する。AIはTraining Weight、日付配置、Quest Clear、EXP、Boss Stateを決めない。
+4. Structured Outputの概念的なStage結果は`{ sessions: [{ dayIndex, plan }] }`。Roadmap内の全Training Dayをexactly once含み、Recovery / Boss / 範囲外index / duplicate / missing / extraを拒否する。
+5. 全Sessionがvalidになった場合だけ`planByDay`へAtomicに一括保存する。1件でも失敗した場合は部分cacheせず、Demo / 固定Plan / silent fallbackなしでUserの明示Retryを待つ。
+6. Stage Program成功後のTraining Nodeは保存済み`planByDay[dayIndex]`を読む。既存のper-day endpoint / adapterをStage-wide実装の内部部品として再利用するかは未決定である。
 
 ### Achievement duration estimate（D-025）
 
@@ -172,7 +184,7 @@ Estimator自体はRoadmap Node、Schedule、Boss State、Quest / EXP、Stage Cle
 
 ## Structured Output（採用済み）とTools（候補）
 
-Training Plan Draftの出力制約にはResponses APIのStructured Outputsを採用済み。Tool callは未採用。将来Toolを採用する場合は次を要件候補とする。
+Training Plan Draftの出力制約にはResponses APIのStructured Outputsを採用済み。Tool callは未採用。D-031のStage Programは、このSession-level Draftを`dayIndex`ごとの配列へ包む概念境界であり、Stage Program用の最終Schema / Version / Promptは未決定である。将来Toolを採用する場合は次を要件候補とする。
 
 - AI Responseは自由文ではなく、可能な限りVersion付きSchemaへ制約する。
 - Structured OutputのJSON Parseと既存Domain Validationに失敗したOutputを保存・実行しない。追加Schema validatorのZodは候補。
@@ -203,6 +215,8 @@ MealAIで確認済みのStructured Output、Provider abstraction、AgentTool abs
 - 一時的なUnavailableを説明し、Quest完了等の中核操作は継続可能にする。
 
 Fallbackの優先順位とRetry Policyは未決定。
+
+D-030 / D-031のTraining Plan生成では、上記の一般候補を適用せず、Demo Plan・固定Plan・silent fallbackを禁止する。D-031のStage Programは部分cacheを許可せず、失敗結果は保存しない。OpenAI SDKの自動Retryを無効にし、Stage Program全体に対するユーザーの明示操作によるRetryだけを許可する。
 
 ## Safety
 

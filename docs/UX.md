@@ -107,7 +107,7 @@ Step 3:
 - Main LiftはBoss対象のBarbell Bench / Back Squat / Deadlift / Overhead Pressだけを選択可能とし、Pull-upはComing later / disabled。最近実施できたSetの重量と1..10 repsからD-023式で自己申告Baselineを算出し、Workout Historyとは区別する。重量不明なら`baseline_required`として開始を止め、体重倍率で埋めない。
 - Final Goalはユーザーが直接入力し、Baselineより大きい値を要求する。MVPでGoal推薦値、Food restrictions / Allergy入力、全Stageの仮日数は表示しない。AI Duration推定中・失敗・42日超の状態を偽の成功に置き換えない。
 - Applicationは開始操作時にBrowser local dateを取得する。Baselineの根拠と`onboarding_self_reported`を明示し、未経験者へ体重倍率をAI結果として表示しない。入力・Roadmapの永続化と再Onboarding方針は未決定。
-- Client初期表示はOnboardingとし、成功後に実生成Roadmapと初期ProgressをAdventure Mapへ渡す。Demo Fixtureは開発用に隔離し、実ユーザーRoadmapへDemo Bench Training Planを結合しない。実Training Plan生成は後続工程のままとし、Onboarding由来Training Dayは「Training Planを準備中」と表示してClearを禁止する。Recoveryは既存のProduction Domain境界で扱える。
+- Client初期表示はOnboardingとし、成功後に実生成Roadmapと初期ProgressをAdventure Mapへ渡す。Demo Fixtureは開発用に隔離し、実ユーザーRoadmapへDemo Bench Training Planを結合しない。EquipmentはOnboardingでは入力せず、最初のProduction Training Nodeを開いた時点で未設定ならStage共通のEquipment Profileを登録する。Profile確定後、D-031に従ってStage全体のTraining Programを一度だけ編成し、Roadmap上のTraining DayへPlanを割り当てる。Plan未生成・生成失敗時は安全な準備中 / Error表示とし、ClearやDemo fallbackを許可しない。Recovery DayとBossにはTraining Planを表示・生成せず、生成済みDayは保存済みPlanを再利用する。
 
 ## Adventure Map / Roadmap UX
 
@@ -163,6 +163,21 @@ The current quest is `roadmap.days[currentDayIndex]`. Calendar date, missed days
 ### D-027 completion interaction boundary
 
 For Training, all planned main and accessory exercises show completion only as derived from valid Workout Results. Recording results only makes the quest ready; the user explicitly clears it to advance one node. When `plannedExerciseId !== performedExerciseId`, the UI supplies the current Equipment Profile and relies on the existing Catalog substitution candidates. Direct performance needs no substitution check. Partial sets and out-of-range reps do not block D-027 clear.
+
+### D-030 on-demand Training Plan UX boundary
+
+- Equipment入力はOnboardingのStepへ追加しない。最初のTraining Nodeを開いた時、Stage共通のEquipment Profileが未設定なら、既存Catalog IDを0件以上選択する。空の選択は「器具なし」として有効であり、Full Gymを初期選択しない。
+- Main Exerciseが選択Equipmentで実施不能な場合はPlan生成を停止し、Equipment見直しを促す。Main Exercise変更を選ぶ場合は既存Roadmapを継続せず、OnboardingからRoadmapを再生成する。
+- Figma MakeのEquipment Check / generating / error statesをUI意図のSource of Truthとして扱う。Production Reactで別の完成UIを独自設計せず、Figma側のStage Program境界が確定した後に、Mobile-firstの画面構造・Visual・Touch interactionをfaithful portする。
+- Training Plan生成中はLoading、失敗時は明示ErrorとUser操作によるRetryを表示する。Demo Plan、固定Plan、silent fallbackは表示しない。D-030の「Training Node初回Open時にそのDayだけ生成」というタイミングはD-031でStage-wide Program生成へ置き換えるが、明示Retry、失敗結果を保存しないこと、Recovery Dayで生成しないことは維持する。
+
+### D-031 Stage-wide Training Program UX boundary
+
+- Equipment Checkは「今日使える器具」の日次選択ではなく、StageのTraining Programに使う利用可能Equipment Profile登録として表示する。初期状態は0件選択で、Full Gymを自動選択しない。「器具なし」は空のEquipment IDとして有効である。
+- Equipment Profile確定後に、StageのTraining Day一覧をまとめて編成するLoadingを表示する。文言は「今日のQuest生成」ではなく「このStageのTraining Programを編成中」とする。
+- Program生成が失敗した場合は、部分的なPlanやDemo Planを表示せず、Stage Program全体を再生成する明示的な「もう一度試す」操作だけを提示する。
+- Program成功後は現在DayのPlanを表示し、別のTraining Dayを開いても新しい生成画面やOpenAI呼び出しを表示しない。`planByDay[dayIndex]`の保存済みPlanを利用する。
+- Recovery DayとBoss AnchorにはTraining Plan UIを表示しない。Main ExerciseがEquipmentに適合しない場合は`MAIN_EQUIPMENT_MISSING`相当の状態で停止し、Mainを自動代替しない。
 
 ## Recovery Quest UX
 

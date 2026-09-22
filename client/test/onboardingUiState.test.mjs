@@ -88,7 +88,7 @@ test('final goal must be strictly above the shared baseline preview', () => {
   assert.deepEqual(getOnboardingStepErrors(3, validDraft({ finalGoalE1rmKg: '70.1' })), []);
 });
 
-test('onboarding adventure sessions carry only the created roadmap and progress, never the Demo Bench plan', () => {
+test('onboarding adventure sessions carry the created roadmap, progress, and an empty per-day Plan cache', () => {
   const roadmap = generateStageRoadmap({
     startDate: '2026-09-22',
     durationDays: 14,
@@ -102,7 +102,7 @@ test('onboarding adventure sessions carry only the created roadmap and progress,
   });
   assert.equal(session.source, 'onboarding');
   assert.equal(session.roadmap.mainExerciseId, 'barbell_deadlift');
-  assert.equal(session.trainingPlan, undefined);
+  assert.deepEqual(session.planByDay, {});
   assert.equal(session.equipmentProfile, undefined);
 });
 

@@ -164,19 +164,22 @@ test('a result can be checked against the immutable plan snapshot without checki
     },
   });
   const planValidation = validateTrainingPlanDraft({
-    exercises: [{ exerciseId: 'barbell_bench_press', role: 'main', sets: 3, repRange: { min: 8, max: 12 } }],
+    exercises: [{ exerciseId: 'barbell_bench_press', role: 'main', sets: 3, repRange: { min: 8, max: 10 } }],
   }, candidates);
   assert.equal(planValidation.valid, true);
 
   assert.deepEqual(
     validateWorkoutResultAgainstPlan(
-      expectValid(workoutResult({ completedSets: [set(1, 60, 6), set(2, 60, 6)] })),
+      expectValid(workoutResult({
+        plannedRepRange: { min: 8, max: 10 },
+        completedSets: [set(1, 60, 6), set(2, 60, 6)],
+      })),
       planValidation.plan.exercises[0],
     ),
     { valid: true },
   );
   const inconsistent = validateWorkoutResultAgainstPlan(
-    expectValid(workoutResult({ plannedSets: 2 })),
+    expectValid(workoutResult({ plannedSets: 2, plannedRepRange: { min: 8, max: 10 } })),
     planValidation.plan.exercises[0],
   );
   assert.equal(inconsistent.valid, false);

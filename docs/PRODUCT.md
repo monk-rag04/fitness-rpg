@@ -97,9 +97,11 @@ Onboarding
 
 Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calculateSetE1rm()`で未丸めe1RMを算出し、`onboarding_self_reported`としてWorkout History由来の`currentE1rm`と区別する。重量が分からなければ`baseline_required`とし、体重倍率・Historical PB・0kg・AI推定で埋めずRoadmapを生成しない。初心者のStrength Assessmentは将来機能である。Final GoalはBaseline e1RMより大きい値をユーザーが直接入力し、MVPでは推奨値を表示しない。食事制約・アレルギー入力はMVP Onboardingから外す。
 
-開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。42日超は`stage_replanning_required`を明示し、42日へclamp・TargetやGoalの自動変更・Demo値fallbackをしない。Equipmentは初回Training Quest生成前の別工程で収集し、Training PlanはOnboarding時に生成せず、将来各Training Quest初回Open時に生成する。Demo Bench Planを実ユーザーRoadmapへ流用しない。
+開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。42日超は`stage_replanning_required`を明示し、42日へclamp・TargetやGoalの自動変更・Demo値fallbackをしない。EquipmentはOnboarding後、最初のTraining Nodeを開いた時点でStage共通Profileとして収集する。Equipment確定後にStage全体のTraining Programを1回の生成操作で編成し、Roadmap上のTraining DayだけへPlanを割り当てる。Recovery DayとBossにはPlanを作らない。生成済みSessionは`planByDay[dayIndex]`へ一括保存し、部分保存しない。Demo Bench Planを実ユーザーRoadmapへ流用しない。
 
-**未決定**: 自己申告Baselineの信頼性・修正・永続化、再Onboarding、初心者Strength Assessment、将来のFinal Goal推薦、42日超の再計画Algorithmと画面導線、User timezoneの長期Policy、正式なEquipment収集UI、D-030で定めた境界を実装するTraining Plan endpointの詳細とProduction UI接続。
+**D-031 Stage-wide Training Program**: 1 Stageを一貫したTraining Programとして扱う。Program生成はOnboarding完了直後ではなく、Equipment Profile確定後の最初のTraining Nodeで行う。AIへはStage Target、Main Exercise、current e1RM、Training経験月数、週頻度、Stage duration、Training Day一覧、各DayのSession Focus、Stage共通Equipmentを文脈として渡すが、AIはWeight、Roadmap配置、Quest Clear、EXP、Boss Stateを決めない。全Training Dayを過不足なく編成し、全SessionのDomain Validationが成功した場合だけAtomicに`planByDay`へ保存する。
+
+**未決定**: 自己申告Baselineの信頼性・修正・永続化、再Onboarding、初心者Strength Assessment、将来のFinal Goal推薦、42日超の再計画Algorithmと画面導線、User timezoneの長期Policy、正式なProduction Equipment収集UI、D-030 / D-031で定めた境界を実装するStage Program endpointの詳細、最終Prompt / Model、Periodization AlgorithmとProduction UI接続。
 
 ## Strengthとe1RM
 

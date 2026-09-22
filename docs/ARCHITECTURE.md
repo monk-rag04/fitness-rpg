@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpoint、Client application helper、React Adventure Session内のDay cacheを追加した。Equipment UI、Plan生成UI接続、Database、Authenticationは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpoint、Client application helper、React Adventure Session内のDay cacheを追加した。D-031では、これらをStage-wide Training Programへ組み合わせる最終生成境界を決定した。現時点のRuntime実装は既存のper-day endpoint / helper / cacheを保持しており、Stage-wide生成への接続は未実装である。Equipment UI、Stage Program endpoint、Database、Authenticationは未実装。
 
 区分：
 
@@ -200,7 +200,7 @@ Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/dom
 
 D-029の`shared/src/domain/training/onboardingRoadmap.ts`は、未知のOnboarding入力、Boss対象4種目、Baseline Set、Final Goal、D-026と共通の日付検証を扱う。自己申告BaselineはD-023のSet計算を再利用し、`onboarding_self_reported`の出所とRule Versionを持つ計算結果であってWorkout Historyの`currentE1rm`ではない。Pureな`prepareOnboardingRoadmap()`がStage TargetとDuration Estimator Inputまで、`completeOnboardingRoadmap()`がAI応答の再検証・Duration選択・Roadmap・初期Progressまでを調停する。42日超はRoadmapを作らない。sharedからOpenAIを呼ばない。
 
-Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する。`features/onboarding/`は3-Step UIのDraft StateとUsability validationを持つが、Baseline e1RMはsharedのD-023 APIから導出し、最終入力はこのApplication helperとshared Domainで再検証する。成功時は生成済みRoadmapと初期Progressだけを`AdventureQuestSession`へ渡してMapを表示し、Demo Bench Training Planを実ユーザーRoadmapへ結合しない。Equipment入力と実Training Plan取得は後続工程であり、Onboarding由来Training DayはPlan未生成の間「Training Planを準備中」と表示してClearを禁止する。Recoveryは既存D-027 Domain境界で独立して扱える。
+Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する。`features/onboarding/`は3-Step UIのDraft StateとUsability validationを持つが、Baseline e1RMはsharedのD-023 APIから導出し、最終入力はこのApplication helperとshared Domainで再検証する。成功時は生成済みRoadmapと初期Progressだけを`AdventureQuestSession`へ渡してMapを表示し、Demo Bench Training Planを実ユーザーRoadmapへ結合しない。Equipment入力とStage Training Program取得は後続工程であり、Onboarding由来Training DayはProgram未生成の間「Training Planを準備中」と表示してClearを禁止する。Equipment確定後はD-031のStage-wide生成境界へ進み、成功したPlanを`planByDay`へ一括保存する。Recoveryは既存D-027 Domain境界で独立して扱える。
 
 Training Clear評価は既存`validateExerciseWorkoutResult()`と`validateWorkoutResultAgainstPlan()`を再利用する。全main / accessory Plan itemにちょうど1件の有効でPlan整合したResultを要求し、planned / performedが異なるときだけ既存`getSubstitutionCandidates()`とEquipment Profileを用いる。Resultの登録やevaluationは進行させず、明示的completionだけがcurrent indexを一つ進める。RecoveryはChecklistなしの明示的completionである。日付、Schedule Change、e1RM、OpenAI、EXP、Boss State、Stage Clear、API、Database、Frontendはこの境界に含めない。
 
@@ -269,13 +269,23 @@ Training PlannerやExercise提案へAIを採用する場合、Backend / shared�
 
 `shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。D-030の6 Exercise、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsもshared Runtime Validationで強制する。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。D-030のTraining Plan endpointは実装済みだが、Client接続、実際のLoad計算は未実装であり、Production Prompt / modelは引き続き未決定である。
 
-### D-030 On-demand Training Plan boundary
+### D-030 On-demand Training Plan boundary（生成タイミングはD-031で置換）
 
 D-030のTraining Plan endpointは、ClientからCandidate Resultを受け取らない。Clientの最小入力はEquipment IDs、Onboardingから保持したTraining経験月数、RoadmapのMain Exercise ID、当日Roadmap NodeのD-022 `sessionFocus`である。ServerがEquipmentを構造検証し、Stage共通の`GymEquipmentProfile`を構築し、`buildTrainingCandidates()`を実行してから`TrainingSessionPlannerInput`を生成・検証する。Main ExerciseがEquipment不足の場合は`MAIN_EXERCISE_UNAVAILABLE`を明示し、AIによる代替を許可しない。
 
-Training PlanはOnboarding時に全日分を作らない。Training Node初回Open時だけ生成し、Validated Planを`planByDay[dayIndex]`相当のReact Adventure Session stateへ保存する。同じDayの再Openでは再利用し、Recovery Dayでは生成しない。失敗結果は保存せず、Demo / 固定Plan / silent fallbackを禁止し、明示的なUser Retryだけを許可する。D-030の6 Exercise、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsというguardrailはRuntime validationで強制する。
+Training PlanはOnboarding時に全日分を作らない。D-030ではTraining Node初回Open時のDay単位生成を定めたが、生成タイミング、DayごとのOpenAI generation、Day単位generation retryはD-031でStage-wide Program生成へ置き換えられた。D-030のEquipment境界、Candidate Builder、guardrail、失敗時fallback禁止、明示的なUser Retry、`maxRetries: 0`、React Session-only保持は引き続き有効である。Runtimeの既存per-day endpoint / helper / cacheは再利用候補として保持し、最終Production Flowへはまだ接続しない。
 
-Equipment入力画面は正式なFigma Make画面が確定するまでProduction Reactで独自設計しない。UIに依存しないDomain、endpoint、Client application helper、Session stateは先行可能であり、確定後にFigmaの画面構造・Visual・InteractionをMobile-firstで移植する。
+Figma MakeにはEquipment Check / generating / error statesが存在するが、Production Reactで別の完成UIを独自設計しない。UIに依存しないDomain、endpoint、Client application helper、Session stateは先行可能であり、Figma側のStage Program境界が確定した後に画面構造・Visual・InteractionをMobile-firstで移植する。
+
+### D-031 Stage-wide Training Program boundary
+
+1 Stageを1つの一貫したTraining Programとして扱う。Roadmap確定後、Equipment Profileが登録された最初のTraining Nodeで、Stage Target、Main Exercise、current e1RM、Training経験月数、週頻度、Stage duration、Training Day一覧、各DayのD-022 `sessionFocus`、Stage共通EquipmentをStage Program生成Use Caseへ渡す。Onboarding完了直後には生成せず、Recovery DayやBoss Anchorでも生成しない。
+
+概念的なOutputは`{ sessions: [{ dayIndex, plan }] }`であり、各`plan`は既存の`ValidatedTrainingPlan`を再利用する。Roadmap内の全Training Dayを過不足なく1回ずつ含み、Recovery Day、Boss、範囲外dayIndex、duplicate、missing、extraを拒否する。各SessionはD-030のCandidate所属・Main role・duplicate・6 Exercise・sets / rep range・20 working sets guardrailを通過しなければならない。
+
+Validation後のcache書き込みはAtomicとする。1件でも不正ならProgram全体をrejectし、`planByDay`へ部分保存しない。全SessionのDomain Validationが成功した場合だけ、既存React Adventure Sessionの`planByDay[dayIndex]`へ一括保存する。同じStage内ではTraining Nodeを開くたびにOpenAIを呼ばず、保存済みPlanを読む。Program失敗時はcacheせず、自動Retryやfallbackをせず、Userの明示操作だけを許可する。
+
+Stage-wide endpointのPublic HTTP contract、既存per-day `POST /api/training-plan`の内部再利用可否、Stage Program用Prompt / Schema Version、Periodizationの具体Algorithmは未決定である。既存のCandidate Builder、`validateTrainingPlanDraft()`、安全なProvider Error処理、`maxRetries: 0`、`ValidatedTrainingPlan`、`planByDay`は再利用する。
 
 D-025のAchievement Duration EstimatorはTraining Planとは別Use Caseである。serverの`achievementDuration.ts` / `achievementDurationSchema.ts`は既存のbackend-only client、Responses API、SDK Error sanitizationを再利用するが、別Prompt / Schema Versionを持つ。AIへは`exerciseId`、current e1RM、決定論的Stage Target、経験月数、週頻度だけを渡し、`estimatedAchievementDays`だけを返させる。AIはStage Target、Product候補Duration、Boss date、Training / Recovery Node、曜日、Quest / EXP / Boss結果を決めない。通常test/buildは実APIを呼ばず、このUse CaseのSmoke Callも今回は追加しない。
 

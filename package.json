@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev:client": "npm run dev --workspace @fitness-rpg/client",
-    "dev:server": "npm run dev --workspace @fitness-rpg/server",
+    "dev:server": "node --env-file=server/.env --import tsx server/src/devStartup.ts",
     "test:client": "npm test --workspace @fitness-rpg/client",
     "test:shared": "npm test --workspace @fitness-rpg/shared",
     "test:server": "npm run build:shared && npm run build:server && npm test --workspace @fitness-rpg/server",

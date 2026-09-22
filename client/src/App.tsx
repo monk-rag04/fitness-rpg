@@ -33,6 +33,12 @@ export default function App() {
             setSession(createOnboardingAdventureSession({
               roadmap: result.roadmap,
               initialProgress: result.progress,
+              stageTrainingProgramContext: {
+                mainExerciseId: result.input.mainExerciseId,
+                currentE1rmKg: result.baseline.baselineE1rmKg,
+                trainingExperienceMonths: result.input.trainingExperienceMonths,
+                trainingFrequencyPerWeek: result.input.trainingFrequencyPerWeek,
+              },
             }));
           }}
         />

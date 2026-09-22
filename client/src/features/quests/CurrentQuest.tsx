@@ -8,6 +8,7 @@ import {
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import { RecoveryQuest } from './RecoveryQuest';
 import { TrainingQuest } from './TrainingQuest';
+import { EquipmentProgramFlow } from '../equipment/EquipmentProgramFlow';
 
 function BeginnerQuest() {
   const lessons = [
@@ -87,12 +88,13 @@ export function CurrentQuest() {
   }
 
   const isTraining = currentNode.type === 'training';
+  if (isTraining && isTrainingPlanPending) {
+    return <EquipmentProgramFlow />;
+  }
   const sessionFocus = isTraining
     ? currentNode.sessionFocus.targetMuscles.map((muscle) => muscle.toUpperCase()).join(' · ')
     : null;
-  const helperText = isTraining && isTrainingPlanPending
-    ? 'Training Planの準備が完了するまでQUESTは達成できません'
-    : isTraining && !trainingEvaluation.readyToClear
+  const helperText = isTraining && !trainingEvaluation.readyToClear
     ? 'すべての必須種目を記録するとQUESTを達成できます'
     : '完了するとQUEST CLEAR後にAdventure Mapへ戻ります';
 
@@ -131,13 +133,13 @@ export function CurrentQuest() {
 
       {isBeginnerQuestVisible
         ? <BeginnerQuest />
-        : isTraining ? (isTrainingPlanPending ? <TrainingPlanPending /> : <TrainingQuest />) : <RecoveryQuest />}
+        : isTraining ? <TrainingQuest /> : <RecoveryQuest />}
 
       <footer className="quest-footer">
         {validationMessage !== null && <p className="validation-message" role="alert">{validationMessage}</p>}
         <QuestGoldButton
           type="button"
-          disabled={isTraining && (isTrainingPlanPending || !trainingEvaluation.readyToClear)}
+          disabled={isTraining && !trainingEvaluation.readyToClear}
           onClick={clearCurrentQuest}
         >
           {isTraining ? '⚔ QUESTを完了する' : '☾ 休養を完了する'}

@@ -31,6 +31,7 @@ import {
   getTrainingPlanForDay,
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
   type StageEquipmentProfileStatus,
+  type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
   type TrainingPlanCacheStatus,
 } from './adventureSession';
@@ -44,6 +45,7 @@ interface DomainState {
   readonly progress: StageProgress;
   readonly planByDay: Readonly<Partial<Record<number, ValidatedTrainingPlan>>>;
   readonly equipmentProfile: GymEquipmentProfile | undefined;
+  readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
   readonly workoutResultsByDay: Readonly<
     Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>
   >;
@@ -86,6 +88,7 @@ function createInitialState(session: AdventureQuestSession): AdventureQuestState
       progress: session.initialProgress,
       planByDay: session.planByDay,
       equipmentProfile: session.equipmentProfile,
+      stageTrainingProgramContext: session.stageTrainingProgramContext,
       workoutResultsByDay: {},
     },
     ui: {
@@ -184,6 +187,7 @@ interface AdventureQuestContextValue {
   readonly trainingPlan: ValidatedTrainingPlan | null;
   readonly isTrainingPlanPending: boolean;
   readonly equipmentProfile: GymEquipmentProfile | undefined;
+  readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
   readonly workoutResults: readonly ExerciseWorkoutResult[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
@@ -238,6 +242,7 @@ export function AdventureQuestProvider({
     trainingPlan,
     isTrainingPlanPending,
     equipmentProfile: state.domain.equipmentProfile,
+    stageTrainingProgramContext: state.domain.stageTrainingProgramContext,
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,

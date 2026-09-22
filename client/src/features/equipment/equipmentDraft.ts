@@ -7,6 +7,16 @@ export type EquipmentDraft =
 
 export const INITIAL_EQUIPMENT_DRAFT: EquipmentDraft = { kind: 'unselected' };
 
+/** Convert a persisted Stage profile into the local, presentational draft. */
+export function equipmentDraftFromEquipmentIds(
+  equipmentIds: readonly EquipmentId[] | undefined,
+): EquipmentDraft {
+  if (equipmentIds === undefined) return INITIAL_EQUIPMENT_DRAFT;
+  return equipmentIds.length === 0
+    ? { kind: 'no_equipment' }
+    : { kind: 'equipment', equipmentIds: [...equipmentIds] };
+}
+
 export function toggleEquipment(draft: EquipmentDraft, equipmentId: EquipmentId): EquipmentDraft {
   const selected = draft.kind === 'equipment' ? draft.equipmentIds : [];
   const next = selected.includes(equipmentId)

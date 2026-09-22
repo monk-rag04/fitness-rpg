@@ -1,12 +1,24 @@
 import { EQUIPMENT_IDS } from '@fitness-rpg/shared';
 import type {
   EquipmentId,
+  ExerciseId,
   GymEquipmentProfile,
   StageProgress,
   StageRoadmap,
   ValidatedStageTrainingProgram,
   ValidatedTrainingPlan,
 } from '@fitness-rpg/shared';
+
+/**
+ * Immutable facts accepted during onboarding that the Stage Program request
+ * needs later. This is session data, not a second copy of a generated plan.
+ */
+export interface StageTrainingProgramSessionContext {
+  readonly mainExerciseId: ExerciseId;
+  readonly currentE1rmKg: number;
+  readonly trainingExperienceMonths: number;
+  readonly trainingFrequencyPerWeek: number;
+}
 
 export interface AdventureQuestSession {
   /** Demo remains isolated for development; onboarding sessions must not receive its plan. */
@@ -15,6 +27,7 @@ export interface AdventureQuestSession {
   readonly initialProgress: StageProgress;
   readonly planByDay: TrainingPlanByDay;
   readonly equipmentProfile?: GymEquipmentProfile;
+  readonly stageTrainingProgramContext?: StageTrainingProgramSessionContext;
 }
 
 /**
@@ -231,12 +244,15 @@ export function setStageEquipmentProfile<TTarget extends StageEquipmentProfileTa
 
 /** An onboarding result starts with no generated plan and no Demo fixture. */
 export function createOnboardingAdventureSession(
-  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress'>,
+  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress' | 'stageTrainingProgramContext'>,
 ): AdventureQuestSession {
   return {
     source: 'onboarding',
     roadmap: result.roadmap,
     initialProgress: result.initialProgress,
     planByDay: {},
+    ...(result.stageTrainingProgramContext === undefined
+      ? {}
+      : { stageTrainingProgramContext: result.stageTrainingProgramContext }),
   };
 }

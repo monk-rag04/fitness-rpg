@@ -16,13 +16,15 @@ function equipmentSubtitle(displayName: string): string {
 }
 
 export function EquipmentCheckView({
+  initialDraft = INITIAL_EQUIPMENT_DRAFT,
   onBack,
   onSubmit,
 }: {
+  readonly initialDraft?: EquipmentDraft;
   readonly onBack: () => void;
   readonly onSubmit: (equipmentIds: readonly EquipmentId[]) => void;
 }) {
-  const [draft, setDraft] = useState<EquipmentDraft>(INITIAL_EQUIPMENT_DRAFT);
+  const [draft, setDraft] = useState<EquipmentDraft>(initialDraft);
   return <EquipmentCheckContent draft={draft} onDraftChange={setDraft} onBack={onBack} onSubmit={onSubmit} />;
 }
 
@@ -152,10 +154,12 @@ export function MainEquipmentMissingView({
   mainExerciseName,
   onReselectEquipment,
   onChangeMainStrength,
+  canChangeMainStrength = true,
 }: {
   readonly mainExerciseName: string;
   readonly onReselectEquipment: () => void;
   readonly onChangeMainStrength: () => void;
+  readonly canChangeMainStrength?: boolean;
 }) {
   return (
     <section className="equipment-flow-screen" aria-labelledby="main-equipment-missing-title">
@@ -171,7 +175,7 @@ export function MainEquipmentMissingView({
       </div>
       <footer className="equipment-flow-actions">
         <QuestGoldButton type="button" onClick={onReselectEquipment}>装備を選び直す</QuestGoldButton>
-        <button className="equipment-flow-back" type="button" onClick={onChangeMainStrength}>Main Strengthを変更する</button>
+        <button className="equipment-flow-back" type="button" disabled={!canChangeMainStrength} onClick={onChangeMainStrength}>Main Strengthを変更する</button>
       </footer>
     </section>
   );

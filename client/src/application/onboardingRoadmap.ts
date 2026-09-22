@@ -29,7 +29,7 @@ export function getBrowserLocalStartDate(now: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Not wired to UI yet. Demo Map/Quest keep using their isolated fixture. */
+/** Called by the Production Onboarding UI; Demo Map/Quest keep using their isolated fixture. */
 export async function startOnboardingRoadmap(
   draft: unknown,
   options: { readonly now?: Date; readonly request?: typeof fetch } = {},

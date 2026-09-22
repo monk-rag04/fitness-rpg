@@ -8,6 +8,8 @@ export function TrainingQuest() {
   const { trainingPlan, workoutResults, trainingEvaluation } = useAdventureQuest();
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
 
+  if (trainingPlan === null) return null;
+
   return (
     <section className="quest-main-content" aria-label="今日のトレーニング">
       <QuestOrnateFrame className="main-quest-frame">

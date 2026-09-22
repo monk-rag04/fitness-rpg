@@ -240,6 +240,14 @@ Status:
 - Affected docs / code: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/DECISIONS.md`, `shared/src/domain/training/stageProgress.ts`, `shared/src/domain/training/index.ts`, `shared/test/stageProgress.test.mjs`.
 - Date: 2026-09-22
 
+### D-028: Figma Make Frontend Fidelity Boundary
+
+- Status: Accepted
+- Decision: Figma Makeの画面構造・Visual・UXをFrontend仕様のSource of Truthとし、Production Reactへ高い忠実度で移植する。別のUIとして再設計しない。
+- Decision: FigmaのDummy State / Logic、固定Data、仮計算はProduction仕様にせず、既存のProduction Domain / State / Validationへ置き換える。Product RuleはdocsとAccepted Decision、実際の動作はProduction code / testを正とする。
+- Consequence: UI移植ではFigmaとProductionの差分を明示し、Mobile viewportで確認する。`figma-reference/`は読み取り専用Snapshotのままで、Productionの実行時依存やGit管理対象にしない。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |

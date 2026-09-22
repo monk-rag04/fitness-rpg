@@ -10,7 +10,7 @@
 
 - 3人のTeamでUI / UXを検討する場。
 - Prototype、Interaction、新しいUI案、Visual directionを試す。
-- UI意図のSource of Truthだが、Product仕様やProduction implementationそのものではない。
+- Frontendの画面構造・Visual・UX意図のSource of Truth。Production実装そのものではなく、Product RuleはGitHub docs、実際の動作はProduction codeを正とする。
 - Dummy Data、固定値、Demo Toggle、仮計算、未接続InteractionをProduction仕様として確定しない。
 
 ### `figma-reference/`
@@ -31,7 +31,7 @@
 
 - 実際に動作するProduction AppのSource of Truth。
 - Testは重要なProduct ruleと実装挙動を検証するSource of Truthの一部。
-- Prototype codeではなく、Productionの責務、型、安全性、Testに合わせて実装する。
+- Figmaの画面構造・Visual・Interactionを忠実に移植し、PrototypeのDummy State / LogicはProductionの責務、型、安全性、Testへ置き換える。
 
 ### Codex
 
@@ -54,7 +54,7 @@
 | 対象 | Source of Truth | 補足 |
 |---|---|---|
 | Product仕様 | `docs/PRODUCT.md`と`docs/DECISIONS.md` | Architecture、Data Model、AI詳細は各docsで補足する |
-| UI意図 | Figma / Figma Make | Product仕様と矛盾する場合は自動的に優先せず、差分を解決する |
+| Frontend画面構造・Visual・UX意図 | Figma / Figma Make | Dummy State / Logicは含めない。Product仕様と矛盾する場合は差分を解決する |
 | 実際の動作 | Production codeとtest | 実装バグを仕様として追認しない |
 | Prototypeとの差分 | `docs/UX.md`または`docs/DECISIONS.md` | 観察結果とProduct Decisionを分離する |
 

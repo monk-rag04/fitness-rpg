@@ -20,7 +20,7 @@
 
 ## Source of Truth
 
-- Product・UX・ArchitectureのSource of Truthは、ルートの`docs/`と`AGENTS.md`。
+- Product Rule・ArchitectureのSource of Truthは、ルートの`docs/`と`AGENTS.md`。Frontendの画面構造・Visual・UX意図はFigma MakeをSource of Truthとし、確定したProduct Ruleとの整合を取る。
 - 実際に動作するProduction実装が追加された後は、Production codeとテストが実装挙動のSource of Truthになる。
 - `figma-reference/`は、Figma MakeからDownload codeで書き出した参照用Snapshotであり、Production codeではない。
 - Figma上の表示、Dummy Data、固定値、デモ用切替、仮計算をProduction仕様として扱わない。
@@ -33,7 +33,7 @@
 
 - 読み取り専用の参照資料として扱う。
 - Productionのimport元、ビルド対象、実行時依存にしない。
-- コードをそのままProductionへコピーしない。意図を確認し、Productionの責務・型・テストへ合わせて再設計する。
+- Figmaの画面構造・Visual・Interactionは高い忠実度でProductionへ移植する。一方、Dummy State / Logicをコピーせず、Production Domainの責務・型・検証へ置き換える。
 - Snapshotは欠落・未接続・矛盾を含み得る。ファイルの存在だけで機能完成と判断しない。
 - 参照コードを更新する必要がある場合は、Figma Makeの公式Download codeからSnapshot全体を更新し、確認日と差分を関連ドキュメントへ反映する。
 

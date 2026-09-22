@@ -21,7 +21,7 @@ Prototype Snapshot確認日: 2026-09-21。
 
 **UX確認の目安（固定仕様ではない）**: 375〜430px程度の一般的なスマートフォン幅を重点確認し、Portrait、Touch、主要Actionの到達性をPreviewで検証する。Desktop Previewだけで完了としない。
 
-**Figma → Production**: Smartphone viewportを基準にUI意図を照合する。Prototypeの見た目・Hover装飾・固定寸法をそのままProduction仕様とはせず、Touch / Responsive / Accessibility要件へ合わせて再設計する。
+**Figma → Production**: Smartphone viewportを基準に、Figma Makeの画面構造・Visual・UXを高い忠実度で移植する。Dummy State / LogicはProduction Domainへ置き換え、固定寸法やHover装飾はTouch / Responsive / Accessibility要件を満たすよう調整する。別のFrontendデザインを独自に作らない。
 
 **Prototype確認**: `figma-reference/src/App.tsx`には最大430pxのPhone ColumnとBottom Navigationがある。これはMobile-firstのUI意図と整合するが、Productionの固定幅・Navigation実装の確定根拠ではない。
 

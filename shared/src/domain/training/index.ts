@@ -11,3 +11,4 @@ export * from './workoutResult.js';
 export * from './stagePlanning.js';
 export * from './stageRoadmap.js';
 export * from './stageProgress.js';
+export * from './onboardingRoadmap.js';

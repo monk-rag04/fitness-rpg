@@ -248,6 +248,20 @@ Status:
 - Consequence: UI移植ではFigmaとProductionの差分を明示し、Mobile viewportで確認する。`figma-reference/`は読み取り専用Snapshotのままで、Productionの実行時依存やGit管理対象にしない。
 - Date: 2026-09-22
 
+### D-029: Onboarding Baseline and Roadmap Application Boundary
+
+- Status: Accepted（MVP。Figma Onboarding Screen本体は次工程）
+- Context: D-023〜D-027の純粋DomainとAdventure Map / Quest UIはあるが、Clientは固定Demo Fixtureを使用する。Figmaの初心者体重倍率、整数丸め、Goal倍率、仮Roadmap日数はProductionへ採用しない。
+- Decision: OnboardingのBoss Main Strengthは`barbell_bench_press`、`barbell_back_squat`、`barbell_deadlift`、`barbell_overhead_press`だけを選択可能にする。Pull-upはCatalogに残すがMVP UIではComing later / disabledとし、Boss Mainに使用しない。未知IDとBoss対象外IDを区別して拒否する。
+- Decision: 最近実施できたSetを本人が`weightKg > 0`と`reps 1..10`で自己申告し、既存D-023の`calculateSetE1rm()`から未丸めBaselineを計算する。`source: 'onboarding_self_reported'`とRule Versionを保持し、Workout History由来のrolling-window `currentE1rm`へ混入しない。重量不明なら`baseline_required`でRoadmapを生成しない。初心者体重倍率は採用せず、Strength Assessmentは将来機能とする。
+- Decision: Training Historyはカテゴリ換算ではなく0以上の整数月数を直接入力する。Onboardingの週頻度は1..7の整数、体重は正の有限値として受け取るがRoadmap生成には使わず、Prototypeの45..120kg制限を採用しない。Food restrictions / Allergy入力はMVP Onboardingから外す。
+- Decision: Final Goalは推薦値なしでUserが直接入力し、Onboarding Roadmap開始時は未丸めBaselineより大きい正の有限値だけを許す。既存`planNextStage()`のgoal reached semanticsを変更しない。Client/Applicationが開始操作時のBrowser local calendar dateを`YYYY-MM-DD`で取得し、Domainへ明示的に渡す。Domain内で`Date.now()`を使わない。
+- Decision: `prepareOnboardingRoadmap()`はInput / Baseline / StageとDuration Estimator Inputを決定論的に用意し、`completeOnboardingRoadmap()`は検証済みAI日数に既存`selectRoadmapDuration()`、`generateStageRoadmap()`、`createInitialStageProgress()`を適用する。42日超は`stage_replanning_required`としてRoadmapを作らず、clamp、Stage Target / Goalの自動変更、Demo Duration fallbackをしない。
+- Decision: ClientはExpressの`POST /api/achievement-duration`経由で既存Backend Estimatorを呼ぶ。Serverは既存Validatorを再利用し、成功時は`estimatedAchievementDays`だけ、失敗時はInvalid Request / Provider Failure / Invalid Structured Outputを識別できる安全なError codeだけを返す。OpenAI SDK、API key、Raw ResponseをClientへ渡さない。
+- Scope: 今回は画面未接続のClient Application helperとEndpointまで。Equipmentは初回Training Quest生成前の別工程で収集し、Training PlanはOnboarding時に作らず将来各Training Quest初回Open時に生成する。固定Demo Bench Planを実User Roadmapへ流用しない。Figma Onboarding UI、DB、Persistence、Auth、Beginner Assessment、Training Plan API、Pull-up e1RM、Goal推薦、Food入力、Character、EXP、Boss Battleは今回含めない。
+- Open: 自己申告の修正・信頼性・永続化、42日超の再計画Algorithm / UX、長期Timezone Policy、Equipment UI、Training Plan APIと再生成Policy。
+- Date: 2026-09-22
+
 ## Proposed / 有力方針
 
 | ID | Topic | Proposal | 決定に必要な確認 |
@@ -280,17 +294,16 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 - 42日超estimate時のStage再分割Algorithm。
 - 5kg Stepの将来変更（経験別・割合ベースを含む）。
 - AI estimateの利用時点、再試行、fallback、評価。
-- Onboarding self-report persistenceとbaseline source。
-- trainingFrequencyのProduct上限。
-- Onboarding上のtrainingFrequency選択肢、Full Body / Upper-Lower / PPL、Main Exercise fatigue制約、Recovery Quest内容。
+- Onboarding self-reportの修正・信頼性・永続化（MVP sourceはD-029で決定済み）。
+- Full Body / Upper-Lower / PPL、Main Exercise fatigue制約、Recovery Quest内容（Onboarding frequency 1..7はD-029で決定済み）。
 - Schedule Changeの保存・履歴、過去日・完了日の扱い、競合、AI再計画の詳細、Roadmap Nodeの永続Schema。
 - Boss Shield / Defeated / Stage Clear、timezone。
-- 初心者開始重量の正式ロジック。
+- 初心者Strength Assessmentと将来の開始重量推薦（MVP体重倍率は不採用）。
 - e1RMの30日Windowの将来調整、Warmup / Working Set分類、RPE / RIR、種目別Formula、Pull-up総負荷、自己申告記録の信頼性・修正Policy、UI表示精度の最終Copy。
 - `trainingMax`と決定論的Load / Progression Rule。
 - previous weight prefill、Load Prescription、Double Progression、automatic increase / decrease、重量増分。
 - Workout Result / Quest Clearの保存・取消・複数Session集約Policyと、自己申告Onboarding Recordの保存方法。
-- 推奨Final Goalと達成目安期間。
+- 将来の推奨Final Goalと達成目安期間の表示UX（MVPは直接入力とD-025の1 Stage推定）。
 - EXP値とCategory配分。
 - Level curve。
 - Character成長段階と自動遷移条件。
@@ -405,3 +418,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-025として固定+5kgの決定論的Stage Target、AIのAchievement Duration Estimate、候補Durationのceiling選択と42日超のreplanning statusを採用。Schedule / Boss Stateは含めない。
 - 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focus、将来Recovery Dayへの純粋なSchedule swapを採用。永続化、UI、AI再計画、Game Stateは含めない。
 - 2026-09-22: D-027としてWorkout Resultから導出するTraining Clear、明示的Recovery Clear、day indexによるLinear Map進行、終端でのBoss availabilityを採用。EXP、Boss State、Stage Clear、永続化、UIは含めない。
+- 2026-09-22: D-029として自己申告Baseline、Boss対象Main、直接入力の経験月数・Goal、Onboarding 1..7頻度、Backend Duration endpoint、純粋なRoadmap組立て境界を採用。Figma UIと実Training Plan生成は次工程。

@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedの最小Foundation、Health Check、Training Domainに加え、BackendのOpenAI Integration Foundationと明示実行のSmoke Scriptは実装済み。ゲーム進行、Database、Authentication、Production Training Planner endpointは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加した。Onboarding Screen、実Training Plan endpoint、Database、Authenticationは未実装。
 
 区分：
 
@@ -198,6 +198,10 @@ Stage Roadmap ScheduleのMVP Domain API（D-026）は`shared/src/domain/training
 
 Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/domain/training/stageProgress.ts`に置く。`StageRoadmap`を不変のScheduleとして保ち、`StageProgress = { currentDayIndex }`だけを進行Stateにする。`createInitialStageProgress()`、`deriveStageProgressView()`、`evaluateTrainingQuestCompletion()`、`completeTrainingQuest()`、`completeRecoveryQuest()`はすべてPure TypeScriptである。Map viewはcompleted / available / locked、現在Node、Session Focus、Boss Anchor、Boss availability、完了数を返すが、UI表現を持たない。
 
+D-029の`shared/src/domain/training/onboardingRoadmap.ts`は、未知のOnboarding入力、Boss対象4種目、Baseline Set、Final Goal、D-026と共通の日付検証を扱う。自己申告BaselineはD-023のSet計算を再利用し、`onboarding_self_reported`の出所とRule Versionを持つ計算結果であってWorkout Historyの`currentE1rm`ではない。Pureな`prepareOnboardingRoadmap()`がStage TargetとDuration Estimator Inputまで、`completeOnboardingRoadmap()`がAI応答の再検証・Duration選択・Roadmap・初期Progressまでを調停する。42日超はRoadmapを作らない。sharedからOpenAIを呼ばない。
+
+Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する未接続helperである。現行Map / QuestはDemo Fixtureのまま独立し、実ユーザーRoadmapへDemo Bench Training Planを結合しない。Figma Onboarding UI、Equipment入力、実Training Plan取得、生成結果のApplication State接続は後続工程とする。
+
 Training Clear評価は既存`validateExerciseWorkoutResult()`と`validateWorkoutResultAgainstPlan()`を再利用する。全main / accessory Plan itemにちょうど1件の有効でPlan整合したResultを要求し、planned / performedが異なるときだけ既存`getSubstitutionCandidates()`とEquipment Profileを用いる。Resultの登録やevaluationは進行させず、明示的completionだけがcurrent indexを一つ進める。RecoveryはChecklistなしの明示的completionである。日付、Schedule Change、e1RM、OpenAI、EXP、Boss State、Stage Clear、API、Database、Frontendはこの境界に含めない。
 
 ### Repository Ports
@@ -263,9 +267,11 @@ AIは次の処理を提案できる。
 
 Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
 
-`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。明示実行のSmoke Script以外にAPI Callはなく、Backend endpoint、Production Prompt、実際のLoad計算は未実装・未決定。
+`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。Training Plan endpoint、Production Prompt、実際のLoad計算は未実装・未決定。
 
 D-025のAchievement Duration EstimatorはTraining Planとは別Use Caseである。serverの`achievementDuration.ts` / `achievementDurationSchema.ts`は既存のbackend-only client、Responses API、SDK Error sanitizationを再利用するが、別Prompt / Schema Versionを持つ。AIへは`exerciseId`、current e1RM、決定論的Stage Target、経験月数、週頻度だけを渡し、`estimatedAchievementDays`だけを返させる。AIはStage Target、Product候補Duration、Boss date、Training / Recovery Node、曜日、Quest / EXP / Boss結果を決めない。通常test/buildは実APIを呼ばず、このUse CaseのSmoke Callも今回は追加しない。
+
+D-029の`POST /api/achievement-duration`は、sharedの既存Input Validation後に上記adapterを一度呼び、成功時は`estimatedAchievementDays`だけを返す。400のInvalid Request、502のProvider FailureとInvalid Structured Output、500の未知Errorを固定codeへ写像し、生SDK Response、Error message、API keyを返さない。テストは注入した偽関数で実APIを呼ばず、`AiProvider`抽象化は採用しない。
 
 AIへ任せない処理は`docs/AI.md`を正とする。Provider interfaceを正式採用する場合は、Model名やOpenAI固有Response typeをApplication / Domainへ公開しない。
 

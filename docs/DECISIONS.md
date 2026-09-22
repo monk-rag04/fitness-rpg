@@ -260,7 +260,22 @@ Status:
 - Decision: ClientはExpressの`POST /api/achievement-duration`経由で既存Backend Estimatorを呼ぶ。Serverは既存Validatorを再利用し、成功時は`estimatedAchievementDays`だけ、失敗時はInvalid Request / Provider Failure / Invalid Structured Outputを識別できる安全なError codeだけを返す。OpenAI SDK、API key、Raw ResponseをClientへ渡さない。
 - Implementation note: ClientはFigmaの3-Step画面構造・Visual意図を参照して、D-029 Application Flowへ接続した。UI Draftは体重、経験月数、週頻度、Boss Main、Baseline Set、Final GoalとcurrentStepのみを持ち、Baselineの即時表示はsharedのD-023 APIに委ねる。成功時は実Roadmap / 初期ProgressだけをMapへ渡す。これは新しいProduct Ruleではない。
 - Scope: Equipmentは初回Training Quest生成前の別工程で収集し、Training PlanはOnboarding時に作らず将来各Training Quest初回Open時に生成する。固定Demo Bench Planを実User Roadmapへ流用しない。Plan未生成のOnboarding由来Training Dayは安全な準備中表示とする。DB、Persistence、Auth、Beginner Assessment、Training Plan API、Pull-up e1RM、Goal推薦、Food入力、Character、EXP、Boss Battleは今回含めない。
-- Open: 自己申告の修正・信頼性・永続化、42日超の再計画Algorithm / UX、長期Timezone Policy、Equipment UI、Training Plan APIと再生成Policy。
+- Open: 自己申告の修正・信頼性・永続化、42日超の再計画Algorithm / UX、長期Timezone Policy、Equipment UI、Training Plan APIの実装詳細と再生成Policy。Training Planの入力境界・失敗時fallback禁止・明示Retry・Day cacheはD-030で決定済み。
+- Date: 2026-09-22
+
+### D-030: On-demand Training Plan Generation
+
+- Status: Accepted
+- Context: D-029 deliberately creates only the Roadmap and initial Progress. A Training Plan must be generated for a Training Day without allowing the Client to inject arbitrary candidates, without generating plans for the entire Roadmap during Onboarding, and without reusing the Demo fixture.
+- Decision: Equipment is not collected during Onboarding. When the first Production Training Node is opened, an unset Equipment Profile must be collected before Plan generation. The user may select zero or more IDs from the existing Equipment Catalog; an empty `availableEquipmentIds` means “no equipment” and Full Gym is never a default. One Equipment Profile is shared for the Stage; per-day Equipment Profiles are out of scope.
+- Decision: If the selected Main Strength Exercise is unavailable for the current Equipment Profile, `buildTrainingCandidates()` must stop with `MAIN_EXERCISE_UNAVAILABLE`. AI and Domain logic must not silently substitute the Main Exercise. The user may revise Equipment or change the Main Strength Exercise. Changing the Main Exercise invalidates the existing Strength Goal / Stage Target / Roadmap, so the user must restart Onboarding and generate a new Roadmap.
+- Decision: The Client sends only `equipmentIds`, `trainingExperienceMonths`, `mainExerciseId`, and the existing D-022 `sessionFocus` shape to the Training Plan endpoint. It never sends `TrainingCandidateResult`. The Server validates the Equipment input, constructs a `GymEquipmentProfile`, calls `buildTrainingCandidates()`, constructs and validates `TrainingSessionPlannerInput`, and only then calls the existing OpenAI Training Plan adapter.
+- Decision: The Training Plan output remains `exerciseId`, `role`, `sets`, and `repRange`; AI never determines Training Weight. In addition to existing Candidate / duplicate / Main validation, deterministic runtime guardrails require at most 6 Exercises, 1–5 sets per Exercise, Main rep ranges of 1–10, Accessory rep ranges of 5–20, and at most 20 working sets per Session. These limits are enforced after Structured Output and are not prompt-only instructions.
+- Decision: Generation failures have no Demo, fixed-plan, or silent fallback. The user receives an explicit error and may retry through an explicit user action only. OpenAI SDK `maxRetries: 0` remains in force. A failed result is never cached.
+- Decision: Adventure Session state owns a `planByDay[dayIndex]`-equivalent cache. The first open of a Training Day generates and stores a validated plan for that day; reopening the same day reuses it without another OpenAI call. Recovery Days never generate a Training Plan. The cache is React Adventure Session state only; DB, Supabase, and localStorage persistence are out of scope.
+- Decision: Figma Make remains the Frontend UI / UX Source of Truth. Because no formally approved Equipment input screen currently exists, Production React must not invent one. Domain, endpoint, Client application helper, and session-state work may proceed without a new visual design; Equipment UI is implemented only after the corresponding Figma screen is finalized and then ported faithfully.
+- Consequence: D-030 does not finalize the Production OpenAI model, prompt, provider abstraction, or persistence. Per-day Equipment variation is explicitly out of scope; Stage共通Profileを使う。
+- Affected docs / code: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/AI.md`, `docs/DECISIONS.md`; future work will touch the Training Plan endpoint, Client application helper, Adventure Session cache, and Training Quest integration.
 - Date: 2026-09-22
 
 ## Proposed / 有力方針
@@ -420,3 +435,4 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focus、将来Recovery Dayへの純粋なSchedule swapを採用。永続化、UI、AI再計画、Game Stateは含めない。
 - 2026-09-22: D-027としてWorkout Resultから導出するTraining Clear、明示的Recovery Clear、day indexによるLinear Map進行、終端でのBoss availabilityを採用。EXP、Boss State、Stage Clear、永続化、UIは含めない。
 - 2026-09-22: D-029として自己申告Baseline、Boss対象Main、直接入力の経験月数・Goal、Onboarding 1..7頻度、Backend Duration endpoint、純粋なRoadmap組立て境界を採用。後続Client実装でFigma 3-Step UIをApplication Flowへ接続し、実Training Plan生成は引き続き次工程とする。
+- 2026-09-22: D-030としてEquipmentの初回Training Node収集、Main Exercise unavailable停止、Server-side Candidate Builder境界、Training Plan guardrail、明示Retry、day単位cache、React Session-only保持、Figma未確定Equipment UI境界を採用。

@@ -267,7 +267,15 @@ AIは次の処理を提案できる。
 
 Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
 
-`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。Training Plan endpoint、Production Prompt、実際のLoad計算は未実装・未決定。
+`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。D-030でTraining Plan endpointの境界とguardrailはAcceptedになったが、endpoint、Client接続、実際のLoad計算は未実装であり、Production Prompt / modelは引き続き未決定である。
+
+### D-030 On-demand Training Plan boundary
+
+D-030のTraining Plan endpointは、ClientからCandidate Resultを受け取らない。Clientの最小入力はEquipment IDs、Onboardingから保持したTraining経験月数、RoadmapのMain Exercise ID、当日Roadmap NodeのD-022 `sessionFocus`である。ServerがEquipmentを構造検証し、Stage共通の`GymEquipmentProfile`を構築し、`buildTrainingCandidates()`を実行してから`TrainingSessionPlannerInput`を生成・検証する。Main ExerciseがEquipment不足の場合は`MAIN_EXERCISE_UNAVAILABLE`を明示し、AIによる代替を許可しない。
+
+Training PlanはOnboarding時に全日分を作らない。Training Node初回Open時だけ生成し、Validated Planを`planByDay[dayIndex]`相当のReact Adventure Session stateへ保存する。同じDayの再Openでは再利用し、Recovery Dayでは生成しない。失敗結果は保存せず、Demo / 固定Plan / silent fallbackを禁止し、明示的なUser Retryだけを許可する。D-030の6 Exercise、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsというguardrailはRuntime validationで強制する。
+
+Equipment入力画面は正式なFigma Make画面が確定するまでProduction Reactで独自設計しない。UIに依存しないDomain、endpoint、Client application helper、Session stateは先行可能であり、確定後にFigmaの画面構造・Visual・InteractionをMobile-firstで移植する。
 
 D-025のAchievement Duration EstimatorはTraining Planとは別Use Caseである。serverの`achievementDuration.ts` / `achievementDurationSchema.ts`は既存のbackend-only client、Responses API、SDK Error sanitizationを再利用するが、別Prompt / Schema Versionを持つ。AIへは`exerciseId`、current e1RM、決定論的Stage Target、経験月数、週頻度だけを渡し、`estimatedAchievementDays`だけを返させる。AIはStage Target、Product候補Duration、Boss date、Training / Recovery Node、曜日、Quest / EXP / Boss結果を決めない。通常test/buildは実APIを呼ばず、このUse CaseのSmoke Callも今回は追加しない。
 

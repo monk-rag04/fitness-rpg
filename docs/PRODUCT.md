@@ -99,7 +99,7 @@ Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calc
 
 開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。42日超は`stage_replanning_required`を明示し、42日へclamp・TargetやGoalの自動変更・Demo値fallbackをしない。Equipmentは初回Training Quest生成前の別工程で収集し、Training PlanはOnboarding時に生成せず、将来各Training Quest初回Open時に生成する。Demo Bench Planを実ユーザーRoadmapへ流用しない。
 
-**未決定**: 自己申告Baselineの信頼性・修正・永続化、再Onboarding、初心者Strength Assessment、将来のFinal Goal推薦、42日超の再計画Algorithmと画面導線、User timezoneの長期Policy、Equipment収集UIとTraining Plan APIの具体仕様。
+**未決定**: 自己申告Baselineの信頼性・修正・永続化、再Onboarding、初心者Strength Assessment、将来のFinal Goal推薦、42日超の再計画Algorithmと画面導線、User timezoneの長期Policy、正式なEquipment収集UI、D-030で定めた境界を実装するTraining Plan endpointの詳細とProduction UI接続。
 
 ## Strengthとe1RM
 

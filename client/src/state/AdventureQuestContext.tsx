@@ -5,10 +5,13 @@ import {
   deriveStageProgressView,
   evaluateTrainingQuestCompletion,
   validateExerciseWorkoutResult,
+  type GymEquipmentProfile,
   type ExerciseWorkoutResult,
   type QuestCompletionResult,
+  type StageRoadmap,
   type StageProgress,
   type TrainingQuestCompletionEvaluation,
+  type ValidatedTrainingPlan,
   type WorkoutResultValidationResult,
 } from '@fitness-rpg/shared';
 import {
@@ -18,12 +21,20 @@ import {
   useReducer,
   type ReactNode,
 } from 'react';
-import { DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../demo/fixture';
+import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../demo/fixture';
+import {
+  type AdventureQuestSession,
+} from './adventureSession';
+
+export { type AdventureQuestSession, createOnboardingAdventureSession } from './adventureSession';
 
 export type AppScreen = 'map' | 'quest';
 
 interface DomainState {
+  readonly roadmap: StageRoadmap;
   readonly progress: StageProgress;
+  readonly trainingPlan: ValidatedTrainingPlan | null;
+  readonly equipmentProfile: GymEquipmentProfile | null;
   readonly workoutResultsByDay: Readonly<
     Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>
   >;
@@ -48,17 +59,30 @@ type Action =
   | { readonly type: 'showValidationMessage'; readonly message: string }
   | { readonly type: 'continueAdventure' };
 
-const initialState: AdventureQuestState = {
-  domain: {
-    progress: createInitialStageProgress(DEMO_STAGE_ROADMAP),
-    workoutResultsByDay: {},
-  },
-  ui: {
-    screen: 'map',
-    isClearFeedbackVisible: false,
-    validationMessage: null,
-  },
+export const DEMO_ADVENTURE_SESSION: AdventureQuestSession = {
+  source: 'demo',
+  roadmap: DEMO_STAGE_ROADMAP,
+  initialProgress: createInitialStageProgress(DEMO_STAGE_ROADMAP),
+  trainingPlan: DEMO_TRAINING_PLAN,
+  equipmentProfile: DEMO_EQUIPMENT_PROFILE,
 };
+
+function createInitialState(session: AdventureQuestSession): AdventureQuestState {
+  return {
+    domain: {
+      roadmap: session.roadmap,
+      progress: session.initialProgress,
+      trainingPlan: session.trainingPlan ?? null,
+      equipmentProfile: session.equipmentProfile ?? null,
+      workoutResultsByDay: {},
+    },
+    ui: {
+      screen: 'map',
+      isClearFeedbackVisible: false,
+      validationMessage: null,
+    },
+  };
+}
 
 function reducer(state: AdventureQuestState, action: Action): AdventureQuestState {
   switch (action.type) {
@@ -116,10 +140,11 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
 
 interface AdventureQuestContextValue {
   readonly screen: AppScreen;
-  readonly roadmap: typeof DEMO_STAGE_ROADMAP;
+  readonly roadmap: StageRoadmap;
   readonly progress: StageProgress;
   readonly progressView: ReturnType<typeof deriveStageProgressView>;
-  readonly trainingPlan: typeof DEMO_TRAINING_PLAN;
+  readonly trainingPlan: ValidatedTrainingPlan | null;
+  readonly isTrainingPlanPending: boolean;
   readonly workoutResults: readonly ExerciseWorkoutResult[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
@@ -141,21 +166,29 @@ function getCurrentWorkoutResults(
   );
 }
 
-export function AdventureQuestProvider({ children }: { readonly children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+export function AdventureQuestProvider({
+  children,
+  session = DEMO_ADVENTURE_SESSION,
+}: {
+  readonly children: ReactNode;
+  readonly session?: AdventureQuestSession;
+}) {
+  const [state, dispatch] = useReducer(reducer, session, createInitialState);
   const workoutResults = getCurrentWorkoutResults(state);
-  const progressView = deriveStageProgressView(DEMO_STAGE_ROADMAP, state.domain.progress);
+  const progressView = deriveStageProgressView(state.domain.roadmap, state.domain.progress);
   const trainingEvaluation = evaluateTrainingQuestCompletion(
-    DEMO_TRAINING_PLAN,
+    state.domain.trainingPlan ?? undefined,
     workoutResults,
+    state.domain.equipmentProfile ?? undefined,
   );
 
   const value = useMemo<AdventureQuestContextValue>(() => ({
     screen: state.ui.screen,
-    roadmap: DEMO_STAGE_ROADMAP,
+    roadmap: state.domain.roadmap,
     progress: state.domain.progress,
     progressView,
-    trainingPlan: DEMO_TRAINING_PLAN,
+    trainingPlan: state.domain.trainingPlan,
+    isTrainingPlanPending: state.domain.trainingPlan === null,
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
@@ -183,16 +216,25 @@ export function AdventureQuestProvider({ children }: { readonly children: ReactN
         return null;
       }
 
+      if (currentNode.type === 'training' && state.domain.trainingPlan === null) {
+        dispatch({
+          type: 'showValidationMessage',
+          message: 'Training Planを準備中です。Planが利用可能になるまでTraining Questは完了できません。',
+        });
+        return null;
+      }
+
       const completion = currentNode.type === 'training'
         ? completeTrainingQuest(
-          DEMO_STAGE_ROADMAP,
+          state.domain.roadmap,
           state.domain.progress,
           currentNode.dayIndex,
-          DEMO_TRAINING_PLAN,
+          state.domain.trainingPlan ?? undefined,
           workoutResults,
+          state.domain.equipmentProfile ?? undefined,
         )
         : completeRecoveryQuest(
-          DEMO_STAGE_ROADMAP,
+          state.domain.roadmap,
           state.domain.progress,
           currentNode.dayIndex,
         );

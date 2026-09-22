@@ -69,6 +69,33 @@ test('provider failures are sanitized', async () => {
   assert.deepEqual(result.body, { error: { code: 'PROVIDER_FAILURE' } });
 });
 
+test('all provider failure kinds keep the public 502 contract', async () => {
+  const diagnostics = [
+    { kind: 'bad_request', status: 400 },
+    { kind: 'authentication', status: 401 },
+    { kind: 'permission_denied', status: 403 },
+    { kind: 'not_found', status: 404 },
+    { kind: 'rate_limit', status: 429, code: 'credit_balance_exhausted' },
+    { kind: 'server_error', status: 500 },
+    { kind: 'connection_error', causeCode: 'ECONNRESET' },
+    { kind: 'timeout', causeCode: 'ETIMEDOUT' },
+    { kind: 'unknown_provider_error' },
+  ];
+
+  for (const diagnostic of diagnostics) {
+    const result = await callEndpoint(createApp(async () => {
+      throw new AchievementDurationGenerationError(
+        'OPENAI_API_ERROR',
+        'secret raw provider detail',
+        undefined,
+        diagnostic,
+      );
+    }), validRequest);
+    assert.equal(result.status, 502);
+    assert.deepEqual(result.body, { error: { code: 'PROVIDER_FAILURE' } });
+  }
+});
+
 test('invalid structured output is distinct and never echoes raw content', async () => {
   for (const code of ['STRUCTURED_OUTPUT_MISSING', 'DOMAIN_VALIDATION_FAILED']) {
     const result = await callEndpoint(createApp(async () => {

@@ -11,13 +11,18 @@ export class MissingOpenAIKeyError extends Error {
   }
 }
 
+export function isOpenAIConfigured(): boolean {
+  const apiKey = process.env.OPENAI_API_KEY;
+  return typeof apiKey === 'string' && apiKey.trim() !== '';
+}
+
 export function createOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (apiKey === undefined || apiKey.trim() === '') {
+  if (!isOpenAIConfigured()) {
     throw new MissingOpenAIKeyError();
   }
 
-  return new OpenAI({ apiKey });
+  return new OpenAI({ apiKey, maxRetries: 0 });
 }
 
 export function getOpenAIModel(): string {

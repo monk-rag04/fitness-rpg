@@ -1025,6 +1025,222 @@ button.map-node:active {
 .quest-clear-progress { display: grid; gap: 0.15rem; width: 100%; padding: 0.65rem; border: 1px solid rgba(74, 168, 255, 0.36); border-radius: 0.4rem; background: rgba(74, 168, 255, 0.09); color: var(--color-muted); font-size: 0.72rem; }
 .quest-clear-progress strong { color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.78rem; }
 
+/* Figma Make Onboarding structure, using D-029 input and roadmap boundaries. */
+.onboarding-screen {
+  display: grid;
+  min-width: 0;
+  min-height: 100dvh;
+  align-content: start;
+  gap: 1.25rem;
+  padding: calc(2.25rem + env(safe-area-inset-top)) 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  color: var(--color-text);
+  font-family: 'Spectral', Georgia, serif;
+}
+
+.onboarding-intro { text-align: center; }
+.onboarding-brand {
+  display: grid;
+  width: 3.75rem;
+  height: 3.75rem;
+  margin: 0 auto 0.65rem;
+  place-items: center;
+  border: 1px solid rgba(233, 200, 118, 0.55);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, rgba(233, 200, 118, 0.24), rgba(19, 26, 46, 0.82) 66%);
+  box-shadow: 0 0 22px rgba(233, 200, 118, 0.16), inset 0 0 20px rgba(74, 168, 255, 0.08);
+  color: var(--color-gold-bright);
+  font-size: 1.8rem;
+}
+.onboarding-wordmark,
+.onboarding-kicker {
+  margin: 0;
+  color: var(--color-gold-bright);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.onboarding-kicker { color: var(--color-arcane); font-size: 0.66rem; }
+.onboarding-intro h1,
+.onboarding-screen--success h1 {
+  margin: 0.5rem 0 0;
+  background: linear-gradient(135deg, #fff1b7, var(--color-gold), var(--color-gold-bright));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: clamp(1.45rem, 7.5vw, 2rem);
+  line-height: 1.35;
+}
+.onboarding-intro > p:not(.onboarding-wordmark),
+.onboarding-lead {
+  margin: 0.6rem auto 0;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.onboarding-stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.onboarding-stepper li {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 0.3rem;
+  color: var(--color-faint);
+}
+.onboarding-stepper li::before {
+  width: 100%;
+  height: 2px;
+  margin-bottom: -1.25rem;
+  background: rgba(236, 227, 207, 0.14);
+  content: '';
+}
+.onboarding-stepper li:first-child::before { margin-left: 50%; width: 50%; }
+.onboarding-stepper li:last-child::before { width: 50%; margin-right: 50%; }
+.onboarding-stepper span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border: 1px solid rgba(236, 227, 207, 0.24);
+  border-radius: 50%;
+  background: var(--color-bg-2);
+  color: inherit;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+.onboarding-stepper small { overflow: hidden; max-width: 100%; font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.49rem; font-weight: 700; letter-spacing: 0.04em; text-overflow: ellipsis; white-space: nowrap; }
+.onboarding-stepper .is-current,
+.onboarding-stepper .is-complete { color: var(--color-gold-bright); }
+.onboarding-stepper .is-current span,
+.onboarding-stepper .is-complete span { border-color: var(--color-gold-bright); box-shadow: 0 0 13px rgba(233, 200, 118, 0.18); }
+.onboarding-stepper .is-complete::before,
+.onboarding-stepper .is-current::before { background: linear-gradient(90deg, var(--color-gold-dim), rgba(233, 200, 118, 0.18)); }
+
+.onboarding-content { min-width: 0; margin: 0; padding: 0; border: 0; }
+.onboarding-content:disabled { opacity: 0.72; }
+.onboarding-panel { display: grid; gap: 1.05rem; padding: 1.15rem; }
+.onboarding-panel-intro { margin: -0.15rem 0 0; color: var(--color-muted); font-size: 0.84rem; line-height: 1.5; }
+.onboarding-form-grid,
+.onboarding-baseline-inputs { display: grid; gap: 0.9rem; }
+.onboarding-form-grid label,
+.onboarding-baseline-inputs label,
+.onboarding-goal-input {
+  display: grid;
+  gap: 0.38rem;
+  min-width: 0;
+}
+.onboarding-form-grid label > span,
+.onboarding-baseline-inputs label > span,
+.onboarding-goal-input > span {
+  color: var(--color-text);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+.onboarding-form-grid em,
+.onboarding-baseline-inputs em,
+.onboarding-goal-input em {
+  margin-left: 0.3rem;
+  color: var(--color-arcane);
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 0.57rem;
+  font-style: normal;
+  letter-spacing: 0.06em;
+}
+.onboarding-form-grid input,
+.onboarding-baseline-inputs input,
+.onboarding-goal-input input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid rgba(236, 227, 207, 0.24);
+  border-radius: 0.4rem;
+  background: rgba(11, 13, 18, 0.82);
+  color: var(--color-text);
+  padding: 0.55rem 0.75rem;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 0.88rem;
+}
+.onboarding-form-grid input::placeholder,
+.onboarding-baseline-inputs input::placeholder,
+.onboarding-goal-input input::placeholder { color: var(--color-faint); }
+.onboarding-form-grid small { color: var(--color-faint); font-size: 0.7rem; line-height: 1.4; }
+
+.onboarding-exercise-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
+.onboarding-exercise-grid button {
+  display: grid;
+  min-width: 0;
+  min-height: 4.25rem;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.6rem;
+  border: 1px solid rgba(236, 227, 207, 0.15);
+  border-radius: 0.42rem;
+  background: rgba(11, 13, 18, 0.5);
+  color: var(--color-muted);
+  text-align: left;
+}
+.onboarding-exercise-grid button:hover:not(:disabled) { border-color: rgba(233, 200, 118, 0.62); color: var(--color-text); }
+.onboarding-exercise-grid button.is-selected { border-color: var(--color-gold-bright); background: rgba(201, 162, 75, 0.14); box-shadow: inset 0 0 16px rgba(233, 200, 118, 0.07), 0 0 14px rgba(233, 200, 118, 0.1); color: var(--color-gold-bright); }
+.onboarding-exercise-grid button.is-disabled { cursor: not-allowed; opacity: 0.45; }
+.onboarding-exercise-grid span { overflow-wrap: anywhere; font-family: 'Cinzel', Georgia, serif; font-size: 0.7rem; font-weight: 700; }
+.onboarding-exercise-grid small { color: inherit; font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.48rem; letter-spacing: 0.04em; }
+
+.onboarding-baseline-toggle { display: flex; min-height: 2.75rem; align-items: center; gap: 0.6rem; color: var(--color-muted); font-size: 0.8rem; line-height: 1.4; }
+.onboarding-baseline-toggle input { width: 1rem; height: 1rem; accent-color: var(--color-gold-bright); }
+.onboarding-baseline-missing { padding: 0.8rem; border: 1px solid rgba(74, 168, 255, 0.35); border-radius: 0.42rem; background: rgba(74, 168, 255, 0.07); }
+.onboarding-baseline-missing strong { color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.6rem; letter-spacing: 0.08em; }
+.onboarding-baseline-missing p { margin: 0.45rem 0 0; color: var(--color-muted); font-size: 0.78rem; line-height: 1.5; }
+.onboarding-baseline-result { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.8rem; border: 1px solid rgba(74, 168, 255, 0.35); border-radius: 0.42rem; background: rgba(74, 168, 255, 0.08); }
+.onboarding-baseline-result p { margin: 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; }
+.onboarding-baseline-result span { display: block; margin-top: 0.2rem; color: var(--color-faint); font-size: 0.66rem; }
+.onboarding-baseline-result strong { flex: 0 0 auto; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: clamp(1.2rem, 6vw, 1.55rem); }
+.onboarding-baseline-result.is-missing strong { color: var(--color-faint); }
+
+.onboarding-goal-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
+.onboarding-goal-summary > div { display: grid; gap: 0.35rem; padding: 0.75rem 0.6rem; border: 1px solid rgba(236, 227, 207, 0.15); border-radius: 0.42rem; background: rgba(11, 13, 18, 0.44); text-align: center; }
+.onboarding-goal-summary > div:last-child { border-color: rgba(233, 200, 118, 0.42); background: rgba(201, 162, 75, 0.07); }
+.onboarding-goal-summary span { color: var(--color-faint); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.51rem; font-weight: 700; letter-spacing: 0.05em; }
+.onboarding-goal-summary strong { overflow: hidden; color: var(--color-text); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.84rem; text-overflow: ellipsis; white-space: nowrap; }
+.onboarding-goal-summary > div:last-child strong { color: var(--color-gold-bright); }
+.onboarding-estimate-area { display: grid; gap: 0.3rem; padding: 0.85rem; border: 1px solid rgba(74, 168, 255, 0.32); border-radius: 0.42rem; background: rgba(74, 168, 255, 0.06); }
+.onboarding-estimate-area p { margin: 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.61rem; font-weight: 700; letter-spacing: 0.08em; }
+.onboarding-estimate-area span { color: var(--color-muted); font-size: 0.76rem; line-height: 1.45; }
+.onboarding-estimate-area strong { color: var(--color-arcane); font-size: 0.88rem; }
+
+.onboarding-field-error,
+.onboarding-request-error { margin: -0.4rem 0 0; padding: 0.75rem; border: 1px solid rgba(232, 93, 77, 0.5); border-radius: 0.4rem; background: rgba(192, 57, 43, 0.1); color: var(--color-danger-bright); font-size: 0.8rem; line-height: 1.45; }
+.onboarding-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.65rem; margin-top: auto; padding-top: 0.4rem; }
+.onboarding-actions:has(.onboarding-back-button) { grid-template-columns: minmax(5.5rem, 0.8fr) minmax(0, 1.7fr); }
+.onboarding-back-button { min-height: 3.2rem; border: 1px solid rgba(236, 227, 207, 0.24); border-radius: 0.4rem; background: rgba(236, 227, 207, 0.05); color: var(--color-muted); font-family: 'Cinzel', Georgia, serif; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; }
+.onboarding-back-button:hover:not(:disabled) { border-color: rgba(233, 200, 118, 0.55); color: var(--color-gold-bright); }
+.onboarding-back-button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.onboarding-screen--success { align-content: center; text-align: center; }
+.onboarding-success-card { margin: 0.4rem 0; padding: 1rem; }
+.onboarding-success-card dl { display: grid; gap: 0.7rem; margin: 0; }
+.onboarding-success-card dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding-bottom: 0.65rem; border-bottom: 1px solid rgba(236, 227, 207, 0.13); }
+.onboarding-success-card dl > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.onboarding-success-card dt { color: var(--color-faint); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; text-align: left; }
+.onboarding-success-card dd { margin: 0; color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.9rem; }
+
+.training-plan-pending { text-align: center; }
+.training-plan-pending .quest-section-title { justify-content: center; }
+.training-plan-pending__eyebrow { margin: 1rem 0 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; }
+.training-plan-pending h2 { margin: 0.55rem 0 0; color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 1rem; }
+.training-plan-pending p:not(.training-plan-pending__eyebrow) { margin: 0.8rem 0 0; color: var(--color-muted); font-size: 0.85rem; line-height: 1.55; }
+
 @keyframes quest-clear-radiance { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1036,6 +1252,9 @@ button.map-node:active {
   .current-quest { padding-right: 1rem; padding-left: 1rem; }
   .quest-header h1 { font-size: 1.32rem; }
   .figma-exercise-card { padding: 0.7rem; }
+  .onboarding-screen { padding-right: 1rem; padding-left: 1rem; }
+  .onboarding-stepper small { font-size: 0.43rem; }
+  .onboarding-panel { padding: 0.95rem; }
 }
 
 @media (min-width: 560px) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   QuestGoldButton,
   QuestOrnateFrame,
+  QuestSectionTitle,
   QuestTypeTag,
 } from '../../components/QuestUi';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
@@ -41,11 +42,28 @@ function BeginnerQuest() {
   );
 }
 
+function TrainingPlanPending() {
+  return (
+    <section className="quest-main-content" aria-labelledby="training-plan-pending-title">
+      <QuestOrnateFrame className="main-quest-frame training-plan-pending" glow>
+        <QuestSectionTitle>メインQUEST</QuestSectionTitle>
+        <p className="training-plan-pending__eyebrow">TRAINING PLAN</p>
+        <h2 id="training-plan-pending-title">Training Planを準備中</h2>
+        <p>
+          このRoadmapのTraining内容は、利用可能なEquipmentを確認してから作成します。
+          現在は固定Demo Planを表示・流用しません。
+        </p>
+      </QuestOrnateFrame>
+    </section>
+  );
+}
+
 export function CurrentQuest() {
   const {
     progressView,
     returnToMap,
     trainingEvaluation,
+    isTrainingPlanPending,
     clearCurrentQuest,
     validationMessage,
   } = useAdventureQuest();
@@ -72,7 +90,9 @@ export function CurrentQuest() {
   const sessionFocus = isTraining
     ? currentNode.sessionFocus.targetMuscles.map((muscle) => muscle.toUpperCase()).join(' · ')
     : null;
-  const helperText = isTraining && !trainingEvaluation.readyToClear
+  const helperText = isTraining && isTrainingPlanPending
+    ? 'Training Planの準備が完了するまでQUESTは達成できません'
+    : isTraining && !trainingEvaluation.readyToClear
     ? 'すべての必須種目を記録するとQUESTを達成できます'
     : '完了するとQUEST CLEAR後にAdventure Mapへ戻ります';
 
@@ -98,24 +118,26 @@ export function CurrentQuest() {
         </p>
       </section>
 
-      <button
-        className={`beginner-toggle ${isBeginnerQuestVisible ? 'is-active' : ''}`}
-        type="button"
-        aria-pressed={isBeginnerQuestVisible}
-        onClick={() => setIsBeginnerQuestVisible((visible) => !visible)}
-      >
-        📖 {isBeginnerQuestVisible ? 'BEGINNER QUEST 表示中' : 'BEGINNER QUEST を見る'}
-      </button>
+      {!isTrainingPlanPending && (
+        <button
+          className={`beginner-toggle ${isBeginnerQuestVisible ? 'is-active' : ''}`}
+          type="button"
+          aria-pressed={isBeginnerQuestVisible}
+          onClick={() => setIsBeginnerQuestVisible((visible) => !visible)}
+        >
+          📖 {isBeginnerQuestVisible ? 'BEGINNER QUEST 表示中' : 'BEGINNER QUEST を見る'}
+        </button>
+      )}
 
       {isBeginnerQuestVisible
         ? <BeginnerQuest />
-        : isTraining ? <TrainingQuest /> : <RecoveryQuest />}
+        : isTraining ? (isTrainingPlanPending ? <TrainingPlanPending /> : <TrainingQuest />) : <RecoveryQuest />}
 
       <footer className="quest-footer">
         {validationMessage !== null && <p className="validation-message" role="alert">{validationMessage}</p>}
         <QuestGoldButton
           type="button"
-          disabled={isTraining && !trainingEvaluation.readyToClear}
+          disabled={isTraining && (isTrainingPlanPending || !trainingEvaluation.readyToClear)}
           onClick={clearCurrentQuest}
         >
           {isTraining ? '⚔ QUESTを完了する' : '☾ 休養を完了する'}

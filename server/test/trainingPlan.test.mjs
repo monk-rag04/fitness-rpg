@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildTrainingCandidates } from '@fitness-rpg/shared';
-import { MissingOpenAIKeyError, createOpenAIClient } from '../dist/openai/client.js';
+import { MissingOpenAIKeyError, createOpenAIClient, isOpenAIConfigured } from '../dist/openai/client.js';
 import { trainingPlanDraftFormat } from '../dist/openai/trainingPlanSchema.js';
 import {
   TrainingPlanGenerationError,
@@ -82,12 +82,25 @@ test('missing key is distinguishable without exposing a value', () => {
   const priorKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
   try {
+    assert.equal(isOpenAIConfigured(), false);
     assert.throws(
       () => createOpenAIClient(),
       (error) => error instanceof MissingOpenAIKeyError && error.code === 'OPENAI_API_KEY_MISSING',
     );
   } finally {
     if (priorKey !== undefined) process.env.OPENAI_API_KEY = priorKey;
+  }
+});
+
+test('shared OpenAI client disables SDK automatic retries', () => {
+  const priorKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'unit-test-key';
+  try {
+    const client = createOpenAIClient();
+    assert.equal(client.maxRetries, 0);
+  } finally {
+    if (priorKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = priorKey;
   }
 });
 

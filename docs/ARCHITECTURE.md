@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加した。Onboarding Screen、実Training Plan endpoint、Database、Authenticationは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。実Training Plan endpoint、Database、Authenticationは未実装。
 
 区分：
 
@@ -200,7 +200,7 @@ Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/dom
 
 D-029の`shared/src/domain/training/onboardingRoadmap.ts`は、未知のOnboarding入力、Boss対象4種目、Baseline Set、Final Goal、D-026と共通の日付検証を扱う。自己申告BaselineはD-023のSet計算を再利用し、`onboarding_self_reported`の出所とRule Versionを持つ計算結果であってWorkout Historyの`currentE1rm`ではない。Pureな`prepareOnboardingRoadmap()`がStage TargetとDuration Estimator Inputまで、`completeOnboardingRoadmap()`がAI応答の再検証・Duration選択・Roadmap・初期Progressまでを調停する。42日超はRoadmapを作らない。sharedからOpenAIを呼ばない。
 
-Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する未接続helperである。現行Map / QuestはDemo Fixtureのまま独立し、実ユーザーRoadmapへDemo Bench Training Planを結合しない。Figma Onboarding UI、Equipment入力、実Training Plan取得、生成結果のApplication State接続は後続工程とする。
+Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する。`features/onboarding/`は3-Step UIのDraft StateとUsability validationを持つが、Baseline e1RMはsharedのD-023 APIから導出し、最終入力はこのApplication helperとshared Domainで再検証する。成功時は生成済みRoadmapと初期Progressだけを`AdventureQuestSession`へ渡してMapを表示し、Demo Bench Training Planを実ユーザーRoadmapへ結合しない。Equipment入力と実Training Plan取得は後続工程であり、Onboarding由来Training DayはPlan未生成の間「Training Planを準備中」と表示してClearを禁止する。Recoveryは既存D-027 Domain境界で独立して扱える。
 
 Training Clear評価は既存`validateExerciseWorkoutResult()`と`validateWorkoutResultAgainstPlan()`を再利用する。全main / accessory Plan itemにちょうど1件の有効でPlan整合したResultを要求し、planned / performedが異なるときだけ既存`getSubstitutionCandidates()`とEquipment Profileを用いる。Resultの登録やevaluationは進行させず、明示的completionだけがcurrent indexを一つ進める。RecoveryはChecklistなしの明示的completionである。日付、Schedule Change、e1RM、OpenAI、EXP、Boss State、Stage Clear、API、Database、Frontendはこの境界に含めない。
 

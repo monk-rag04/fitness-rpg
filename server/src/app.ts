@@ -1,5 +1,7 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import {
   EQUIPMENT_IDS,
   TrainingCandidateError,
@@ -65,6 +67,12 @@ interface TrainingPlanRequest {
 type TrainingPlanRequestValidationResult =
   | { readonly valid: true; readonly value: TrainingPlanRequest }
   | { readonly valid: false };
+
+export interface AppOptions {
+  /** Test-only injection keeps static-serving coverage independent of a Vite build. */
+  readonly serveClientStatic?: boolean;
+  readonly clientDistPath?: string;
+}
 
 const TRAINING_PLAN_REQUEST_FIELDS = [
   'equipmentIds',
@@ -163,14 +171,25 @@ function createServerEquipmentProfile(
   };
 }
 
+export function resolveClientDistPath(moduleUrl: string = import.meta.url): string {
+  return fileURLToPath(new URL('../../client/dist/', moduleUrl));
+}
+
+function isApiPath(path: string): boolean {
+  return path === '/api' || path.startsWith('/api/');
+}
+
 /** Injection keeps HTTP contract tests network-free without adopting a provider abstraction. */
 export function createApp(
   estimateDuration: DurationEstimator = generateAchievementDurationEstimate,
   generatePlan: TrainingPlanGenerator = generateTrainingPlan,
   generateStageProgram: StageTrainingProgramGenerator = generateStageTrainingProgram,
+  options: AppOptions = {},
 ) {
   const app = express();
   app.use(express.json());
+  const serveClientStatic = options.serveClientStatic ?? process.env.NODE_ENV === 'production';
+  const clientDistPath = options.clientDistPath ?? resolveClientDistPath();
 
   function logDiagnostic(message: string): void {
     if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test') return;
@@ -360,6 +379,27 @@ export function createApp(
       response.status(500).json({ error: { code: 'INTERNAL_ERROR' } });
     }
   });
+
+  app.use((request, response, next) => {
+    if (isApiPath(request.path)) {
+      response.status(404).json({ error: { code: 'NOT_FOUND' } });
+      return;
+    }
+    next();
+  });
+
+  if (serveClientStatic) {
+    app.use(express.static(clientDistPath));
+    app.use((request, response, next) => {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        next();
+        return;
+      }
+      response.sendFile(resolve(clientDistPath, 'index.html'), (error) => {
+        if (error !== undefined) next(error);
+      });
+    });
+  }
 
   app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
     const status = typeof error === 'object' && error !== null && 'status' in error

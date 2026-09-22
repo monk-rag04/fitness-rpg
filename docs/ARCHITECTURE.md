@@ -74,6 +74,17 @@ flowchart LR
 - Production Prompt、Session Contextの取得・更新方法と将来拡張、Tool call採用、Retry / Timeout / Cost policy
 - Deployment / Hosting構成
 
+### Production delivery boundary
+
+**実装済み**: Production buildは既存rootの`npm run build`で`shared`、`server`、`client`を順にcompileする。rootの`npm start`はcompiled Serverを起動し、Production modeで`client/dist`を同一Express originからstatic配信する。既存のrelative `/api/...` requestは同じoriginのAPI routeへ届くため、Production Backend URLのClient hardcodeやCORS緩和を必要としない。
+
+- API routesを先に登録し、未知の`/api` / `/api/*`はJSON `404 { error: { code: 'NOT_FOUND' } }`として扱う。SPA fallbackはAPI pathへ適用しない。
+- static assetは`client/dist`から配信し、非APIのGET / HEAD routeは`index.html`へfallbackする。
+- `client/dist`はESM module locationから解決し、repository working directoryへ依存しない。開発時は従来どおりVite + proxyを使い、Express static servingを有効にしない。
+- hostの`PORT`を優先し、未指定時は3000を使う。`OPENAI_API_KEY`はProduction hostのServer環境変数だけに置き、Client bundle、public error、logへ出さない。
+
+**未決定**: Renderを含む具体的なHosting Provider、Deploy手順、monitoring、custom domain、環境変数運用は未決定であり、この実装は特定providerへのDeployを実行・採用するものではない。
+
 有力方針と候補は導入前に`docs/DECISIONS.md`で正式採用を記録する。今回の採用範囲はD-021を参照する。
 
 Mobile-firstはUI設計方針であり、Native App化を意味しない。現時点のProduction FrontendはWeb Clientで、PWAやCapacitorの設定は導入しない。

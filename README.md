@@ -110,6 +110,19 @@ npm run build:client
 npm run build
 ```
 
+## 共有用Production起動
+
+Production buildは、React Clientを`client/dist`へ出力し、compiled Express Serverが同じoriginから静的配信します。Frontendは引き続き相対`/api/...`を使うため、Production用Backend URLの設定は不要です。
+
+```powershell
+npm run build
+npm start
+```
+
+`npm start`はcompiled Serverのみを起動し、hostが渡す`PORT`を優先します。`/api/*`はExpress APIとして処理し、それ以外のGET / HEAD routeはSPAの`index.html`へfallbackします。`OPENAI_API_KEY`はhostのServer環境変数だけに設定し、`server/.env`をDeployやGitへ含めません。
+
+現時点のAdventure Sessionはメモリ内の試作Stateです。共有URLでもページ更新でSessionがリセットされます。
+
 ## OpenAI Development Smoke Test
 
 Node.js 24の標準`--env-file-if-exists`を使い、`server/.env`を明示実行時だけ読み込みます。`server/.env.example`を参考に、API keyを自分で`server/.env`へ設定してください。実際の`.env`はGit管理外であり、Frontendへkeyを置きません。Development default modelは`gpt-5.6-luna`で、`OPENAI_MODEL`から変更可能です。

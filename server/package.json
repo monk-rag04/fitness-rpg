@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.mjs",
-    "start": "node dist/index.js",
+    "start": "node dist/productionStartup.js",
     "smoke:openai": "node --env-file-if-exists=.env dist/smokeOpenAI.js"
   },
   "dependencies": {

@@ -24,6 +24,9 @@ import {
 import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../demo/fixture';
 import {
   type AdventureQuestSession,
+  cacheTrainingPlanForDay as cacheTrainingPlanForRoadmapDay,
+  getTrainingPlanForDay,
+  type TrainingPlanCacheStatus,
 } from './adventureSession';
 
 export { type AdventureQuestSession, createOnboardingAdventureSession } from './adventureSession';
@@ -33,7 +36,7 @@ export type AppScreen = 'map' | 'quest';
 interface DomainState {
   readonly roadmap: StageRoadmap;
   readonly progress: StageProgress;
-  readonly trainingPlan: ValidatedTrainingPlan | null;
+  readonly planByDay: Readonly<Partial<Record<number, ValidatedTrainingPlan>>>;
   readonly equipmentProfile: GymEquipmentProfile | null;
   readonly workoutResultsByDay: Readonly<
     Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>
@@ -54,6 +57,7 @@ interface AdventureQuestState {
 type Action =
   | { readonly type: 'openCurrentQuest' }
   | { readonly type: 'returnToMap' }
+  | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
   | { readonly type: 'completeQuest'; readonly progress: StageProgress }
   | { readonly type: 'showValidationMessage'; readonly message: string }
@@ -63,7 +67,7 @@ export const DEMO_ADVENTURE_SESSION: AdventureQuestSession = {
   source: 'demo',
   roadmap: DEMO_STAGE_ROADMAP,
   initialProgress: createInitialStageProgress(DEMO_STAGE_ROADMAP),
-  trainingPlan: DEMO_TRAINING_PLAN,
+  planByDay: { 0: DEMO_TRAINING_PLAN },
   equipmentProfile: DEMO_EQUIPMENT_PROFILE,
 };
 
@@ -72,7 +76,7 @@ function createInitialState(session: AdventureQuestSession): AdventureQuestState
     domain: {
       roadmap: session.roadmap,
       progress: session.initialProgress,
-      trainingPlan: session.trainingPlan ?? null,
+      planByDay: session.planByDay,
       equipmentProfile: session.equipmentProfile ?? null,
       workoutResultsByDay: {},
     },
@@ -96,6 +100,19 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         ...state,
         ui: { ...state.ui, screen: 'map', validationMessage: null },
       };
+    case 'cacheTrainingPlanForDay': {
+      const cacheResult = cacheTrainingPlanForRoadmapDay(
+        state.domain.roadmap,
+        state.domain.planByDay,
+        action.dayIndex,
+        action.plan,
+      );
+      if (cacheResult.status !== 'cached') return state;
+      return {
+        ...state,
+        domain: { ...state.domain, planByDay: cacheResult.planByDay },
+      };
+    }
     case 'saveWorkoutResult': {
       const dayIndex = state.domain.progress.currentDayIndex;
       const resultsForDay = state.domain.workoutResultsByDay[dayIndex] ?? {};
@@ -151,6 +168,7 @@ interface AdventureQuestContextValue {
   readonly validationMessage: string | null;
   openCurrentQuest: () => void;
   returnToMap: () => void;
+  cacheTrainingPlanForDay: (dayIndex: number, plan: ValidatedTrainingPlan) => TrainingPlanCacheStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
@@ -176,8 +194,14 @@ export function AdventureQuestProvider({
   const [state, dispatch] = useReducer(reducer, session, createInitialState);
   const workoutResults = getCurrentWorkoutResults(state);
   const progressView = deriveStageProgressView(state.domain.roadmap, state.domain.progress);
+  const trainingPlan = getTrainingPlanForDay(
+    state.domain.roadmap,
+    state.domain.planByDay,
+    state.domain.progress.currentDayIndex,
+  );
+  const isTrainingPlanPending = progressView.currentDailyNode?.type === 'training' && trainingPlan === null;
   const trainingEvaluation = evaluateTrainingQuestCompletion(
-    state.domain.trainingPlan ?? undefined,
+    trainingPlan ?? undefined,
     workoutResults,
     state.domain.equipmentProfile ?? undefined,
   );
@@ -187,8 +211,8 @@ export function AdventureQuestProvider({
     roadmap: state.domain.roadmap,
     progress: state.domain.progress,
     progressView,
-    trainingPlan: state.domain.trainingPlan,
-    isTrainingPlanPending: state.domain.trainingPlan === null,
+    trainingPlan,
+    isTrainingPlanPending,
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
@@ -199,6 +223,18 @@ export function AdventureQuestProvider({
       }
     },
     returnToMap: () => dispatch({ type: 'returnToMap' }),
+    cacheTrainingPlanForDay: (dayIndex, plan) => {
+      const cacheResult = cacheTrainingPlanForRoadmapDay(
+        state.domain.roadmap,
+        state.domain.planByDay,
+        dayIndex,
+        plan,
+      );
+      if (cacheResult.status === 'cached') {
+        dispatch({ type: 'cacheTrainingPlanForDay', dayIndex, plan });
+      }
+      return cacheResult.status;
+    },
     saveWorkoutResult: (input) => {
       const validation = validateExerciseWorkoutResult(input);
       if (validation.valid) {
@@ -216,7 +252,7 @@ export function AdventureQuestProvider({
         return null;
       }
 
-      if (currentNode.type === 'training' && state.domain.trainingPlan === null) {
+      if (currentNode.type === 'training' && trainingPlan === null) {
         dispatch({
           type: 'showValidationMessage',
           message: 'Training Planを準備中です。Planが利用可能になるまでTraining Questは完了できません。',
@@ -229,7 +265,7 @@ export function AdventureQuestProvider({
           state.domain.roadmap,
           state.domain.progress,
           currentNode.dayIndex,
-          state.domain.trainingPlan ?? undefined,
+          trainingPlan ?? undefined,
           workoutResults,
           state.domain.equipmentProfile ?? undefined,
         )

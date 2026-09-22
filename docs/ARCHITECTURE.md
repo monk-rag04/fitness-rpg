@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpointを追加した。Client application helper、Equipment UI、Day cache、Database、Authenticationは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpoint、Client application helper、React Adventure Session内のDay cacheを追加した。Equipment UI、Plan生成UI接続、Database、Authenticationは未実装。
 
 区分：
 

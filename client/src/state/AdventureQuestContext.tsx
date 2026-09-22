@@ -10,6 +10,7 @@ import {
   type QuestCompletionResult,
   type StageRoadmap,
   type StageProgress,
+  type ValidatedStageTrainingProgram,
   type TrainingQuestCompletionEvaluation,
   type ValidatedTrainingPlan,
   type WorkoutResultValidationResult,
@@ -24,8 +25,10 @@ import {
 import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../demo/fixture';
 import {
   type AdventureQuestSession,
+  cacheStageTrainingProgram as cacheStageTrainingProgramForRoadmap,
   cacheTrainingPlanForDay as cacheTrainingPlanForRoadmapDay,
   getTrainingPlanForDay,
+  type StageTrainingProgramCacheStatus,
   type TrainingPlanCacheStatus,
 } from './adventureSession';
 
@@ -58,6 +61,7 @@ type Action =
   | { readonly type: 'openCurrentQuest' }
   | { readonly type: 'returnToMap' }
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
+  | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
   | { readonly type: 'completeQuest'; readonly progress: StageProgress }
   | { readonly type: 'showValidationMessage'; readonly message: string }
@@ -107,6 +111,14 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         action.dayIndex,
         action.plan,
       );
+      if (cacheResult.status !== 'cached') return state;
+      return {
+        ...state,
+        domain: { ...state.domain, planByDay: cacheResult.planByDay },
+      };
+    }
+    case 'cacheStageTrainingProgram': {
+      const cacheResult = cacheStageTrainingProgramForRoadmap(state.domain, action.program);
       if (cacheResult.status !== 'cached') return state;
       return {
         ...state,
@@ -169,6 +181,7 @@ interface AdventureQuestContextValue {
   openCurrentQuest: () => void;
   returnToMap: () => void;
   cacheTrainingPlanForDay: (dayIndex: number, plan: ValidatedTrainingPlan) => TrainingPlanCacheStatus;
+  cacheStageTrainingProgram: (program: ValidatedStageTrainingProgram) => StageTrainingProgramCacheStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
@@ -232,6 +245,13 @@ export function AdventureQuestProvider({
       );
       if (cacheResult.status === 'cached') {
         dispatch({ type: 'cacheTrainingPlanForDay', dayIndex, plan });
+      }
+      return cacheResult.status;
+    },
+    cacheStageTrainingProgram: (program) => {
+      const cacheResult = cacheStageTrainingProgramForRoadmap(state.domain, program);
+      if (cacheResult.status === 'cached') {
+        dispatch({ type: 'cacheStageTrainingProgram', program });
       }
       return cacheResult.status;
     },

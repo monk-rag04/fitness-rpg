@@ -2,12 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  cacheStageTrainingProgram,
   cacheTrainingPlanForDay,
   createOnboardingAdventureSession,
   getTrainingPlanForDay,
 } from '../src/state/adventureSession.ts';
 import { DEMO_EQUIPMENT_PROFILE, DEMO_TRAINING_PLAN } from '../src/demo/fixture.ts';
-import { createInitialStageProgress, generateStageRoadmap } from '@fitness-rpg/shared';
+import {
+  createInitialStageProgress,
+  generateStageRoadmap,
+  getCanonicalStageTrainingDays,
+} from '@fitness-rpg/shared';
 
 function createRoadmap() {
   return generateStageRoadmap({
@@ -32,6 +37,25 @@ function copyPlan() {
       ...exercise,
       repRange: { ...exercise.repRange },
     })),
+  };
+}
+
+function createProgram(roadmap, planForDay = () => copyPlan()) {
+  return {
+    sessions: getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
+      dayIndex,
+      plan: planForDay(dayIndex),
+    })),
+  };
+}
+
+function createTwelveTrainingDayRoadmap() {
+  const roadmap = createRoadmap();
+  return {
+    ...roadmap,
+    days: roadmap.days.map((day, dayIndex) => dayIndex < 12
+      ? { date: day.date, type: 'training', sessionFocus: { targetMuscles: ['chest'] } }
+      : { date: day.date, type: 'recovery' }),
   };
 }
 
@@ -96,4 +120,121 @@ test('the first successful plan wins and cache writes do not alter the Stage-sha
   assert.equal(duplicate.status, 'already_cached');
   assert.equal(duplicate.planByDay[trainingDay], DEMO_TRAINING_PLAN);
   assert.equal(DEMO_EQUIPMENT_PROFILE.availableEquipmentIds.includes('barbell'), true);
+});
+
+test('atomically caches a complete Stage Program and current Training Day derives its plan', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: { currentDayIndex: getDayIndex(roadmap, 'training') },
+  });
+  const program = createProgram(roadmap);
+  const sessionSnapshot = structuredClone(session);
+  const programSnapshot = structuredClone(program);
+  const result = cacheStageTrainingProgram(session, program);
+
+  assert.equal(result.status, 'cached');
+  assert.deepEqual(Object.keys(result.planByDay).map(Number), [0, 2, 4, 7, 9, 11]);
+  assert.equal(getTrainingPlanForDay(roadmap, result.planByDay, session.initialProgress.currentDayIndex), program.sessions[0].plan);
+  assert.deepEqual(session, sessionSnapshot);
+  assert.deepEqual(program, programSnapshot);
+  assert.deepEqual(session.planByDay, {});
+});
+
+test('atomically caches all twelve Training Days without Recovery entries', () => {
+  const roadmap = createTwelveTrainingDayRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const program = createProgram(roadmap);
+  const result = cacheStageTrainingProgram(session, program);
+
+  assert.equal(result.status, 'cached');
+  assert.equal(Object.keys(result.planByDay).length, 12);
+  for (const [dayIndex, day] of roadmap.days.entries()) {
+    assert.equal(result.planByDay[dayIndex] !== undefined, day.type === 'training');
+  }
+});
+
+test('rejects missing, mismatched, Recovery, Boss, duplicate, and partial programs atomically', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const program = createProgram(roadmap);
+  const expectedEmptyCache = session.planByDay;
+  const cases = [
+    null,
+    { ...program, sessions: program.sessions.slice(1) },
+    { ...program, sessions: [...program.sessions, { dayIndex: 1, plan: copyPlan() }] },
+    { ...program, sessions: [...program.sessions, { dayIndex: roadmap.days.length, plan: copyPlan() }] },
+    { ...program, sessions: [program.sessions[0], program.sessions[0], ...program.sessions.slice(1)] },
+  ];
+
+  const missingRoadmap = cacheStageTrainingProgram(null, program);
+  assert.equal(missingRoadmap.status, 'roadmap_missing');
+
+  for (const invalidProgram of cases.slice(1)) {
+    const result = cacheStageTrainingProgram(session, invalidProgram);
+    assert.equal(result.status, 'invalid_stage_program');
+    assert.equal(result.planByDay, expectedEmptyCache);
+  }
+});
+
+test('a Stage Program never partially saves when one of twelve sessions is invalid', () => {
+  const roadmap = createTwelveTrainingDayRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const program = createProgram(roadmap);
+  const invalidProgram = {
+    sessions: program.sessions.map((entry, index) => index === 11
+      ? { ...entry, dayIndex: roadmap.days.length }
+      : entry),
+  };
+
+  const result = cacheStageTrainingProgram(session, invalidProgram);
+  assert.equal(result.status, 'invalid_stage_program');
+  assert.equal(result.planByDay, session.planByDay);
+  assert.deepEqual(result.planByDay, {});
+});
+
+test('a Stage Program is first-success-wins, including identical reapplication', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+  });
+  const firstProgram = createProgram(roadmap);
+  const first = cacheStageTrainingProgram(session, firstProgram);
+  const cachedSession = { ...session, planByDay: first.planByDay };
+  const replacementProgram = createProgram(roadmap, () => DEMO_TRAINING_PLAN);
+
+  const identical = cacheStageTrainingProgram(cachedSession, firstProgram);
+  const replacement = cacheStageTrainingProgram(cachedSession, replacementProgram);
+  assert.equal(identical.status, 'already_cached');
+  assert.equal(replacement.status, 'already_cached');
+  assert.equal(identical.planByDay, first.planByDay);
+  assert.equal(replacement.planByDay, first.planByDay);
+  assert.notEqual(replacement.planByDay[0], DEMO_TRAINING_PLAN);
+});
+
+test('an existing partial day cache is preserved rather than silently overwritten', () => {
+  const roadmap = createRoadmap();
+  const partialPlanByDay = { 0: DEMO_TRAINING_PLAN };
+  const session = {
+    ...createOnboardingAdventureSession({
+      roadmap,
+      initialProgress: createInitialStageProgress(roadmap),
+    }),
+    planByDay: partialPlanByDay,
+  };
+  const result = cacheStageTrainingProgram(session, createProgram(roadmap));
+
+  assert.equal(result.status, 'already_cached');
+  assert.equal(result.planByDay, partialPlanByDay);
+  assert.deepEqual(partialPlanByDay, { 0: DEMO_TRAINING_PLAN });
 });

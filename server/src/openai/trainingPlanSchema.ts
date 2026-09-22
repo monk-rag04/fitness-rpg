@@ -9,17 +9,18 @@ export const trainingPlanDraftFormat = {
     properties: {
       exercises: {
         type: 'array',
+        maxItems: 6,
         items: {
           type: 'object',
           properties: {
             exerciseId: { type: 'string' },
             role: { type: 'string', enum: ['main', 'accessory'] },
-            sets: { type: 'integer', minimum: 1 },
+            sets: { type: 'integer', minimum: 1, maximum: 5 },
             repRange: {
               type: 'object',
               properties: {
-                min: { type: 'integer', minimum: 1 },
-                max: { type: 'integer', minimum: 1 },
+                min: { type: 'integer', minimum: 1, maximum: 20 },
+                max: { type: 'integer', minimum: 1, maximum: 20 },
               },
               required: ['min', 'max'],
               additionalProperties: false,

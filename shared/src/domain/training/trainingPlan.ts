@@ -5,6 +5,16 @@ export const PLANNED_EXERCISE_ROLES = ['main', 'accessory'] as const;
 
 export type PlannedExerciseRole = (typeof PLANNED_EXERCISE_ROLES)[number];
 
+/** D-030 product-owned limits for one on-demand Training Plan. */
+export const TRAINING_PLAN_GUARDRAILS = {
+  maxExercises: 6,
+  minSetsPerExercise: 1,
+  maxSetsPerExercise: 5,
+  mainRepRange: { min: 1, max: 10 },
+  accessoryRepRange: { min: 5, max: 20 },
+  maxWorkingSets: 20,
+} as const;
+
 export interface RepRange {
   readonly min: number;
   readonly max: number;
@@ -38,6 +48,8 @@ export type TrainingPlanValidationErrorCode =
   | 'MAIN_EXERCISE_MISSING'
   | 'MAIN_EXERCISE_ROLE_INVALID'
   | 'MULTIPLE_MAIN_EXERCISES'
+  | 'TOO_MANY_EXERCISES'
+  | 'TOO_MANY_WORKING_SETS'
   | 'INVALID_SETS'
   | 'INVALID_REP_RANGE'
   | 'INVALID_ROLE';
@@ -59,6 +71,12 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
 }
 
+function isValidSets(value: unknown): value is number {
+  return isPositiveInteger(value) &&
+    value >= TRAINING_PLAN_GUARDRAILS.minSetsPerExercise &&
+    value <= TRAINING_PLAN_GUARDRAILS.maxSetsPerExercise;
+}
+
 function isRole(value: unknown): value is PlannedExerciseRole {
   return value === 'main' || value === 'accessory';
 }
@@ -77,6 +95,17 @@ function isValidRepRange(value: unknown): value is RepRange {
     isPositiveInteger(value.max) &&
     value.min <= value.max
   );
+}
+
+function isWithinRoleRepRange(
+  repRange: RepRange,
+  role: PlannedExerciseRole,
+): boolean {
+  const allowedRange = role === 'main'
+    ? TRAINING_PLAN_GUARDRAILS.mainRepRange
+    : TRAINING_PLAN_GUARDRAILS.accessoryRepRange;
+
+  return repRange.min >= allowedRange.min && repRange.max <= allowedRange.max;
 }
 
 function addUnexpectedFieldErrors(
@@ -108,6 +137,9 @@ export function validateTrainingPlanDraft(
   if (draft.exercises.length === 0) {
     errors.push({ code: 'EMPTY_PLAN', path: 'exercises' });
   }
+  if (draft.exercises.length > TRAINING_PLAN_GUARDRAILS.maxExercises) {
+    errors.push({ code: 'TOO_MANY_EXERCISES', path: 'exercises' });
+  }
 
   const allowedIds = new Set<ExerciseId>([
     ...candidates.candidateExercises.map((candidate) => candidate.exerciseId),
@@ -119,6 +151,7 @@ export function validateTrainingPlanDraft(
   const validatedExercises: ValidatedPlannedExercise[] = [];
   let mainRoleCount = 0;
   let requiredMainRole: unknown;
+  let workingSetCount = 0;
 
   for (const [index, value] of draft.exercises.entries()) {
     const path = `exercises[${index}]`;
@@ -156,13 +189,17 @@ export function validateTrainingPlanDraft(
       mainRoleCount += 1;
     }
 
-    if (!isPositiveInteger(sets)) {
+    if (!isValidSets(sets)) {
       errors.push({ code: 'INVALID_SETS', path: `${path}.sets` });
+    } else {
+      workingSetCount += sets;
     }
 
     const validRepRange = isValidRepRange(repRange);
 
     if (!validRepRange) {
+      errors.push({ code: 'INVALID_REP_RANGE', path: `${path}.repRange` });
+    } else if (isRole(role) && !isWithinRoleRepRange(repRange, role)) {
       errors.push({ code: 'INVALID_REP_RANGE', path: `${path}.repRange` });
     }
 
@@ -173,8 +210,9 @@ export function validateTrainingPlanDraft(
     if (
       isAllowedExerciseId(exerciseId, allowedIds) &&
       isRole(role) &&
-      isPositiveInteger(sets) &&
-      isValidRepRange(repRange)
+      isValidSets(sets) &&
+      isValidRepRange(repRange) &&
+      isWithinRoleRepRange(repRange, role)
     ) {
       validatedExercises.push({
         exerciseId,
@@ -187,6 +225,9 @@ export function validateTrainingPlanDraft(
 
   if (mainRoleCount > 1) {
     errors.push({ code: 'MULTIPLE_MAIN_EXERCISES', path: 'exercises' });
+  }
+  if (workingSetCount > TRAINING_PLAN_GUARDRAILS.maxWorkingSets) {
+    errors.push({ code: 'TOO_MANY_WORKING_SETS', path: 'exercises' });
   }
 
   if (candidates.mainExercise !== undefined) {

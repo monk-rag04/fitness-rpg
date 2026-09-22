@@ -49,11 +49,15 @@ test('strict JSON Schema has only TrainingPlanDraft fields', () => {
   assert.equal(trainingPlanDraftFormat.strict, true);
   assert.equal(root.additionalProperties, false);
   assert.deepEqual(root.required, ['exercises']);
+  assert.equal(root.properties.exercises.maxItems, 6);
   assert.deepEqual(exercise.required, ['exerciseId', 'role', 'sets', 'repRange']);
   assert.equal(exercise.additionalProperties, false);
   assert.deepEqual(exercise.properties.role.enum, ['main', 'accessory']);
   assert.deepEqual(repRange.required, ['min', 'max']);
   assert.equal(repRange.additionalProperties, false);
+  assert.equal(exercise.properties.sets.maximum, 5);
+  assert.equal(repRange.properties.min.maximum, 20);
+  assert.equal(repRange.properties.max.maximum, 20);
   assert.ok(!Object.hasOwn(exercise.properties, 'weight'));
 });
 
@@ -86,6 +90,21 @@ test('missing key is distinguishable without exposing a value', () => {
     assert.throws(
       () => createOpenAIClient(),
       (error) => error instanceof MissingOpenAIKeyError && error.code === 'OPENAI_API_KEY_MISSING',
+    );
+  } finally {
+    if (priorKey !== undefined) process.env.OPENAI_API_KEY = priorKey;
+  }
+});
+
+test('missing OpenAI configuration is sanitized as a provider failure', async () => {
+  const priorKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  try {
+    await assert.rejects(
+      generateTrainingPlan(plannerInput),
+      (error) => error instanceof TrainingPlanGenerationError &&
+        error.code === 'OPENAI_API_ERROR' &&
+        !error.message.includes('OPENAI_API_KEY'),
     );
   } finally {
     if (priorKey !== undefined) process.env.OPENAI_API_KEY = priorKey;

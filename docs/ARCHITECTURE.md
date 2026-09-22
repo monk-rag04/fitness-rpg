@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。実Training Plan endpoint、Database、Authenticationは未実装。
+この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpointを追加した。Client application helper、Equipment UI、Day cache、Database、Authenticationは未実装。
 
 区分：
 
@@ -267,7 +267,7 @@ AIは次の処理を提案できる。
 
 Training PlannerやExercise提案へAIを採用する場合、Backend / sharedのTraining Candidate BuilderがProduction Exercise Catalogを決定論的にFilterする。AIには候補`exerciseId`と判断に必要なCatalog Metadataだけを渡し、自由なExercise名生成やCatalog外IDの確定を許可しない。
 
-`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。D-030でTraining Plan endpointの境界とguardrailはAcceptedになったが、endpoint、Client接続、実際のLoad計算は未実装であり、Production Prompt / modelは引き続き未決定である。
+`shared/`の`validateTrainingSessionPlannerInput()`はCandidateのCatalog整合性、経験月数、Session Focusの構造を検証する。Focusと候補の重なり件数は現時点でProduct Ruleにしない。`validateTrainingPlanDraft()`は、AI出力をそのCandidate Resultに対して再検証する。構造化Draftは1回のSessionのExercise順、`exerciseId`、`main` / `accessory`、sets、rep rangeだけを扱い、weightを含めない。D-030の6 Exercise、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsもshared Runtime Validationで強制する。実重量は後続の決定論的Load / Progressionで扱う。`server/src/openai/`はSDK Client、Responses API呼び出し、Strict JSON Schema、Domain再検証を分離する。D-030のTraining Plan endpointは実装済みだが、Client接続、実際のLoad計算は未実装であり、Production Prompt / modelは引き続き未決定である。
 
 ### D-030 On-demand Training Plan boundary
 

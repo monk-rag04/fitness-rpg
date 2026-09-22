@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  EQUIPMENT_IDS,
   buildTrainingCandidates,
   validateTrainingPlanDraft,
 } from '../dist/index.js';
@@ -21,6 +22,15 @@ const candidatesWithMain = buildTrainingCandidates({
 
 const candidatesWithoutMain = buildTrainingCandidates({
   equipmentProfile: barbellAndBenchProfile,
+});
+
+const candidatesForGuardrails = buildTrainingCandidates({
+  mainExerciseId: 'barbell_bench_press',
+  equipmentProfile: {
+    id: 'all-equipment-test-profile',
+    displayName: 'All equipment test fixture',
+    availableEquipmentIds: EQUIPMENT_IDS,
+  },
 });
 
 function plannedExercise(
@@ -170,13 +180,72 @@ test('main role is optional when no main exercise was requested', () => {
   assert.equal(result.valid, true);
 });
 
-test('structural validation does not impose an unapproved sets or reps cap', () => {
-  const result = validateTrainingPlanDraft(
-    { exercises: [{ ...plannedExercise(), sets: 100, repRange: { min: 100, max: 200 } }] },
+test('D-030 rejects a plan with more than six exercises', () => {
+  const ids = [
+    'barbell_bench_press',
+    'dumbbell_bench_press',
+    'incline_dumbbell_press',
+    'chest_press_machine',
+    'cable_chest_fly',
+    'dumbbell_chest_fly',
+    'push_up',
+  ];
+  const draft = {
+    exercises: ids.map((exerciseId, index) => ({
+      exerciseId,
+      role: index === 0 ? 'main' : 'accessory',
+      sets: 1,
+      repRange: index === 0 ? { min: 1, max: 10 } : { min: 5, max: 20 },
+    })),
+  };
+
+  assert.ok(errorCodes(validateTrainingPlanDraft(draft, candidatesForGuardrails))
+    .includes('TOO_MANY_EXERCISES'));
+});
+
+test('D-030 rejects sets and rep ranges outside the role limits', () => {
+  const tooManySets = validateTrainingPlanDraft(
+    { exercises: [{ ...plannedExercise(), sets: 6 }] },
     candidatesWithMain,
   );
+  assert.ok(errorCodes(tooManySets).includes('INVALID_SETS'));
 
-  assert.equal(result.valid, true);
+  const mainRepRange = validateTrainingPlanDraft(
+    { exercises: [{ ...plannedExercise(), repRange: { min: 1, max: 11 } }] },
+    candidatesWithMain,
+  );
+  assert.ok(errorCodes(mainRepRange).includes('INVALID_REP_RANGE'));
+
+  const accessoryRepRange = validateTrainingPlanDraft(
+    {
+      exercises: [
+        plannedExercise(),
+        plannedExercise('push_up', 'accessory'),
+      ].map((exercise, index) => index === 1
+        ? { ...exercise, repRange: { min: 4, max: 20 } }
+        : exercise),
+    },
+    candidatesWithMain,
+  );
+  assert.ok(errorCodes(accessoryRepRange).includes('INVALID_REP_RANGE'));
+});
+
+test('D-030 rejects a plan with more than twenty working sets', () => {
+  const result = validateTrainingPlanDraft(
+    {
+      exercises: [
+        { exerciseId: 'barbell_bench_press', role: 'main', sets: 5, repRange: { min: 1, max: 10 } },
+        { exerciseId: 'dumbbell_bench_press', role: 'accessory', sets: 5, repRange: { min: 5, max: 20 } },
+        { exerciseId: 'incline_dumbbell_press', role: 'accessory', sets: 5, repRange: { min: 5, max: 20 } },
+        { exerciseId: 'chest_press_machine', role: 'accessory', sets: 4, repRange: { min: 5, max: 20 } },
+        { exerciseId: 'cable_chest_fly', role: 'accessory', sets: 1, repRange: { min: 5, max: 20 } },
+        { exerciseId: 'dumbbell_chest_fly', role: 'accessory', sets: 1, repRange: { min: 5, max: 20 } },
+      ],
+    },
+    candidatesForGuardrails,
+  );
+
+  assert.ok(errorCodes(result).includes('TOO_MANY_WORKING_SETS'));
 });
 
 test('untrusted input shape fails without throwing', () => {

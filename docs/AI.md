@@ -2,7 +2,7 @@
 
 ## Status
 
-OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAchievement Duration専用のClient向けExpress endpointとClient Application helperを追加し、現在はProduction Onboarding UIからRoadmap生成へ接続済みである。Training Plan endpointとProduction Planner全体のFrontend連携は未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
+OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAchievement Duration専用のClient向けExpress endpointとClient Application helperを追加し、現在はProduction Onboarding UIからRoadmap生成へ接続済みである。D-030ではServerがCandidate Builderを実行するTraining Plan endpointを追加した。Production Planner全体のFrontend連携、Equipment UI、Day cacheは未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
 
 ### 決定済み
 

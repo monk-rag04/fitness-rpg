@@ -101,12 +101,13 @@ Step 3:
 
 完了時にStateへ残るのは`trainingDays`、`currentE1rm`、`targetE1rm`のみ。体重、Training歴、Main Lift名、重量、reps、食事制約・アレルギーはPrototypeのGlobal Stateへ保存されない。CharacterやBossは引き続き固定のBench Press・固定Body Weightを表示する。
 
-### Production要件
+### Production要件 / D-029で確定した次工程のMVP差分
 
-- 入力値を一貫したProfile・Strength Record・Goalとして保存する。
-- 推奨値とユーザー確定値を区別する。
-- 自動算出の根拠と「後から変更可能」を明示する。
-- 未経験者へ表示する値をAI結果と誤表示しない。決定論的計算なら「自動算出」等の表現にする。
+- 3 Stepの画面構造・Visual意図は維持するが、Training歴はカテゴリではなく経験月数を直接入力し、週頻度は1..7とする。体重は正の有限値を受け付け、45..120kgをProduct validationにしない。
+- Main LiftはBoss対象のBarbell Bench / Back Squat / Deadlift / Overhead Pressだけを選択可能とし、Pull-upはComing later / disabled。最近実施できたSetの重量と1..10 repsからD-023式で自己申告Baselineを算出し、Workout Historyとは区別する。重量不明なら`baseline_required`として開始を止め、体重倍率で埋めない。
+- Final Goalはユーザーが直接入力し、Baselineより大きい値を要求する。MVPでGoal推薦値、Food restrictions / Allergy入力、全Stageの仮日数は表示しない。AI Duration推定中・失敗・42日超の状態を偽の成功に置き換えない。
+- Applicationは開始操作時にBrowser local dateを取得する。Baselineの根拠と`onboarding_self_reported`を明示し、未経験者へ体重倍率をAI結果として表示しない。入力・Roadmapの永続化と再Onboarding方針は未決定。
+- 今回は画面本体を実装しない。現行Demo Map / Questと実ユーザーOnboarding Roadmapを混在させず、実Training Plan生成は後続工程とする。
 
 ## Adventure Map / Roadmap UX
 

@@ -114,6 +114,11 @@ function parseLocalDate(value: unknown): LocalDateParts | null {
   return { year, month, day };
 }
 
+/** Share D-026's strict calendar validation with application input boundaries. */
+export function isValidLocalDate(value: unknown): value is LocalDate {
+  return parseLocalDate(value) !== null;
+}
+
 function formatLocalDate(date: Date): LocalDate {
   const year = String(date.getUTCFullYear()).padStart(4, '0');
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');

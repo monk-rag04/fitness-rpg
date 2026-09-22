@@ -237,6 +237,10 @@ AI出力は`AchievementDurationEstimate`の`estimatedAchievementDays`のみで�
 
 `TrainingQuestCompletionEvaluation`は保存するCheckbox集合ではない。Validated Training Planの各main / accessory Exerciseについて、有効な`ExerciseWorkoutResult`が予定Snapshotと整合し、各planned Exerciseにちょうど1件存在するかを導出する。予定Set数未達とrep range外はResultを無効にしない。planned / performedが異なる場合だけEquipment Profileと既存CatalogのSubstitution候補で確認し、実績・e1RMの帰属先を変更しない。Evaluationは進行Stateを更新せず、明示的なTraining / Recovery completionだけがindexを1進める。
 
+**D-029の計算用Onboarding境界（保存Schemaではない）**: `OnboardingRoadmapInput`は正の有限な`bodyWeightKg`、0以上の整数`trainingExperienceMonths`、1..7の整数`trainingFrequencyPerWeek`、Boss対象4種目の`mainExerciseId`、任意の自己申告`baselineWeightKg` / `baselineReps`（両方あるか両方ない）、正の有限な`finalGoalE1rmKg`、厳格な`startDate`を持つ。未知Field、Catalog外ID、Boss対象外ID（Pull-upを含む）、不正なSet、GoalがBaseline以下、日付不正を区別する。Baseline不明なら`baseline_required`でDuration / Roadmapは生成しない。
+
+`OnboardingSelfReportedBaseline`は`source: 'onboarding_self_reported'`、Exercise ID、入力重量・reps、D-023の未丸め`baselineE1rmKg`、計算Rule Versionを持つ。これはWorkout History、rolling-window `currentE1rm`、Workout Resultの保存Recordではない。`prepareOnboardingRoadmap()`はD-025のStage TargetとEstimator Inputを作り、`completeOnboardingRoadmap()`は検証済みAI日数からD-025のDuration、D-026のRoadmap、D-027の初期Progressを作り、成功結果に検証済みOnboarding入力も保持する。42日超は`stage_replanning_required`でRoadmapを返さない。体重はこのPlanning計算に使わず、Training Plan / Equipment / Food制約もこの境界には含めない。Profile永続Schema、自己申告の修正・信頼性Policyは引き続き未決定である。
+
 ### RoadmapNode / ScheduledActivity（追加候補）
 
 **概念上の責務案**: 日付付きTraining / Recovery / Boss等のNodeと状態を表す。

@@ -93,28 +93,13 @@ Onboarding
 
 ## Onboarding
 
-**有力方針として検討中の入力**:
+**D-029で決定済みのMVP入力境界**: 正の有限な体重、直接入力のTraining経験月数（0以上の整数）、週頻度（1〜7の整数）、Boss対象のMain Strength種目、最近実施できた自己申告Setの重量・reps、ユーザーが直接入力するFinal Goalを扱う。Main選択肢は`barbell_bench_press`、`barbell_back_squat`、`barbell_deadlift`、`barbell_overhead_press`。Catalogに残すPull-upはOnboardingでComing later / disabledとし、MVPのBoss Mainには選べない。体重はRoadmap生成に使わず、45〜120kgをProduction上の許容範囲としない。
 
-- 体重
-- トレーニング歴
-- 週のトレーニング可能回数
-- Main Strength種目
-- 現在の重量
-- reps
-- 食事制約
-- アレルギー
-- 最終Strength目標
+Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calculateSetE1rm()`で未丸めe1RMを算出し、`onboarding_self_reported`としてWorkout History由来の`currentE1rm`と区別する。重量が分からなければ`baseline_required`とし、体重倍率・Historical PB・0kg・AI推定で埋めずRoadmapを生成しない。初心者のStrength Assessmentは将来機能である。Final GoalはBaseline e1RMより大きい値をユーザーが直接入力し、MVPでは推奨値を表示しない。食事制約・アレルギー入力はMVP Onboardingから外す。
 
-Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pull-up / Weighted Pull-up。
+開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。42日超は`stage_replanning_required`を明示し、42日へclamp・TargetやGoalの自動変更・Demo値fallbackをしない。Equipmentは初回Training Quest生成前の別工程で収集し、Training PlanはOnboarding時に生成せず、将来各Training Quest初回Open時に生成する。Demo Bench Planを実ユーザーRoadmapへ流用しない。
 
-**有力方針**: Final Boss目標は、ユーザー入力とアプリ推奨値を併記したうえでユーザーが確定する。達成期限を無理に自己申告させず、週のTraining頻度、現在Strength、Training歴などから達成目安期間を提示する。
-
-**未決定**:
-
-- 初心者の開始重量を決める正式ロジック。
-- 推奨Final Goalの算出方法。
-- 目安期間算出方法。
-- 入力の必須・任意区分と再Onboarding方針。
+**未決定**: 自己申告Baselineの信頼性・修正・永続化、再Onboarding、初心者Strength Assessment、将来のFinal Goal推薦、42日超の再計画Algorithmと画面導線、User timezoneの長期Policy、Equipment収集UIとTraining Plan APIの具体仕様。
 
 ## Strengthとe1RM
 
@@ -168,7 +153,7 @@ Main Strength種目候補：Bench Press、Squat、Deadlift、Overhead Press、Pu
 - D-027ではRoadmap自体をQuest Clearで変更しない。別の`StageProgress.currentDayIndex`だけを進行Stateとし、`index < currentDayIndex`をcompleted、`===`をavailable、`>`をlockedとして導出する。`currentDayIndex === days.length`のときだけBoss Anchorがavailableになる。日付・missed day・Schedule Change・Workout Result記録・OpenAI・e1RM更新は進行させない。
 - Boss availabilityはRoadmap終端への到達だけを表す。Boss Strength判定、Shield、Challenge、Defeated、Stage Clear、Rewardは含めない。Boss Requirementは既存のStage Targetを後続Domainが参照する。
 
-**未決定**: 42日超時の再計画、Onboarding上のfrequency選択肢、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの保存・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの保存とbaseline source、AI推定の利用時点。
+**未決定**: 42日超時の再計画Algorithm・UX、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの保存・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの永続化・修正、AI推定の再試行Policy。
 
 ## Daily Training Quest
 

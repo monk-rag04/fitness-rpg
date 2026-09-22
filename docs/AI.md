@@ -2,7 +2,7 @@
 
 ## Status
 
-OpenAI APIとの最小Integration FoundationをBackendに実装済み。Training Session単位のInput Boundaryを追加したが、Production Planner全体、API endpoint、Frontend連携は未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
+OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAchievement Duration専用のClient向けExpress endpointと、まだ画面に接続していないClient Application helperを追加した。Training Plan endpointとProduction Planner全体のFrontend連携は未実装。明示実行のDevelopment Smoke ScriptでSession Input → Responses API → Structured Draft → Domain Validationを試せる。
 
 ### 決定済み
 
@@ -20,6 +20,7 @@ OpenAI APIとの最小Integration FoundationをBackendに実装済み。Training
 - 現行`TrainingPlanDraft`は1回のTraining Sessionを表す。Schedule / Roadmap計画とは分離し、Session PlannerへはCandidate、事実値のTraining経験月数、Session Focusだけを渡す。週頻度、Strength Record、e1RM、Goal、実重量は渡さない（D-022）。
 - D-025ではTraining Planと別のAchievement Duration Estimator Use Caseを採用する。AIは`exerciseId`、current e1RM、決定論的なnext Stage Target、Training経験月数、週頻度を入力として、`estimatedAchievementDays`（1以上の整数）だけをStructured Outputで返す。sharedのInput / Output Validationを必ず通す。
 - AIはStage Target、Roadmap Duration候補、Boss Requirement / date、Training / Recovery Node、曜日、Quest Clear、EXP、Boss Defeatedを決定しない。Duration候補のceiling選択はProduct-owned shared Domainの責務である。
+- D-029ではClientは`POST /api/achievement-duration`だけを呼び、BrowserからOpenAI SDK / API keyを使用しない。Backendは既存Estimator Input ValidationとStructured OutputのDomain再Validationを維持し、`estimatedAchievementDays`だけを返す。42日超はClient/sharedの`selectRoadmapDuration()`が`stage_replanning_required`とし、Demo日数へfallbackしない。
 
 ### Development choice
 
@@ -47,7 +48,8 @@ OpenAI APIとの最小Integration FoundationをBackendに実装済み。Training
 - `server/src/openai/trainingPlanSchema.ts`: `TrainingPlanDraft`の`exercises`、各Exerciseの`exerciseId` / `role` / `sets` / `repRange`だけを許すStrict JSON Schema。全Field必須、余分なField不可。正の整数をSchemaで制約し、`min <= max`や候補ID所属はDomainで再検証する。
 - `server/src/openai/trainingPlan.ts`: `validateTrainingSessionPlannerInput()`の成功後、Candidate Result、Training経験月数、Session FocusだけをResponses APIへ渡し、取得したJSONを`validateTrainingPlanDraft()`で再検証する。Input不正、API Error、Output欠落、Domain Validation失敗を区別する。SDK Errorの生MessageはSecret保護のため外へ出さない。
 - `server/src/openai/achievementDurationSchema.ts`: `{ estimatedAchievementDays: integer >= 1 }`だけを必須とし、追加Fieldを許さないStrict JSON Schema。Schema VersionはTraining Planとは別に管理する。
-- `server/src/openai/achievementDuration.ts`: `validateAchievementDurationEstimatorInput()`の成功後にDuration Estimator専用PromptでResponses APIを呼び、JSONを`validateAchievementDurationEstimate()`で再検証する。PromptはAIにDuration候補やSchedule / Boss等の決定を許可せず、SDK Errorの生Messageを公開しない。Prompt Versionは別管理する。通常test/buildは実APIを呼ばず、このUse CaseのSmokeは未実行である。
+- `server/src/openai/achievementDuration.ts`: `validateAchievementDurationEstimatorInput()`の成功後にDuration Estimator専用PromptでResponses APIを呼び、JSONを`validateAchievementDurationEstimate()`で再検証する。PromptはAIにDuration候補やSchedule / Boss等の決定を許可せず、SDK Errorの生Messageを公開しない。Prompt Versionは別管理する。通常test/buildと今回のD-029 Endpoint Testは実APIを呼ばない。
+- `server/src/app.ts`: `POST /api/achievement-duration`は既存Input Validatorと上記adapterを接続する。正常時は日数のみ、異常時は固定Error codeのみを返す。Invalid Request / Provider Failure / Invalid Structured Outputを区別し、SDK Error本文やRaw Responseを公開しない。Endpoint Testは偽Adapterを注入し、実OpenAI APIを呼ばない。
 - `server/src/smokeOpenAI.ts`: 固定の小さなEquipment Profileで候補を組み立てる明示実行Script。`npm run smoke:openai`のみ実APIを呼ぶ。通常のtest/buildは呼ばない。2026-09-21にユーザーが実APIでSmokeを実行し、Structured Output取得と`validateTrainingPlanDraft()`による検証の成功を報告した。これはProduction Planner全体の検証完了を意味しない。
 - このSmoke PromptはDevelopment専用。Training経験月数は文脈として使うが、月数による固定sets / reps Rule、Goal、weight、Production推奨sets / repsを確定しない。2026-09-21にユーザーが新しい`TrainingSessionPlannerInput`経路で実API Smokeを実行し、Structured `TrainingPlanDraft`取得とDomain Validationの成功を報告した。Production Planner全体の検証完了は意味しない。
 
@@ -148,7 +150,7 @@ interface AiProvider {
 3. BackendがResponses APIのStrict Structured Outputで`estimatedAchievementDays`だけを取得し、shared Domainで再検証する。
 4. shared DomainがAI estimate以上の最小Roadmap Duration候補を選ぶ。42日超はclampせずstage replanning requiredとする。
 
-このFlowはRoadmap Node、Schedule、Boss State、Quest / EXP、Stage Clearを作成・変更しない。trainingFrequencyは推定文脈と将来のSchedule入力になり得るが、AIが曜日やTraining / Recovery配置を選択する根拠にはしない。AI estimateの利用時点、再試行、fallback、42日超の再分割は未決定である。
+Estimator自体はRoadmap Node、Schedule、Boss State、Quest / EXP、Stage Clearを作成・変更しない。D-029 Application FlowがValidated Estimateを受けた後、sharedの既存DomainでDuration選択とRoadmap・初期Progress生成を行う。trainingFrequencyは推定文脈とSchedule入力だが、AIに曜日やTraining / Recovery配置を選択させない。42日超のclampやDemo fallbackは禁止し、再計画AlgorithmとRetry / Timeout Policyは未決定のままとする。
 
 ### Schedule revision
 

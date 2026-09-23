@@ -8,6 +8,7 @@ import type {
   ValidatedPlannedExercise,
 } from '@fitness-rpg/shared';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
+import { workoutResultErrorMessage } from '../../presentation/trainingLabels';
 
 interface SetDraft {
   readonly weightKg: string;
@@ -28,7 +29,7 @@ function createInitialDrafts(
 }
 
 function formatDomainErrors(errors: readonly { readonly code: string }[]): string {
-  return errors.map((error) => error.code).join(' · ');
+  return [...new Set(errors.map((error) => workoutResultErrorMessage(error.code)))].join(' ');
 }
 
 interface WorkoutResultFormProps {
@@ -77,11 +78,11 @@ export function WorkoutResultForm({
       const weightKg = Number(weightInput);
       const reps = Number(repsInput);
       if (!Number.isFinite(weightKg) || weightKg <= 0) {
-        setMessage(`SET ${index + 1}のweightKgは0より大きい数値にしてください。`);
+        setMessage(`SET ${index + 1}の重量は0より大きい数値で入力してください。`);
         return;
       }
       if (!Number.isSafeInteger(reps) || reps <= 0) {
-        setMessage(`SET ${index + 1}のrepsは0より大きい整数にしてください。`);
+        setMessage(`SET ${index + 1}の回数は1以上の整数で入力してください。`);
         return;
       }
 
@@ -110,7 +111,7 @@ export function WorkoutResultForm({
     <form className="workout-result-form" onSubmit={submit} noValidate>
       <fieldset>
         <legend>Set記録</legend>
-        <p className="form-help">空欄のSETは未記録です。Partial setsも記録できます。</p>
+        <p className="form-help">空欄のSETは未記録です。一部のSETのみでも記録できます。</p>
         <div className="set-input-list">
           {drafts.map((draft, index) => {
             const setNumber = index + 1;
@@ -132,7 +133,7 @@ export function WorkoutResultForm({
                   />
                 </label>
                 <label htmlFor={`${inputPrefix}-reps`}>
-                  <span>回数 reps</span>
+                  <span>回数（reps）</span>
                   <input
                     id={`${inputPrefix}-reps`}
                     type="number"

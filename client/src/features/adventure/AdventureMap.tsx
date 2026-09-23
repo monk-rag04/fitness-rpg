@@ -48,6 +48,7 @@ export function AdventureMap() {
   const dailyNodes: readonly StageProgressDailyNodeView[] = progressView.dailyNodes;
   const nodeCount = dailyNodes.length + 1; // Boss follows the daily route.
   const mapHeight = Math.max(720, nodeCount * 76 + 170);
+  const mapCanvasHeight = mapHeight + 48;
   const points = useMemo(() => routePoints(nodeCount, mapHeight), [nodeCount, mapHeight]);
   const currentNodeRef = useRef<HTMLDivElement>(null);
   const clearedRoutePoints = progressView.bossAvailable
@@ -95,7 +96,7 @@ export function AdventureMap() {
         </div>
       </header>
 
-      <section className="map-canvas" style={{ height: mapHeight }} aria-label="Stage adventure route">
+      <section className="map-canvas" style={{ height: mapCanvasHeight }} aria-label="Stage adventure route">
         <img className="map-terrain" src={mapTerrain} alt="霧深い山と森が続く冒険の地図" />
         <div className="map-terrain-shade" aria-hidden="true" />
         <div className="map-terrain-arcane" aria-hidden="true" />
@@ -111,7 +112,7 @@ export function AdventureMap() {
           <span className="map-landmark-icon">≈</span><span>MIST VALE</span>
         </div>
 
-        <svg className="map-route" viewBox={`0 0 100 ${mapHeight}`} preserveAspectRatio="none" aria-hidden="true">
+        <svg className="map-route" style={{ height: mapHeight }} viewBox={`0 0 100 ${mapHeight}`} preserveAspectRatio="none" aria-hidden="true">
           <polyline points={pointString(points)} fill="none" stroke="rgba(201,162,75,.38)" strokeWidth="1.35" strokeDasharray="1.8 2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           <polyline points={pointString(clearedRoutePoints)} fill="none" stroke="rgba(233,200,118,.98)" strokeWidth="1.65" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </svg>

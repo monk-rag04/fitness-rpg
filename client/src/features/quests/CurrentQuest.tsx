@@ -9,11 +9,12 @@ import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import { RecoveryQuest } from './RecoveryQuest';
 import { TrainingQuest } from './TrainingQuest';
 import { EquipmentProgramFlow } from '../equipment/EquipmentProgramFlow';
+import { muscleLabel } from '../../presentation/trainingLabels';
 
 function BeginnerQuest() {
   const lessons = [
     ['胸トレとは', '大胸筋を鍛え、押す力とシルエットを育てる基礎パート。'],
-    ['Bench Pressの目的', '上半身の総合的な押す力を育てる、メインStrengthの中核種目。'],
+    ['ベンチプレスの目的', '上半身の総合的な押す力を育てる、メインStrengthの中核種目。'],
     ['基本フォーム', '肩甲骨を寄せ、バーは胸の中央へ。足は床をしっかり踏む。'],
     ['注意点', '手首を反らせず、肩をすくめず、無理な高重量を避ける。'],
   ] as const;
@@ -49,10 +50,10 @@ function TrainingPlanPending() {
       <QuestOrnateFrame className="main-quest-frame training-plan-pending" glow>
         <QuestSectionTitle>メインQUEST</QuestSectionTitle>
         <p className="training-plan-pending__eyebrow">TRAINING PLAN</p>
-        <h2 id="training-plan-pending-title">Training Planを準備中</h2>
+        <h2 id="training-plan-pending-title">トレーニングプランを準備中</h2>
         <p>
-          このRoadmapのTraining内容は、利用可能なEquipmentを確認してから作成します。
-          現在は固定Demo Planを表示・流用しません。
+          このRoadmapのトレーニング内容は、利用可能な器具を確認してから作成します。
+          固定のデモプランは表示・流用しません。
         </p>
       </QuestOrnateFrame>
     </section>
@@ -92,7 +93,7 @@ export function CurrentQuest() {
     return <EquipmentProgramFlow />;
   }
   const sessionFocus = isTraining
-    ? currentNode.sessionFocus.targetMuscles.map((muscle) => muscle.toUpperCase()).join(' · ')
+    ? currentNode.sessionFocus.targetMuscles.map(muscleLabel).join(' · ')
     : null;
   const helperText = isTraining && !trainingEvaluation.readyToClear
     ? 'すべての必須種目を記録するとQUESTを達成できます'
@@ -116,7 +117,7 @@ export function CurrentQuest() {
       <section className="quest-info-panel" aria-label="本日のQuest案内">
         <p>
           現在のRoadmapに基づく本日の内容です。
-          {sessionFocus !== null && <><br /><span>SESSION FOCUS · {sessionFocus}</span></>}
+          {sessionFocus !== null && <><br /><span className="quest-focus-label">対象部位 · {sessionFocus}</span></>}
         </p>
       </section>
 

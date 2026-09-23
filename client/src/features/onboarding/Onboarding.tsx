@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { OnboardingRoadmapApplicationResult } from '../../application/onboardingRoadmap';
 import { startOnboardingRoadmap } from '../../application/onboardingRoadmap';
 import { QuestGoldButton, QuestOrnateFrame, QuestSectionTitle } from '../../components/QuestUi';
+import { exerciseLabel } from '../../presentation/trainingLabels';
 import {
   ONBOARDING_MAIN_EXERCISES,
   createOnboardingSubmissionGate,
@@ -23,7 +24,7 @@ interface OnboardingProps {
 function errorCopy(result: Exclude<OnboardingRoadmapApplicationResult, RoadmapCreated>): string {
   switch (result.status) {
     case 'baseline_required':
-      return 'Roadmapを作成するには、現在実施できる重量とrepsによるStrength Assessmentが必要です。';
+      return 'Roadmapを作成するには、現在の実施重量と回数を入力してください。';
     case 'stage_replanning_required':
       return '現在の計画期間では、このStageのRoadmapを確定できません。設定を見直してください。';
     case 'invalid_duration_estimate':
@@ -50,7 +51,7 @@ function stepForInvalidInput(result: Extract<OnboardingRoadmapApplicationResult,
 
 function StepIndicator({ currentStep }: { readonly currentStep: OnboardingStep }) {
   return (
-    <ol className="onboarding-stepper" aria-label={`Onboarding Step ${currentStep} / 3`}>
+    <ol className="onboarding-stepper" aria-label={`オンボーディング Step ${currentStep} / 3`}>
       {(['CHARACTER', 'MAIN STRENGTH', 'FINAL BOSS'] as const).map((label, index) => {
         const step = (index + 1) as OnboardingStep;
         return (
@@ -147,9 +148,9 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         <p className="onboarding-lead">あなたの記録をもとに、最初のBossへ向かうRoadmapを作成しました。</p>
         <QuestOrnateFrame className="onboarding-success-card" glow>
           <dl>
-            <div><dt>AI ESTIMATED DAYS</dt><dd>{createdRoadmap.estimatedAchievementDays}日</dd></div>
-            <div><dt>SELECTED ROADMAP</dt><dd>{createdRoadmap.selectedRoadmapDurationDays}日</dd></div>
-            <div><dt>STAGE TARGET</dt><dd>{formatE1rmKg(createdRoadmap.stage.stageTargetE1rmKg)}</dd></div>
+            <div><dt>AI見積もり日数</dt><dd>{createdRoadmap.estimatedAchievementDays}日</dd></div>
+            <div><dt>Roadmap期間</dt><dd>{createdRoadmap.selectedRoadmapDurationDays}日</dd></div>
+            <div><dt>Stage目標</dt><dd>{formatE1rmKg(createdRoadmap.stage.stageTargetE1rmKg)}</dd></div>
           </dl>
         </QuestOrnateFrame>
         <QuestGoldButton type="button" onClick={() => onRoadmapCreated(createdRoadmap)}>
@@ -164,8 +165,8 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
       <header className="onboarding-intro">
         <div className="onboarding-brand" aria-hidden="true"><span>⚔</span></div>
         <p className="onboarding-wordmark">IRONQUEST</p>
-        <h1 id="onboarding-title">現実で鍛え、Bossを討て。</h1>
-        <p>あなた自身が主人公のRPG。最初のStrength Roadmapを準備します。</p>
+        <h1 id="onboarding-title"><span>現実で鍛え、</span><span>BOSSを討て。</span></h1>
+        <p>あなた自身が主人公のRPG。最初のStage Roadmapを準備します。</p>
       </header>
 
       <StepIndicator currentStep={currentStep} />
@@ -180,12 +181,12 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
                 <input type="number" inputMode="decimal" min="0" step="any" value={draft.bodyWeightKg} onChange={updateText('bodyWeightKg')} placeholder="例：72" />
               </label>
               <label>
-                <span>トレーニング歴 <em>months</em></span>
+                <span>トレーニング歴 <em>か月</em></span>
                 <input type="number" inputMode="numeric" min="0" step="1" value={draft.trainingExperienceMonths} onChange={updateText('trainingExperienceMonths')} placeholder="例：8" />
                 <small>カテゴリではなく、経験月数を直接入力します。</small>
               </label>
               <label>
-                <span>週のトレーニング頻度 <em>days / week</em></span>
+                <span>週のトレーニング頻度 <em>日 / 週</em></span>
                 <input type="number" inputMode="numeric" min="1" max="7" step="1" value={draft.trainingFrequencyPerWeek} onChange={updateText('trainingFrequencyPerWeek')} />
                 <small>1〜7日の範囲で設定します。</small>
               </label>
@@ -196,8 +197,8 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         {currentStep === 2 && (
           <QuestOrnateFrame className="onboarding-panel" glow>
             <QuestSectionTitle>MAIN STRENGTH</QuestSectionTitle>
-            <p className="onboarding-panel-intro">Bossへ挑むメインStrength種目を選び、最近実施できたSetを記録してください。</p>
-            <div className="onboarding-exercise-grid" role="radiogroup" aria-label="Main Strength種目">
+            <p className="onboarding-panel-intro">Bossへ挑むメイン種目を選び、最近実施できたSetを記録してください。</p>
+            <div className="onboarding-exercise-grid" role="radiogroup" aria-label="メイン種目">
               {ONBOARDING_MAIN_EXERCISES.map((exercise) => (
                 <button
                   className={draft.mainExerciseId === exercise.id ? 'is-selected' : ''}
@@ -211,11 +212,11 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
                     setRequestMessage(null);
                   }}
                 >
-                  <span>{exercise.label}</span><small>{exercise.englishLabel}</small>
+                  <span>{exerciseLabel(exercise.id)}</span>
                 </button>
               ))}
-              <button className="is-disabled" type="button" disabled aria-label="Pull-up, Coming later">
-                <span>プルアップ</span><small>PULL-UP · Coming later</small>
+              <button className="is-disabled" type="button" disabled aria-label="プルアップ・今後対応予定">
+                <span>プルアップ</span><small>今後対応予定</small>
               </button>
             </div>
 
@@ -236,7 +237,7 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
             {draft.isBaselineUnknown ? (
               <div className="onboarding-baseline-missing" role="status">
                 <strong>STRENGTH ASSESSMENT REQUIRED</strong>
-                <p>Roadmapを作成するには、現在のStrengthの基準が必要です。初心者向けのAssessmentは将来対応です。</p>
+                <p>Roadmap作成には、現在のStrengthの基準が必要です。初心者向けの測定機能は今後対応予定です。</p>
               </div>
             ) : (
               <div className="onboarding-baseline-inputs">
@@ -245,14 +246,14 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
                   <input type="number" inputMode="decimal" min="0" step="any" value={draft.baselineWeightKg} onChange={updateText('baselineWeightKg')} placeholder="例：60" />
                 </label>
                 <label>
-                  <span>reps <em>1–10</em></span>
+                  <span>回数 <em>1〜10 reps</em></span>
                   <input type="number" inputMode="numeric" min="1" max="10" step="1" value={draft.baselineReps} onChange={updateText('baselineReps')} placeholder="例：5" />
                 </label>
               </div>
             )}
 
             <div className={`onboarding-baseline-result is-${baseline.status}`} aria-live="polite">
-              <div><p>CURRENT STRENGTH</p><span>推定1RM / Production Domain</span></div>
+              <div><p>現在のStrength</p><span>このSetから算出した推定1RM</span></div>
               <strong>{baseline.status === 'ready' ? formatE1rmKg(baseline.e1rmKg) : '—'}</strong>
             </div>
           </QuestOrnateFrame>
@@ -261,18 +262,18 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         {currentStep === 3 && (
           <QuestOrnateFrame className="onboarding-panel onboarding-panel--goal" glow>
             <QuestSectionTitle>FINAL BOSS GOAL</QuestSectionTitle>
-            <p className="onboarding-panel-intro">最終Goal e1RMを直接入力してください。推奨値は表示しません。</p>
+            <p className="onboarding-panel-intro">最終目標のe1RMを直接入力してください。推奨値は表示しません。</p>
             <div className="onboarding-goal-summary">
-              <div><span>CURRENT BASELINE</span><strong>{baseline.status === 'ready' ? formatE1rmKg(baseline.e1rmKg) : '必要です'}</strong></div>
-              <div><span>FINAL GOAL</span><strong>{draft.finalGoalE1rmKg.trim() === '' ? '—' : `${draft.finalGoalE1rmKg}kg`}</strong></div>
+              <div><span>現在の基準</span><strong>{baseline.status === 'ready' ? formatE1rmKg(baseline.e1rmKg) : '必要です'}</strong></div>
+              <div><span>最終目標</span><strong>{draft.finalGoalE1rmKg.trim() === '' ? '—' : `${draft.finalGoalE1rmKg}kg`}</strong></div>
             </div>
             <label className="onboarding-goal-input">
-              <span>Final Goal e1RM <em>kg</em></span>
+              <span>最終目標のe1RM <em>kg</em></span>
               <input type="number" inputMode="decimal" min="0" step="any" value={draft.finalGoalE1rmKg} onChange={updateText('finalGoalE1rmKg')} placeholder="例：80" />
             </label>
             {fieldMessage !== null && <FieldError message={fieldMessage} />}
             <div className="onboarding-estimate-area" aria-live="polite">
-              <p>AI ROADMAP ESTIMATE</p>
+              <p>AIによるRoadmap見積もり</p>
               {isSubmitting
                 ? <strong>Roadmapを準備中…</strong>
                 : <span>Stage TargetとRoadmap期間は、入力を検証してから確定します。</span>}

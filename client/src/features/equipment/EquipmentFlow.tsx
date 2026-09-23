@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { EQUIPMENT_CATALOG, type EquipmentId } from '@fitness-rpg/shared';
 import { QuestGoldButton, QuestOrnateFrame, QuestSectionTitle } from '../../components/QuestUi';
+import { equipmentLabel } from '../../presentation/trainingLabels';
 import {
   INITIAL_EQUIPMENT_DRAFT,
   type EquipmentDraft,
@@ -10,10 +11,6 @@ import {
   toggleEquipment,
   toggleNoEquipment,
 } from './equipmentDraft';
-
-function equipmentSubtitle(displayName: string): string {
-  return displayName.replace(/ Machine$/, '').replace(/^Adjustable Bench$/, 'Adjustable').toUpperCase();
-}
 
 export function EquipmentCheckView({
   initialDraft = INITIAL_EQUIPMENT_DRAFT,
@@ -46,21 +43,21 @@ export function EquipmentCheckContent({
       <button className="back-button equipment-check-back" type="button" onClick={onBack}>← Adventure Mapへ戻る</button>
       <header className="equipment-check-header">
         <div>
-          <p className="equipment-check-eyebrow">STAGE LOADOUT</p>
+          <p className="equipment-check-eyebrow">STAGEの装備</p>
           <h1 id="equipment-check-title">EQUIPMENT CHECK</h1>
         </div>
-        <span className="quest-type-tag equipment-check-tag"><span aria-hidden="true">✦</span>GEAR</span>
+        <span className="quest-type-tag equipment-check-tag"><span aria-hidden="true">✦</span>器具</span>
       </header>
 
       <div className="equipment-check-info">
-        <strong>AVAILABLE GEAR</strong>
-        <p>このStageで利用できる設備を登録してください。複数選択できます。</p>
+        <strong>利用可能な器具</strong>
+        <p>このStageで使用する器具を選択してください。複数選択できます。</p>
       </div>
 
       <QuestOrnateFrame className="equipment-check-frame">
         <div className="equipment-check-section-heading">
-          <QuestSectionTitle>AVAILABLE GEAR</QuestSectionTitle>
-          <span className="equipment-check-count">{selectedChoiceCount(draft)} SELECTED</span>
+          <QuestSectionTitle>利用可能な器具</QuestSectionTitle>
+          <span className="equipment-check-count">{selectedChoiceCount(draft)}件 選択中</span>
         </div>
         <div className="equipment-check-grid" aria-label="利用可能な器具">
           {EQUIPMENT_CATALOG.map((equipment) => {
@@ -74,8 +71,7 @@ export function EquipmentCheckContent({
                 onClick={() => onDraftChange(toggleEquipment(draft, equipment.id))}
               >
                 <span className="equipment-choice-mark" aria-hidden="true">{selected ? '✓' : '+'}</span>
-                <span className="equipment-choice-label">{equipment.displayName}</span>
-                <small>{equipmentSubtitle(equipment.displayName)}</small>
+                <span className="equipment-choice-label">{equipmentLabel(equipment.id)}</span>
               </button>
             );
           })}
@@ -87,7 +83,6 @@ export function EquipmentCheckContent({
           >
             <span className="equipment-choice-mark" aria-hidden="true">{draft.kind === 'no_equipment' ? '✓' : '−'}</span>
             <span className="equipment-choice-label">器具なし</span>
-            <small>NO EQUIPMENT</small>
             <span className="equipment-choice-note">他の選択を解除</span>
           </button>
         </div>
@@ -99,7 +94,7 @@ export function EquipmentCheckContent({
         }}>
           この装備でクエストを生成
         </QuestGoldButton>
-        <p>登録した設備だけを使って、このStageのTraining Questを準備します。</p>
+        <p>選択した器具をもとに、このStageのTraining Questを準備します。</p>
       </footer>
     </section>
   );
@@ -115,11 +110,11 @@ export function StageProgramGeneratingView({ onBack }: { readonly onBack: () => 
       <div className="equipment-flow-center">
         <span className="equipment-flow-emblem equipment-flow-emblem--blue" aria-hidden="true">✦</span>
         <p className="equipment-flow-eyebrow">STAGE PROGRAM GENERATING</p>
-        <h1 id="stage-program-generating-title">TRAINING<br />PROGRAMを<br />編成しています</h1>
-        <p className="equipment-flow-description">登録された装備とStage目標をもとに、このStageのTraining Programを準備しています。</p>
+        <h1 id="stage-program-generating-title">トレーニングプログラムを<br />編成しています</h1>
+        <p className="equipment-flow-description">選択した器具とStage目標をもとに、このStageのトレーニングプログラムを編成しています。</p>
         <QuestOrnateFrame className="equipment-flow-status">
           <span className="equipment-flow-status-dot" aria-hidden="true" />
-          <div><strong>PREPARING STAGE PROGRAM</strong><p>編成が完了するまでお待ちください</p></div>
+          <div><strong>STAGE PROGRAM</strong><p>編成が完了するまでお待ちください</p></div>
         </QuestOrnateFrame>
       </div>
       <StageProgramBack onBack={onBack} />
@@ -139,8 +134,8 @@ export function StageProgramErrorView({
       <div className="equipment-flow-center">
         <span className="equipment-flow-emblem equipment-flow-emblem--red" aria-hidden="true">!</span>
         <p className="equipment-flow-eyebrow equipment-flow-eyebrow--red">PROGRAM GENERATION FAILED</p>
-        <h1 id="stage-program-error-title">TRAINING PROGRAMを<br />編成できませんでした</h1>
-        <p className="equipment-flow-description">Stage Programの準備中に問題が発生しました。登録した設備は保持されています。</p>
+        <h1 id="stage-program-error-title">トレーニングプログラムの<br />編成に失敗しました</h1>
+        <p className="equipment-flow-description">編成中に問題が発生しました。選択した器具は保持されています。</p>
       </div>
       <footer className="equipment-flow-actions">
         <QuestGoldButton type="button" onClick={onRetry}>もう一度試す</QuestGoldButton>
@@ -166,11 +161,11 @@ export function MainEquipmentMissingView({
       <div className="equipment-flow-center">
         <span className="equipment-flow-emblem equipment-flow-emblem--gold" aria-hidden="true">⚔︎</span>
         <p className="equipment-flow-eyebrow">MAIN EQUIPMENT MISSING</p>
-        <h1 id="main-equipment-missing-title">MAIN STRENGTHに必要な<br />装備がありません</h1>
+        <h1 id="main-equipment-missing-title">この種目に必要な<br />器具がありません</h1>
         <QuestOrnateFrame className="equipment-flow-main-card">
           <strong>MAIN STRENGTH</strong>
           <h2>{mainExerciseName}</h2>
-          <p>現在選択されている装備では、このMain Strength Exerciseを実行できません。</p>
+          <p>現在の器具では、このメイン種目を実施できません。</p>
         </QuestOrnateFrame>
       </div>
       <footer className="equipment-flow-actions">

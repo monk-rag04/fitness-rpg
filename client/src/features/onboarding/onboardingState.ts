@@ -134,20 +134,20 @@ export function getOnboardingStepErrors(
     const preview = getBaselinePreview(draft);
     if (preview.status === 'missing') return [];
     if (preview.status === 'incomplete') {
-      return [{ field: 'baselineWeightKg', message: '重量とrepsは両方入力してください。' }];
+      return [{ field: 'baselineWeightKg', message: '重量と回数を両方入力してください。' }];
     }
     if (preview.status === 'invalid_weight') {
       return [{ field: 'baselineWeightKg', message: '重量は0より大きい数値を入力してください。' }];
     }
     if (preview.status === 'invalid_reps') {
-      return [{ field: 'baselineReps', message: 'repsは1〜10回の整数で入力してください。' }];
+      return [{ field: 'baselineReps', message: '回数は1〜10の整数で入力してください。' }];
     }
     return [];
   }
 
   const goal = asFiniteNumber(draft.finalGoalE1rmKg);
   if (goal === null || goal <= 0) {
-    return [{ field: 'finalGoalE1rmKg', message: 'Final Goal e1RMを入力してください。' }];
+    return [{ field: 'finalGoalE1rmKg', message: '最終目標のe1RMを入力してください。' }];
   }
   const baseline = getBaselinePreview(draft);
   if (baseline.status === 'ready' && goal <= baseline.e1rmKg) {

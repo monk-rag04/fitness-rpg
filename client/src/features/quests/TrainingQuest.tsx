@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { getExerciseById } from '@fitness-rpg/shared';
 import { QuestOrnateFrame, QuestSectionTitle, QuestTypeTag } from '../../components/QuestUi';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
+import { exerciseLabel } from '../../presentation/trainingLabels';
 import { WorkoutResultForm } from './WorkoutResultForm';
 
 export function TrainingQuest() {
@@ -18,7 +18,7 @@ export function TrainingQuest() {
 
         <div className="figma-exercise-list">
           {trainingPlan.exercises.map((plan) => {
-            const exercise = getExerciseById(plan.exerciseId);
+            const displayName = exerciseLabel(plan.exerciseId);
             const completion = trainingEvaluation.exercises.find(
               (item) => item.exerciseId === plan.exerciseId,
             );
@@ -41,7 +41,7 @@ export function TrainingQuest() {
                     <span className={`exercise-completion-box ${isCompleted ? 'is-completed' : ''}`} aria-label={isCompleted ? '記録済み' : '未記録'}>
                       {isCompleted ? '✓' : ''}
                     </span>
-                    <h3>{exercise?.displayName ?? plan.exerciseId}</h3>
+                    <h3>{displayName}</h3>
                   </div>
                   <QuestTypeTag>{plan.role}</QuestTypeTag>
                 </header>
@@ -51,7 +51,7 @@ export function TrainingQuest() {
                     <WorkoutResultForm
                       key={`${plan.exerciseId}-${existingResult?.performedAt ?? 'new'}`}
                       plan={plan}
-                      exerciseName={exercise?.displayName ?? plan.exerciseId}
+                      exerciseName={displayName}
                       existingResult={existingResult}
                       onValidRecord={() => setEditingExerciseId(null)}
                     />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getExerciseById, type EquipmentId } from '@fitness-rpg/shared';
+import type { EquipmentId } from '@fitness-rpg/shared';
 import { requestStageTrainingProgram } from '../../application/stageTrainingProgram';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import {
@@ -16,6 +16,7 @@ import {
   createStageTrainingProgramInput,
   type EquipmentProgramFlowState,
 } from './stageProgramGeneration';
+import { exerciseLabel } from '../../presentation/trainingLabels';
 
 /** Connects the Figma-faithful Equipment states to the existing Client boundaries. */
 export function EquipmentProgramFlow() {
@@ -92,12 +93,11 @@ export function EquipmentProgramFlow() {
     );
   }
   if (flowState === 'main_equipment_missing') {
-    const exercise = stageTrainingProgramContext === undefined
-      ? undefined
-      : getExerciseById(stageTrainingProgramContext.mainExerciseId);
     return (
       <MainEquipmentMissingView
-        mainExerciseName={exercise?.displayName ?? 'MAIN STRENGTH'}
+        mainExerciseName={stageTrainingProgramContext === undefined
+          ? 'MAIN STRENGTH'
+          : exerciseLabel(stageTrainingProgramContext.mainExerciseId)}
         onReselectEquipment={() => setFlowState('equipment')}
         onChangeMainStrength={() => {}}
         canChangeMainStrength={false}

@@ -199,7 +199,12 @@ function toDayView(day: StageRoadmapDay, dayIndex: number, currentDayIndex: numb
       date: day.date,
       type: 'training',
       status,
-      sessionFocus: { targetMuscles: [...day.sessionFocus.targetMuscles] },
+      sessionFocus: {
+        targetMuscles: [...day.sessionFocus.targetMuscles],
+        ...(day.sessionFocus.targetMovementPatterns === undefined
+          ? {}
+          : { targetMovementPatterns: [...day.sessionFocus.targetMovementPatterns] }),
+      },
     };
   }
   return { dayIndex, date: day.date, type: 'recovery', status };

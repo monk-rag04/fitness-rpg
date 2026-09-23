@@ -35,27 +35,35 @@ function createTwelveTrainingDayRoadmap() {
   return {
     ...roadmap,
     days: roadmap.days.map((day, dayIndex) => dayIndex < 12
-      ? { date: day.date, type: 'training', sessionFocus: { targetMuscles: ['chest'] } }
+      ? {
+        date: day.date,
+        type: 'training',
+        sessionFocus: { targetMuscles: ['chest'] },
+        bossMainExposure: dayIndex % 2 === 0,
+      }
       : { date: day.date, type: 'recovery' }),
   };
 }
 
-function createCandidates(targetMuscles = ['chest']) {
+function createCandidates(targetMuscles = ['chest'], bossMainExposure = true) {
   return buildTrainingCandidates({
     equipmentProfile: {
       id: 'stage-equipment',
       displayName: 'Barbell and bench',
       availableEquipmentIds: ['barbell', 'flat_bench'],
     },
-    mainExerciseId: 'barbell_bench_press',
+    bossMainExerciseId: 'barbell_bench_press',
+    bossMainExposure,
     targetMuscles,
   });
 }
 
-function validPlan() {
+function validPlan(candidates) {
+  const primary = candidates.mainExercise ?? candidates.candidateExercises[0];
+  assert.ok(primary);
   return {
     exercises: [{
-      exerciseId: 'barbell_bench_press',
+      exerciseId: primary.exerciseId,
       role: 'main',
       sets: 3,
       repRange: { min: 5, max: 8 },
@@ -64,9 +72,11 @@ function validPlan() {
 }
 
 function contextFor(roadmap, overrides = {}) {
-  const trainingDays = getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
+  const trainingDays = getCanonicalStageTrainingDays(roadmap).map(({ dayIndex, sessionFocus, bossMainExposure }) => ({
     dayIndex,
-    candidates: createCandidates(),
+    sessionFocus,
+    bossMainExposure,
+    candidates: createCandidates(sessionFocus.targetMuscles, bossMainExposure),
   }));
   return {
     roadmap,
@@ -74,9 +84,18 @@ function contextFor(roadmap, overrides = {}) {
   };
 }
 
-function programFor(roadmap, dayIndexes = getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => dayIndex)) {
+function programFor(
+  roadmap,
+  dayIndexes = getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => dayIndex),
+  context = contextFor(roadmap),
+) {
   return {
-    sessions: dayIndexes.map((dayIndex) => ({ dayIndex, plan: validPlan() })),
+    sessions: dayIndexes.map((dayIndex) => ({
+      dayIndex,
+      plan: validPlan(
+        (context.trainingDays.find((day) => day.dayIndex === dayIndex) ?? context.trainingDays[0]).candidates,
+      ),
+    })),
   };
 }
 
@@ -124,7 +143,7 @@ test('missing, duplicate, recovery, boss, out-of-range, negative, non-integer, a
   assert.ok(errors(validateStageTrainingProgram(programFor(roadmap, [99, ...canonical.slice(1)]), context)).includes('OUT_OF_RANGE_DAY_INDEX'));
   assert.ok(errors(validateStageTrainingProgram(programFor(roadmap, [-1, ...canonical.slice(1)]), context)).includes('INVALID_DAY_INDEX'));
   assert.ok(errors(validateStageTrainingProgram(programFor(roadmap, [1.5, ...canonical.slice(1)]), context)).includes('INVALID_DAY_INDEX'));
-  assert.ok(errors(validateStageTrainingProgram({ sessions: [...programFor(roadmap).sessions, { dayIndex: 1, plan: validPlan() }] }, context)).includes('RECOVERY_DAY_NOT_ALLOWED'));
+  assert.ok(errors(validateStageTrainingProgram({ sessions: [...programFor(roadmap).sessions, { dayIndex: 1, plan: validPlan(context.trainingDays[0].candidates) }] }, context)).includes('RECOVERY_DAY_NOT_ALLOWED'));
 });
 
 test('candidate contexts require exact canonical Training Day coverage', () => {
@@ -133,8 +152,18 @@ test('candidate contexts require exact canonical Training Day coverage', () => {
 
   assert.ok(errors(validateStageTrainingDayContexts(roadmap, base.slice(1))).includes('MISSING_CANDIDATE_CONTEXT'));
   assert.ok(errors(validateStageTrainingDayContexts(roadmap, [base[0], base[0], ...base.slice(1)])).includes('DUPLICATE_CANDIDATE_CONTEXT'));
-  assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{ dayIndex: 1, candidates: createCandidates() }, ...base.slice(1)])).includes('NON_TRAINING_CANDIDATE_CONTEXT'));
-  assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{ dayIndex: roadmap.days.length, candidates: createCandidates() }, ...base.slice(1)])).includes('OUT_OF_RANGE_CANDIDATE_CONTEXT'));
+  assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{
+    dayIndex: 1,
+    sessionFocus: base[0].sessionFocus,
+    bossMainExposure: base[0].bossMainExposure,
+    candidates: createCandidates(),
+  }, ...base.slice(1)])).includes('NON_TRAINING_CANDIDATE_CONTEXT'));
+  assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{
+    dayIndex: roadmap.days.length,
+    sessionFocus: base[0].sessionFocus,
+    bossMainExposure: base[0].bossMainExposure,
+    candidates: createCandidates(),
+  }, ...base.slice(1)])).includes('OUT_OF_RANGE_CANDIDATE_CONTEXT'));
   assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{ dayIndex: -1, candidates: createCandidates() }, ...base.slice(1)])).includes('INVALID_CANDIDATE_CONTEXT'));
   assert.ok(errors(validateStageTrainingDayContexts(roadmap, [{ dayIndex: 1.5, candidates: createCandidates() }, ...base.slice(1)])).includes('INVALID_CANDIDATE_CONTEXT'));
 });
@@ -155,9 +184,9 @@ test('a plan is validated with the candidate context for the same day', () => {
   };
   const result = validateStageTrainingProgram({
     sessions: [
-      { dayIndex: firstDay, plan: validPlan() },
+      { dayIndex: firstDay, plan: validPlan(context.trainingDays.find((day) => day.dayIndex === firstDay).candidates) },
       { dayIndex: secondDay, plan: candidatePlan },
-      ...programFor(roadmap, getCanonicalStageTrainingDays(roadmap).slice(2).map(({ dayIndex }) => dayIndex)).sessions,
+      ...programFor(roadmap, getCanonicalStageTrainingDays(roadmap).slice(2).map(({ dayIndex }) => dayIndex), context).sessions,
     ],
   }, {
     roadmap,

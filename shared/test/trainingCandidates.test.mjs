@@ -97,6 +97,36 @@ test('chest horizontal-push request contains only matching candidates', () => {
   }
 });
 
+test('Stage non-exposure excludes the Boss Main and retains focus-compatible candidates', () => {
+  const result = buildTrainingCandidates({
+    bossMainExerciseId: 'barbell_bench_press',
+    bossMainExposure: false,
+    targetMuscles: ['chest'],
+    targetMovementPatterns: ['horizontal_push'],
+    equipmentProfile: barbellAndBenchProfile,
+  });
+
+  assert.equal(result.mainExercise, undefined);
+  assert.equal(result.bossMainExerciseId, 'barbell_bench_press');
+  assert.equal(result.bossMainExposure, false);
+  assert.ok(result.candidateExercises.length > 0);
+  assert.ok(!result.candidateExercises.some((candidate) => candidate.exerciseId === 'barbell_bench_press'));
+});
+
+test('Stage exposure retains the Boss Main as the required primary', () => {
+  const result = buildTrainingCandidates({
+    bossMainExerciseId: 'barbell_bench_press',
+    bossMainExposure: true,
+    targetMuscles: ['chest'],
+    targetMovementPatterns: ['horizontal_push'],
+    equipmentProfile: barbellAndBenchProfile,
+  });
+
+  assert.equal(result.mainExercise?.exerciseId, 'barbell_bench_press');
+  assert.equal(result.bossMainExposure, true);
+  assert.ok(!result.candidateExercises.some((candidate) => candidate.exerciseId === 'barbell_bench_press'));
+});
+
 test('difficulty is applied through the deterministic exercise filter', () => {
   const result = buildTrainingCandidates({
     difficulty: 'beginner',

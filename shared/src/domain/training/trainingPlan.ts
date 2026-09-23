@@ -47,6 +47,7 @@ export type TrainingPlanValidationErrorCode =
   | 'DUPLICATE_EXERCISE'
   | 'MAIN_EXERCISE_MISSING'
   | 'MAIN_EXERCISE_ROLE_INVALID'
+  | 'MAIN_ROLE_MISSING'
   | 'MULTIPLE_MAIN_EXERCISES'
   | 'TOO_MANY_EXERCISES'
   | 'TOO_MANY_WORKING_SETS'
@@ -152,6 +153,13 @@ export function validateTrainingPlanDraft(
   let mainRoleCount = 0;
   let requiredMainRole: unknown;
   let workingSetCount = 0;
+  const bossMainExerciseId = candidates.bossMainExerciseId;
+  const bossMainExposure = candidates.bossMainExposure === true;
+
+  if (bossMainExposure &&
+      (bossMainExerciseId === undefined || candidates.mainExercise?.exerciseId !== bossMainExerciseId)) {
+    errors.push({ code: 'MAIN_EXERCISE_MISSING', path: 'candidates.mainExercise' });
+  }
 
   for (const [index, value] of draft.exercises.entries()) {
     const path = `exercises[${index}]`;
@@ -170,7 +178,8 @@ export function validateTrainingPlanDraft(
 
     const { exerciseId, role, sets, repRange } = value;
 
-    if (!isAllowedExerciseId(exerciseId, allowedIds)) {
+    if (!isAllowedExerciseId(exerciseId, allowedIds) ||
+        (!bossMainExposure && exerciseId === bossMainExerciseId)) {
       errors.push({ code: 'EXERCISE_NOT_ALLOWED', path: `${path}.exerciseId` });
     } else if (seenIds.has(exerciseId)) {
       errors.push({ code: 'DUPLICATE_EXERCISE', path: `${path}.exerciseId` });
@@ -225,6 +234,8 @@ export function validateTrainingPlanDraft(
 
   if (mainRoleCount > 1) {
     errors.push({ code: 'MULTIPLE_MAIN_EXERCISES', path: 'exercises' });
+  } else if (mainRoleCount === 0) {
+    errors.push({ code: 'MAIN_ROLE_MISSING', path: 'exercises' });
   }
   if (workingSetCount > TRAINING_PLAN_GUARDRAILS.maxWorkingSets) {
     errors.push({ code: 'TOO_MANY_WORKING_SETS', path: 'exercises' });

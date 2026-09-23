@@ -85,9 +85,12 @@ function buildResponseValidationContext(
     roadmap: input.roadmap,
     trainingDays: getCanonicalStageTrainingDays(input.roadmap).map((day) => ({
       dayIndex: day.dayIndex,
+      sessionFocus: day.sessionFocus,
+      bossMainExposure: day.bossMainExposure,
       candidates: buildTrainingCandidates({
         equipmentProfile,
-        mainExerciseId: input.mainExerciseId,
+        bossMainExerciseId: input.mainExerciseId,
+        bossMainExposure: day.bossMainExposure,
         targetMuscles: day.sessionFocus.targetMuscles,
         ...(day.sessionFocus.targetMovementPatterns === undefined
           ? {}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildTrainingCandidates,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
 } from '@fitness-rpg/shared';
@@ -47,10 +48,24 @@ function generationInput(roadmap = createRoadmap(), overrides = {}) {
   };
 }
 
-function validPlan() {
+function candidatesForDay(roadmap, dayIndex) {
+  const day = roadmap.days[dayIndex];
+  return buildTrainingCandidates({
+    equipmentProfile,
+    bossMainExerciseId: roadmap.mainExerciseId,
+    bossMainExposure: day.bossMainExposure,
+    targetMuscles: day.sessionFocus.targetMuscles,
+    targetMovementPatterns: day.sessionFocus.targetMovementPatterns,
+  });
+}
+
+function validPlan(roadmap, dayIndex) {
+  const candidates = candidatesForDay(roadmap, dayIndex);
+  const primary = candidates.mainExercise ?? candidates.candidateExercises[0];
+  assert.ok(primary);
   return {
     exercises: [{
-      exerciseId: 'barbell_bench_press',
+      exerciseId: primary.exerciseId,
       role: 'main',
       sets: 3,
       repRange: { min: 5, max: 8 },
@@ -62,7 +77,7 @@ function validProgram(roadmap) {
   return {
     sessions: getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
       dayIndex,
-      plan: validPlan(),
+      plan: validPlan(roadmap, dayIndex),
     })),
   };
 }
@@ -161,8 +176,8 @@ test('missing, duplicate, extra, and Recovery provider sessions fail whole-Stage
 
   await expectStructuredFailure(input, { sessions: program.sessions.slice(1) });
   await expectStructuredFailure(input, { sessions: [program.sessions[0], program.sessions[0], ...program.sessions.slice(1)] });
-  await expectStructuredFailure(input, { sessions: [...program.sessions, { dayIndex: 99, plan: validPlan() }] });
-  await expectStructuredFailure(input, { sessions: [{ dayIndex: 1, plan: validPlan() }, ...program.sessions.slice(1)] });
+  await expectStructuredFailure(input, { sessions: [...program.sessions, { dayIndex: 99, plan: validPlan(roadmap, 0) }] });
+  await expectStructuredFailure(input, { sessions: [{ dayIndex: 1, plan: validPlan(roadmap, 0) }, ...program.sessions.slice(1)] });
 });
 
 test('candidate membership is checked independently for every Training Day', async () => {
@@ -177,7 +192,7 @@ test('candidate membership is checked independently for every Training Day', asy
   const secondTrainingDay = getCanonicalStageTrainingDays(roadmap)[1].dayIndex;
   program.sessions.find((session) => session.dayIndex === secondTrainingDay).plan = {
     exercises: [
-      validPlan().exercises[0],
+      validPlan(roadmap, secondTrainingDay).exercises[0],
       {
         exerciseId: 'push_up',
         role: 'accessory',

@@ -454,3 +454,14 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-029として自己申告Baseline、Boss対象Main、直接入力の経験月数・Goal、Onboarding 1..7頻度、Backend Duration endpoint、純粋なRoadmap組立て境界を採用。後続Client実装でFigma 3-Step UIをApplication Flowへ接続し、実Training Plan生成は引き続き次工程とする。
 - 2026-09-22: D-030としてEquipmentの初回Training Node収集、Main Exercise unavailable停止、Server-side Candidate Builder境界、Training Plan guardrail、明示Retry、day単位cache、React Session-only保持、当時のFigma未確定Equipment UI境界を採用。
 - 2026-09-22: D-031として1 Stage = 1 Training Program、Equipment確定後のStage-wide生成、全Training Day exact coverage、Atomic `planByDay` cache、Stage Program全体の明示Retryを採用。D-030のper-day生成 timing / generation retryだけをsupersedeし、Equipment・guardrail・fallback禁止・Session-only保持は維持。
+
+### D-032: Stage Training Program Balance and Boss Main Exposure
+
+- **Status**: Accepted (MVP)
+- **Decision**: Keep the onboarding-selected `mainExerciseId` as the Stage `bossMainExercise`; it supplies the Stage Target/e1RM metric and is not automatically the session `role: 'main'` on every Training Day.
+- **Decision**: Generate a deterministic, frequency-based session split from the existing Muscle Group and Movement Pattern taxonomies (1: Full Body; 2: Full Body A/B; 3: Upper/Lower/Full Body; 4: Upper A/Lower A/Upper B/Lower B; 5: Push/Pull/Legs/Upper/Lower; 6: Push/Pull/Legs repeated; 7: Push/Pull/Legs repeated plus Full Body/Technique). Calendar weekdays are not used.
+- **Decision**: Mark `bossMainExposure` on each canonical Training Day. The Boss Main is exposed once for 1–2 Training Days per cycle and twice for 3 or more, on focus-compatible days. Exposure requires the Boss Main as exactly one `main` role; non-exposure sessions must exclude it and choose exactly one focus-compatible candidate as `main`.
+- **Decision**: Every generated session has exactly one `main` role. Existing candidate membership, duplicate, equipment, and D-030 guardrails remain deterministic and are revalidated after Structured Output. AI cannot replace the Boss Main or add exercises outside the server-built candidates.
+- **Decision**: Roadmap generation, server candidate context, stage-wide prompt, client validation context, and atomic `planByDay` caching preserve the same focus/exposure metadata. Recovery and Boss nodes remain excluded; the legacy per-day endpoint remains compatible.
+- **Consequence**: Stage-wide generation is no longer Main Strength-biased. The Stage Target/Boss metric remains separate from the session primary-exercise role.
+- **Open**: Periodization details, fatigue limits, exact production prompt/model, persistence, and UI redesign remain undecided.

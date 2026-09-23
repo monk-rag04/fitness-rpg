@@ -71,7 +71,7 @@ const ROADMAP_FIELDS = [
 ] as const;
 
 const BOSS_FIELDS = ['type', 'date'] as const;
-const TRAINING_DAY_FIELDS = ['date', 'type', 'sessionFocus'] as const;
+const TRAINING_DAY_FIELDS = ['date', 'type', 'sessionFocus', 'bossMainExposure'] as const;
 const RECOVERY_DAY_FIELDS = ['date', 'type'] as const;
 const SESSION_FOCUS_FIELDS = ['targetMuscles', 'targetMovementPatterns'] as const;
 
@@ -140,12 +140,14 @@ function validateRoadmapDay(value: unknown, expectedDate: LocalDate): StageRoadm
   }
 
   if (value.type !== 'training' || !hasOnlyFields(value, TRAINING_DAY_FIELDS) ||
+      typeof value.bossMainExposure !== 'boolean' ||
       !isSessionFocus(value.sessionFocus)) {
     return null;
   }
   return {
     date: value.date,
     type: 'training',
+    bossMainExposure: value.bossMainExposure,
     sessionFocus: {
       targetMuscles: [...value.sessionFocus.targetMuscles],
       ...(value.sessionFocus.targetMovementPatterns === undefined

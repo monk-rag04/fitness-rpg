@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildTrainingCandidates,
+  EQUIPMENT_IDS,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
 } from '@fitness-rpg/shared';
@@ -21,10 +23,34 @@ function createRoadmap(frequency = 3) {
   });
 }
 
-function validPlan() {
+function validPlan(roadmap, dayIndex) {
+  if (roadmap === undefined || dayIndex === undefined) {
+    return {
+      exercises: [{
+        exerciseId: 'barbell_bench_press',
+        role: 'main',
+        sets: 3,
+        repRange: { min: 5, max: 8 },
+      }],
+    };
+  }
+  const day = roadmap.days[dayIndex];
+  const candidates = buildTrainingCandidates({
+    equipmentProfile: {
+      id: 'endpoint-test-equipment',
+      displayName: 'All catalog equipment',
+      availableEquipmentIds: [...EQUIPMENT_IDS],
+    },
+    bossMainExerciseId: roadmap.mainExerciseId,
+    bossMainExposure: day.bossMainExposure,
+    targetMuscles: day.sessionFocus.targetMuscles,
+    targetMovementPatterns: day.sessionFocus.targetMovementPatterns,
+  });
+  const primary = candidates.mainExercise ?? candidates.candidateExercises[0];
+  assert.ok(primary);
   return {
     exercises: [{
-      exerciseId: 'barbell_bench_press',
+      exerciseId: primary.exerciseId,
       role: 'main',
       sets: 3,
       repRange: { min: 5, max: 8 },
@@ -36,14 +62,14 @@ function validProgram(roadmap) {
   return {
     sessions: getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
       dayIndex,
-      plan: validPlan(),
+      plan: validPlan(roadmap, dayIndex),
     })),
   };
 }
 
 function validRequest(roadmap = createRoadmap()) {
   return {
-    equipmentIds: ['barbell', 'flat_bench'],
+    equipmentIds: [...EQUIPMENT_IDS],
     mainExerciseId: 'barbell_bench_press',
     currentE1rmKg: 70,
     stageTargetE1rmKg: 75,
@@ -98,7 +124,7 @@ test('valid request returns only the validated Stage Program and calls generatio
   assert.deepEqual(result.body, { program: validProgram(roadmap) });
   assert.equal(fake.calls.length, 1);
   assert.equal(fake.getProviderCalls(), 1);
-  assert.deepEqual(fake.calls[0].equipmentProfile.availableEquipmentIds, ['barbell', 'flat_bench']);
+  assert.deepEqual(fake.calls[0].equipmentProfile.availableEquipmentIds, EQUIPMENT_IDS);
   assert.equal(Object.hasOwn(result.body, 'candidates'), false);
 });
 

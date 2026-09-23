@@ -418,3 +418,12 @@ Productionで再利用してよいのは、画面意図、用語、Interaction�
 - Observability service
 - Caching、Offline、Sync
 - Production Design SystemとTailwind CSS正式採用
+### D-032 Stage Training Program balance boundary
+
+The Stage Roadmap now carries taxonomy-backed `sessionFocus` presets and a deterministic `bossMainExposure` flag for every Training Day. `generateStageRoadmap()` chooses the split from Training Session ordinal/frequency, never from calendar weekday. The onboarding Main Exercise remains the Stage `bossMainExercise` and Boss metric, while `role: 'main'` is the primary exercise of an individual session.
+
+Server and Client build the same per-Day context: exposure Days require the Boss Main as the single main candidate; non-exposure Days exclude the Boss Main and require one focus-compatible candidate as main. `buildTrainingCandidates()`, `validateTrainingSessionPlannerInput()`, and `validateTrainingPlanDraft()` enforce Catalog membership, equipment, duplicate, role, and D-030 guardrails. The stage prompt receives only supplied candidates and focus metadata; it cannot replace the Boss Main or prescribe weights. Recovery/Boss nodes remain excluded, and the whole Stage remains one provider operation with atomic `planByDay` caching.
+
+This D-032 implementation includes the existing Stage Program endpoint, Client application helper, defensive Client validation, and Session cache integration. Earlier D-031 notes that described those pieces as not yet connected are superseded by the current runtime; production model selection, prompt/schema versioning, and periodization details remain open.
+
+It also supersedes the earlier D-026 focus description: current generated Training Days use the typed frequency split and existing movement taxonomy while preserving D-026 date offsets, Duration, Recovery placement, Boss anchor, and reschedule invariants.

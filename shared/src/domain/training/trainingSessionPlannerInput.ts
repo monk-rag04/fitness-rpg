@@ -97,7 +97,12 @@ function validateCandidates(
     return false;
   }
 
-  addUnexpectedFieldErrors(value, ['mainExercise', 'candidateExercises'], 'candidates', errors);
+  addUnexpectedFieldErrors(
+    value,
+    ['mainExercise', 'candidateExercises', 'bossMainExerciseId', 'bossMainExposure'],
+    'candidates',
+    errors,
+  );
   const seen = new Set<string>();
 
   if (value.mainExercise !== undefined) {
@@ -118,6 +123,34 @@ function validateCandidates(
       errors.push({ code: 'DUPLICATE_CANDIDATE', path: `${path}.exerciseId` });
     }
     seen.add(candidate.exerciseId);
+  }
+
+  if (value.bossMainExerciseId !== undefined &&
+      (typeof value.bossMainExerciseId !== 'string' ||
+       getExerciseById(value.bossMainExerciseId) === undefined)) {
+    errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.bossMainExerciseId' });
+  }
+  if (value.bossMainExposure !== undefined && typeof value.bossMainExposure !== 'boolean') {
+    errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.bossMainExposure' });
+  }
+  if ((value.bossMainExerciseId === undefined) !== (value.bossMainExposure === undefined)) {
+    errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.bossMainExerciseId' });
+  }
+  if (value.bossMainExerciseId !== undefined && typeof value.bossMainExposure === 'boolean') {
+    const bossMainExerciseId = value.bossMainExerciseId;
+    if (value.bossMainExposure === true &&
+        (!isCandidate(value.mainExercise) || value.mainExercise.exerciseId !== bossMainExerciseId)) {
+      errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.mainExercise' });
+    }
+    if (value.bossMainExposure === false &&
+        isCandidate(value.mainExercise) && value.mainExercise.exerciseId === bossMainExerciseId) {
+      errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.mainExercise' });
+    }
+  }
+  if (typeof value.bossMainExerciseId === 'string' &&
+      Array.isArray(value.candidateExercises) &&
+      value.candidateExercises.some((candidate) => isRecord(candidate) && candidate.exerciseId === value.bossMainExerciseId)) {
+    errors.push({ code: 'INVALID_CANDIDATE', path: 'candidates.candidateExercises' });
   }
 
   return true;

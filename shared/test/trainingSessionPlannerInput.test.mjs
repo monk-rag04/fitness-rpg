@@ -96,6 +96,24 @@ test('candidate IDs and metadata must match the catalog', () => {
     .includes('INVALID_CANDIDATE'));
 });
 
+test('Stage exposure metadata requires the Boss Main as the separate main candidate', () => {
+  const stageCandidates = buildTrainingCandidates({
+    bossMainExerciseId: 'barbell_bench_press',
+    bossMainExposure: true,
+    targetMuscles: ['chest'],
+    targetMovementPatterns: ['horizontal_push'],
+    equipmentProfile: {
+      id: 'stage-equipment',
+      displayName: 'Barbell and bench',
+      availableEquipmentIds: ['barbell', 'flat_bench'],
+    },
+  });
+  assert.equal(validateTrainingSessionPlannerInput({
+    candidates: { ...stageCandidates, mainExercise: undefined },
+    context: makeInput().context,
+  }).valid, false);
+});
+
 test('duplicate candidate IDs are rejected', () => {
   const invalid = { ...candidates, candidateExercises: [
     candidates.candidateExercises[0], candidates.candidateExercises[0],

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildTrainingCandidates,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
   validateStageTrainingProgram,
@@ -26,7 +27,12 @@ function createTwelveTrainingDayRoadmap() {
   return {
     ...roadmap,
     days: roadmap.days.map((day, dayIndex) => dayIndex < 12
-      ? { date: day.date, type: 'training', sessionFocus: { targetMuscles: ['chest'] } }
+      ? {
+        date: day.date,
+        type: 'training',
+        sessionFocus: { targetMuscles: ['chest'] },
+        bossMainExposure: dayIndex % 2 === 0,
+      }
       : { date: day.date, type: 'recovery' }),
   };
 }
@@ -41,6 +47,7 @@ function createDaySpecificRoadmap() {
           date: day.date,
           type: 'training',
           sessionFocus: { targetMuscles: ['back'] },
+          bossMainExposure: day.bossMainExposure,
         };
       }
       return day;
@@ -60,10 +67,24 @@ function createInput(roadmap = createRoadmap()) {
   };
 }
 
-function validPlan() {
+function validPlan(roadmap = createRoadmap(), dayIndex = 0) {
+  const day = roadmap.days[dayIndex];
+  const candidates = buildTrainingCandidates({
+    equipmentProfile: {
+      id: 'client-stage-response-validation',
+      displayName: 'Client response validation',
+      availableEquipmentIds: ['barbell', 'flat_bench'],
+    },
+    bossMainExerciseId: roadmap.mainExerciseId,
+    bossMainExposure: day.bossMainExposure,
+    targetMuscles: day.sessionFocus.targetMuscles,
+    targetMovementPatterns: day.sessionFocus.targetMovementPatterns,
+  });
+  const primary = candidates.mainExercise ?? candidates.candidateExercises[0];
+  assert.ok(primary);
   return {
     exercises: [{
-      exerciseId: 'barbell_bench_press',
+      exerciseId: primary.exerciseId,
       role: 'main',
       sets: 3,
       repRange: { min: 5, max: 8 },
@@ -75,7 +96,7 @@ function validProgram(roadmap) {
   return {
     sessions: getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => ({
       dayIndex,
-      plan: validPlan(),
+      plan: validPlan(roadmap, dayIndex),
     })),
   };
 }

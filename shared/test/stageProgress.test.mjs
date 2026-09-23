@@ -102,7 +102,13 @@ test('exposes training focus but no UI-specific map state', () => {
     date: '2026-09-22',
     type: 'training',
     status: 'available',
-    sessionFocus: { targetMuscles: ['chest'] },
+    sessionFocus: {
+      targetMuscles: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+      targetMovementPatterns: [
+        'horizontal_push', 'horizontal_pull', 'vertical_push', 'vertical_pull',
+        'elbow_flexion', 'elbow_extension', 'shoulder_abduction', 'chest_fly',
+      ],
+    },
   });
   assert.equal(Object.hasOwn(view, 'exp'), false);
   assert.equal(Object.hasOwn(view.boss, 'defeated'), false);

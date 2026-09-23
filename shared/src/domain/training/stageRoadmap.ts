@@ -1,5 +1,11 @@
 import { getExerciseById } from './exerciseCatalog.js';
-import type { ExerciseId, MovementPattern, MuscleGroup } from './exercise.js';
+import {
+  MOVEMENT_PATTERNS,
+  MUSCLE_GROUPS,
+  type ExerciseId,
+  type MovementPattern,
+  type MuscleGroup,
+} from './exercise.js';
 import { ROADMAP_DURATION_CANDIDATES } from './stagePlanning.js';
 
 /** D-026 MVP schedule rule. Persist this version with generated roadmaps. */
@@ -11,6 +17,65 @@ export type LocalDate = string;
 export type RoadmapDurationDays = (typeof ROADMAP_DURATION_CANDIDATES)[number];
 export type RoadmapDayType = 'training' | 'recovery';
 
+export type StageSessionFocusPreset =
+  | 'full_body'
+  | 'upper'
+  | 'lower'
+  | 'push'
+  | 'pull'
+  | 'legs';
+
+const FULL_BODY_MOVEMENTS: readonly MovementPattern[] = [...MOVEMENT_PATTERNS];
+const UPPER_MUSCLES: readonly MuscleGroup[] = ['chest', 'back', 'shoulders', 'biceps', 'triceps'];
+const LOWER_MUSCLES: readonly MuscleGroup[] = ['quads', 'hamstrings', 'glutes', 'calves'];
+const PUSH_MUSCLES: readonly MuscleGroup[] = ['chest', 'shoulders', 'triceps'];
+const PULL_MUSCLES: readonly MuscleGroup[] = ['back', 'biceps'];
+const LEGS_MUSCLES: readonly MuscleGroup[] = ['quads', 'hamstrings', 'glutes', 'calves'];
+
+const UPPER_MOVEMENTS: readonly MovementPattern[] = [
+  'horizontal_push', 'horizontal_pull', 'vertical_push', 'vertical_pull',
+  'elbow_flexion', 'elbow_extension', 'shoulder_abduction', 'chest_fly',
+];
+const LOWER_MOVEMENTS: readonly MovementPattern[] = [
+  'squat', 'hinge', 'knee_extension', 'knee_flexion', 'hip_extension', 'calf_raise',
+];
+const PUSH_MOVEMENTS: readonly MovementPattern[] = [
+  'horizontal_push', 'vertical_push', 'chest_fly', 'elbow_extension', 'shoulder_abduction',
+];
+const PULL_MOVEMENTS: readonly MovementPattern[] = [
+  'horizontal_pull', 'vertical_pull', 'elbow_flexion',
+];
+const LEGS_MOVEMENTS: readonly MovementPattern[] = [...LOWER_MOVEMENTS];
+
+/** Typed, Catalog-backed focus presets. Presets are not UI or Product copy. */
+export const STAGE_SESSION_FOCUS_PRESETS: Readonly<Record<StageSessionFocusPreset, StageSessionFocus>> = {
+  full_body: { targetMuscles: [...MUSCLE_GROUPS], targetMovementPatterns: FULL_BODY_MOVEMENTS },
+  upper: { targetMuscles: UPPER_MUSCLES, targetMovementPatterns: UPPER_MOVEMENTS },
+  lower: { targetMuscles: LOWER_MUSCLES, targetMovementPatterns: LOWER_MOVEMENTS },
+  push: { targetMuscles: PUSH_MUSCLES, targetMovementPatterns: PUSH_MOVEMENTS },
+  pull: { targetMuscles: PULL_MUSCLES, targetMovementPatterns: PULL_MOVEMENTS },
+  legs: { targetMuscles: LEGS_MUSCLES, targetMovementPatterns: LEGS_MOVEMENTS },
+};
+
+/** Session-order split cycles selected only from the existing 1..7 frequency. */
+export const STAGE_SESSION_SPLIT_BY_FREQUENCY: Readonly<Record<number, readonly StageSessionFocusPreset[]>> = {
+  1: ['full_body'],
+  2: ['full_body', 'full_body'],
+  3: ['upper', 'lower', 'full_body'],
+  4: ['upper', 'lower', 'upper', 'lower'],
+  5: ['push', 'pull', 'legs', 'upper', 'lower'],
+  6: ['push', 'pull', 'legs', 'push', 'pull', 'legs'],
+  7: ['push', 'pull', 'legs', 'push', 'pull', 'legs', 'full_body'],
+};
+
+const BOSS_MAIN_EXPOSURE_PRESETS: Readonly<Record<string, readonly StageSessionFocusPreset[]>> = {
+  barbell_bench_press: ['push', 'upper'],
+  barbell_overhead_press: ['push', 'upper'],
+  barbell_back_squat: ['legs', 'lower'],
+  barbell_deadlift: ['pull', 'lower'],
+  pull_up: ['pull', 'upper'],
+};
+
 export interface StageSessionFocus {
   readonly targetMuscles: readonly MuscleGroup[];
   readonly targetMovementPatterns?: readonly MovementPattern[];
@@ -21,6 +86,7 @@ export type StageRoadmapDay =
     readonly date: LocalDate;
     readonly type: 'training';
     readonly sessionFocus: StageSessionFocus;
+    readonly bossMainExposure: boolean;
   }
   | {
     readonly date: LocalDate;
@@ -152,6 +218,24 @@ export function getTrainingOffsetsForFrequency(trainingFrequencyPerWeek: number)
   );
 }
 
+function getBossMainExposureOrdinals(
+  trainingFrequencyPerWeek: number,
+  mainExerciseId: ExerciseId,
+): readonly number[] {
+  if (trainingFrequencyPerWeek === 1) return [0];
+  if (trainingFrequencyPerWeek === 2) return [0];
+
+  const cycle = STAGE_SESSION_SPLIT_BY_FREQUENCY[trainingFrequencyPerWeek];
+  const exposurePresets = BOSS_MAIN_EXPOSURE_PRESETS[mainExerciseId] ?? [];
+  const cycleExposurePresets = trainingFrequencyPerWeek === 3
+    ? [...exposurePresets, 'full_body' as const]
+    : exposurePresets;
+  const matching = cycle
+    .map((preset, ordinal) => cycleExposurePresets.includes(preset) ? ordinal : -1)
+    .filter((ordinal) => ordinal >= 0);
+  return matching.slice(0, 2);
+}
+
 function assertGenerationInput(input: unknown): asserts input is Record<string, unknown> {
   if (!isRecord(input)) throw new StageRoadmapValidationError('INVALID_INPUT_SHAPE');
   const allowedFields = [
@@ -196,15 +280,31 @@ export function generateStageRoadmap(input: unknown): StageRoadmap {
   const trainingFrequencyPerWeek = input.trainingFrequencyPerWeek as number;
   const mainExercise = getExerciseById(input.mainExerciseId as string)!;
   const trainingOffsets = new Set(getTrainingOffsetsForFrequency(trainingFrequencyPerWeek));
-  const sessionFocus: StageSessionFocus = {
-    targetMuscles: [...mainExercise.primaryMuscles],
-  };
+  const splitCycle = STAGE_SESSION_SPLIT_BY_FREQUENCY[trainingFrequencyPerWeek];
+  const bossMainExposureOrdinals = new Set(
+    getBossMainExposureOrdinals(trainingFrequencyPerWeek, mainExercise.id),
+  );
+  let trainingSessionOrdinal = 0;
 
   const days: StageRoadmapDay[] = Array.from({ length: durationDays }, (_, index) => {
     const date = addLocalDays(startDate, index);
-    return trainingOffsets.has(index % 7)
-      ? { date, type: 'training', sessionFocus: { targetMuscles: [...sessionFocus.targetMuscles] } }
-      : { date, type: 'recovery' };
+    if (!trainingOffsets.has(index % 7)) return { date, type: 'recovery' };
+
+    const split = splitCycle[trainingSessionOrdinal % splitCycle.length];
+    const sessionFocus = STAGE_SESSION_FOCUS_PRESETS[split];
+    const bossMainExposure = bossMainExposureOrdinals.has(
+      trainingSessionOrdinal % splitCycle.length,
+    );
+    trainingSessionOrdinal += 1;
+    return {
+      date,
+      type: 'training',
+      sessionFocus: {
+        targetMuscles: [...sessionFocus.targetMuscles],
+        targetMovementPatterns: [...sessionFocus.targetMovementPatterns!],
+      },
+      bossMainExposure,
+    };
   });
 
   return {
@@ -249,12 +349,28 @@ export function rescheduleTrainingDay(
 
   const movedFocus: StageSessionFocus = {
     targetMuscles: [...source.sessionFocus.targetMuscles],
+    ...(source.sessionFocus.targetMovementPatterns === undefined
+      ? {}
+      : { targetMovementPatterns: [...source.sessionFocus.targetMovementPatterns] }),
   };
+  const movedExposure = source.bossMainExposure;
   const days = roadmap.days.map((day, index): StageRoadmapDay => {
     if (index === sourceIndex) return { date: day.date, type: 'recovery' };
-    if (index === targetIndex) return { date: day.date, type: 'training', sessionFocus: movedFocus };
+    if (index === targetIndex) {
+      return { date: day.date, type: 'training', sessionFocus: movedFocus, bossMainExposure: movedExposure };
+    }
     return day.type === 'training'
-      ? { date: day.date, type: 'training', sessionFocus: { targetMuscles: [...day.sessionFocus.targetMuscles] } }
+      ? {
+        date: day.date,
+        type: 'training',
+        sessionFocus: {
+          targetMuscles: [...day.sessionFocus.targetMuscles],
+          ...(day.sessionFocus.targetMovementPatterns === undefined
+            ? {}
+            : { targetMovementPatterns: [...day.sessionFocus.targetMovementPatterns] }),
+        },
+        bossMainExposure: day.bossMainExposure,
+      }
       : { date: day.date, type: 'recovery' };
   });
 

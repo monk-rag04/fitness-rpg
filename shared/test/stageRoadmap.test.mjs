@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   STAGE_ROADMAP_GENERATION_RULE,
+  STAGE_SESSION_FOCUS_PRESETS,
+  STAGE_SESSION_SPLIT_BY_FREQUENCY,
   StageRoadmapRescheduleError,
   StageRoadmapValidationError,
   generateStageRoadmap,
@@ -96,15 +98,53 @@ test('repeats the weekly pattern with exact weekly and full-roadmap training cou
   assert.equal(trainingCount(roadmap({ durationDays: 42, trainingFrequencyPerWeek: 5 })), 30);
 });
 
-test('all training days use the main exercise primary muscles and recovery has no focus', () => {
+test('frequency three uses deterministic Upper, Lower, Full Body focus and Boss exposure', () => {
   const result = roadmap();
+  const trainingDays = result.days.filter((day) => day.type === 'training');
+  assert.deepEqual(trainingDays.slice(0, 3).map((day) => day.sessionFocus.targetMuscles), [
+    ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+    ['quads', 'hamstrings', 'glutes', 'calves'],
+    ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'quads', 'hamstrings', 'glutes', 'calves'],
+  ]);
+  assert.deepEqual(trainingDays.slice(0, 3).map((day) => day.bossMainExposure), [true, false, true]);
   for (const day of result.days) {
     if (day.type === 'training') {
-      assert.deepEqual(day.sessionFocus, { targetMuscles: ['chest'] });
-      assert.equal(Object.hasOwn(day.sessionFocus, 'targetMovementPatterns'), false);
+      assert.ok(Array.isArray(day.sessionFocus.targetMovementPatterns));
     } else {
       assert.equal(Object.hasOwn(day, 'sessionFocus'), false);
+      assert.equal(Object.hasOwn(day, 'bossMainExposure'), false);
     }
+  }
+});
+
+test('all supported frequencies use the deterministic session split and bounded Boss exposure', () => {
+  const expectedExposureCount = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2 };
+  for (const frequency of Object.keys(STAGE_SESSION_SPLIT_BY_FREQUENCY).map(Number)) {
+    const result = roadmap({ durationDays: 14, trainingFrequencyPerWeek: frequency });
+    const trainingDays = result.days.filter((day) => day.type === 'training');
+    const cycle = STAGE_SESSION_SPLIT_BY_FREQUENCY[frequency];
+    assert.deepEqual(
+      trainingDays.slice(0, cycle.length).map((day) => day.sessionFocus),
+      cycle.map((preset) => STAGE_SESSION_FOCUS_PRESETS[preset]),
+    );
+    assert.equal(trainingDays.slice(0, cycle.length).filter((day) => day.bossMainExposure).length, expectedExposureCount[frequency]);
+  }
+});
+
+test('Boss Main exposure follows its compatible focus family', () => {
+  const expected = {
+    barbell_bench_press: [true, false, false, true, false],
+    barbell_overhead_press: [true, false, false, true, false],
+    barbell_back_squat: [false, false, true, false, true],
+    barbell_deadlift: [false, true, false, false, true],
+  };
+  for (const [exerciseId, presets] of Object.entries(expected)) {
+    const result = roadmap({ trainingFrequencyPerWeek: 5, mainExerciseId: exerciseId });
+    const trainingDays = result.days.filter((day) => day.type === 'training').slice(0, 5);
+    assert.deepEqual(
+      trainingDays.map((day) => day.bossMainExposure),
+      presets,
+    );
   }
 });
 
@@ -142,7 +182,10 @@ test('moves a training day to a future recovery day and preserves the session fo
   const changed = rescheduleTrainingDay(original, '2026-09-22', '2026-09-23');
   assert.equal(changed.days[0].type, 'recovery');
   assert.deepEqual(changed.days[1], {
-    date: '2026-09-23', type: 'training', sessionFocus: { targetMuscles: ['chest'] },
+    date: '2026-09-23',
+    type: 'training',
+    sessionFocus: { ...original.days[0].sessionFocus },
+    bossMainExposure: true,
   });
   assert.equal(trainingCount(changed), trainingCount(original));
   assert.equal(changed.boss.date, original.boss.date);

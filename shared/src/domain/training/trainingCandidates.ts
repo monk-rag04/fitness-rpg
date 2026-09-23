@@ -11,7 +11,12 @@ import { filterExercises, hasRequiredEquipment } from './filterExercises.js';
 
 export interface TrainingCandidateRequest {
   readonly equipmentProfile: GymEquipmentProfile;
+  /** Legacy per-session primary / Main Exercise input. */
   readonly mainExerciseId?: string;
+  /** D-032 Stage-level Boss Strength exercise, distinct from session primary. */
+  readonly bossMainExerciseId?: string;
+  /** When true, the Boss Main is the required primary for this Session. */
+  readonly bossMainExposure?: boolean;
   readonly targetMuscles?: readonly MuscleGroup[];
   readonly targetMovementPatterns?: readonly MovementPattern[];
   readonly difficulty?: ExerciseDifficulty;
@@ -27,8 +32,12 @@ export interface TrainingExerciseCandidate {
 }
 
 export interface TrainingCandidateResult {
+  /** Required Session Primary for legacy or Boss-exposure contexts. */
   readonly mainExercise?: TrainingExerciseCandidate;
   readonly candidateExercises: readonly TrainingExerciseCandidate[];
+  /** D-032 metadata used to keep Boss Strength separate from Session Primary. */
+  readonly bossMainExerciseId?: ExerciseId;
+  readonly bossMainExposure?: boolean;
 }
 
 export type TrainingCandidateErrorCode =
@@ -63,9 +72,10 @@ function toCandidate(
   };
 }
 
-function getMainExercise(
+function getExercise(
   mainExerciseId: string | undefined,
   equipmentProfile: GymEquipmentProfile,
+  requireEquipment: boolean,
 ): ExerciseDefinition | undefined {
   if (mainExerciseId === undefined) {
     return undefined;
@@ -80,7 +90,7 @@ function getMainExercise(
     );
   }
 
-  if (!hasRequiredEquipment(mainExercise, equipmentProfile)) {
+  if (requireEquipment && !hasRequiredEquipment(mainExercise, equipmentProfile)) {
     throw new TrainingCandidateError(
       'MAIN_EXERCISE_UNAVAILABLE',
       mainExerciseId,
@@ -93,10 +103,27 @@ function getMainExercise(
 export function buildTrainingCandidates(
   request: TrainingCandidateRequest,
 ): TrainingCandidateResult {
-  const mainExercise = getMainExercise(
-    request.mainExerciseId,
+  const hasStageContext = request.bossMainExerciseId !== undefined ||
+    request.bossMainExposure !== undefined;
+  const isBossExposure = hasStageContext
+    ? request.bossMainExposure === true
+    : request.mainExerciseId !== undefined;
+  const bossMainExerciseId = hasStageContext
+    ? request.bossMainExerciseId
+    : undefined;
+  const bossMainExercise = getExercise(
+    bossMainExerciseId,
     request.equipmentProfile,
+    isBossExposure,
   );
+  const legacyMainExercise = hasStageContext
+    ? undefined
+    : getExercise(request.mainExerciseId, request.equipmentProfile, true);
+  const requiredMainExercise = hasStageContext
+    ? (isBossExposure ? bossMainExercise : undefined)
+    : legacyMainExercise;
+  const excludedBossMainExerciseId = bossMainExercise?.id ??
+    (typeof bossMainExerciseId === 'string' ? bossMainExerciseId : legacyMainExercise?.id);
   const targetMuscles = request.targetMuscles ?? [undefined];
   const targetMovementPatterns = request.targetMovementPatterns ?? [undefined];
   const candidateIds = new Set<ExerciseId>();
@@ -116,12 +143,17 @@ export function buildTrainingCandidates(
 
   const candidateExercises = EXERCISE_CATALOG.filter(
     (exercise) =>
-      candidateIds.has(exercise.id) && exercise.id !== mainExercise?.id,
+      candidateIds.has(exercise.id) && exercise.id !== excludedBossMainExerciseId,
   ).map(toCandidate);
 
   return {
-    mainExercise:
-      mainExercise === undefined ? undefined : toCandidate(mainExercise),
+    mainExercise: requiredMainExercise === undefined ? undefined : toCandidate(requiredMainExercise),
     candidateExercises,
+    ...(hasStageContext && bossMainExerciseId !== undefined
+      ? {
+        bossMainExerciseId: bossMainExerciseId as ExerciseId,
+        bossMainExposure: isBossExposure,
+      }
+      : {}),
   };
 }

@@ -53,6 +53,8 @@ export class StageTrainingProgramGenerationError extends Error {
 interface StageTrainingProgramPromptDay {
   readonly dayIndex: number;
   readonly sessionFocus: TrainingSessionPlannerInput['context']['sessionFocus'];
+  readonly bossMainExposure: boolean;
+  readonly requiredMainExerciseId?: ExerciseId;
   readonly candidateExerciseIds: readonly ExerciseId[];
 }
 
@@ -116,7 +118,8 @@ function isCanonicalRoadmap(value: unknown): value is StageRoadmap {
     if (!isRecord(day) || typeof day.date !== 'string') return false;
     if (day.type === 'recovery') return hasOnlyFields(day, ['date', 'type']);
     return day.type === 'training' &&
-      hasOnlyFields(day, ['date', 'type', 'sessionFocus']) &&
+      hasOnlyFields(day, ['date', 'type', 'sessionFocus', 'bossMainExposure']) &&
+      typeof day.bossMainExposure === 'boolean' &&
       isRecord(day.sessionFocus) &&
       hasOnlyFields(day.sessionFocus, ['targetMuscles', 'targetMovementPatterns']) &&
       Array.isArray(day.sessionFocus.targetMuscles) &&
@@ -199,7 +202,8 @@ function prepareStageTrainingProgramGeneration(
     try {
       candidates = buildTrainingCandidates({
         equipmentProfile: input.equipmentProfile,
-        mainExerciseId: input.mainExerciseId,
+        bossMainExerciseId: input.mainExerciseId,
+        bossMainExposure: day.bossMainExposure,
         targetMuscles: day.sessionFocus.targetMuscles,
         ...(day.sessionFocus.targetMovementPatterns === undefined
           ? {}
@@ -232,10 +236,17 @@ function prepareStageTrainingProgramGeneration(
       );
     }
 
-    trainingDays.push({ dayIndex: day.dayIndex, candidates: plannerInput.value.candidates });
+    trainingDays.push({
+      dayIndex: day.dayIndex,
+      sessionFocus: plannerInput.value.context.sessionFocus,
+      bossMainExposure: day.bossMainExposure,
+      candidates: plannerInput.value.candidates,
+    });
     promptDays.push({
       dayIndex: day.dayIndex,
       sessionFocus: plannerInput.value.context.sessionFocus,
+      bossMainExposure: day.bossMainExposure,
+      ...(day.bossMainExposure ? { requiredMainExerciseId: input.mainExerciseId } : {}),
       candidateExerciseIds: candidateExerciseIds(plannerInput.value.candidates),
     });
   }
@@ -248,7 +259,7 @@ export function buildStageTrainingProgramInput(
   prepared: PreparedStageTrainingProgramGeneration,
 ): string {
   return JSON.stringify({
-    mainExerciseId: prepared.input.mainExerciseId,
+    bossMainExerciseId: prepared.input.mainExerciseId,
     currentE1rmKg: prepared.input.currentE1rmKg,
     stageTargetE1rmKg: prepared.input.stageTargetE1rmKg,
     trainingExperienceMonths: prepared.input.trainingExperienceMonths,
@@ -313,7 +324,10 @@ export async function generateStageTrainingProgram(
         'Generate one coherent Training Program for every supplied Training Day in this Stage.',
         'Return exactly one session for each supplied dayIndex and do not add Recovery or Boss sessions.',
         'Use each day sessionFocus and its candidateExerciseIds; never invent exercise IDs.',
-        'Include the supplied Main Exercise exactly once with role main in every session.',
+        'Every session must contain exactly one exercise with role main; all other exercises use role accessory.',
+        'On bossMainExposure days, include the required Boss Main exactly once with role main.',
+        'On non-exposure days, do not use the Boss Main; select one allowed focus-compatible candidate as role main.',
+        'Respect every sessionFocus and maintain balanced coverage across the whole Stage.',
         'Use only role, sets, and repRange besides exerciseId. Do not prescribe weight, kilograms, RPE, RIR, or any other fields.',
         'Use 1 to 5 sets per exercise, at most 6 exercises and 20 working sets per session.',
         'Use main rep ranges within 1 to 10 and accessory rep ranges within 5 to 20.',

@@ -294,3 +294,10 @@ Productionでは、決定論的計算をAIと誤表示せず、AIを利用した
 - AI Output保存期間
 - Eval datasetと合格基準
 - Safety reviewと監修体制
+### D-032 Stage Training Program balance
+
+The Stage-wide AI use case distinguishes the onboarding `bossMainExercise` from a session's `role: 'main'`. Each canonical Training Day includes a deterministic taxonomy-backed `sessionFocus` and `bossMainExposure`. On exposure Days the supplied Boss Main must be the only main; on non-exposure Days the Boss Main is forbidden and the model must choose exactly one supplied focus-compatible candidate as main. All other exercises are accessories.
+
+The server builds and validates candidates independently for every Day, sends no arbitrary Client candidates, and revalidates every Structured Output session with the shared validator. The model does not choose the split, exposure schedule, weights, Roadmap dates, Quest Clear, EXP, or Boss state. A single failed session rejects the complete Stage and no partial cache or fallback is written. Existing `maxRetries: 0`, explicit user retry, Recovery/Boss exclusion, and legacy per-day endpoint compatibility remain unchanged.
+
+The Stage-wide endpoint, Client helper, defensive validation, and atomic Session cache are implemented in the current runtime. Any earlier D-031 snapshot wording that called this connection “not implemented” is historical; the final production model, prompt/schema version, and periodization algorithm remain undecided.

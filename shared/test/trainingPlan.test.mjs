@@ -171,13 +171,56 @@ test('unknown role fails', () => {
   assert.ok(errorCodes(result).includes('INVALID_ROLE'));
 });
 
-test('main role is optional when no main exercise was requested', () => {
+test('every session requires exactly one main role even without a Boss Main', () => {
   const result = validateTrainingPlanDraft(
     { exercises: [plannedExercise('push_up', 'accessory')] },
     candidatesWithoutMain,
   );
 
-  assert.equal(result.valid, true);
+  assert.equal(result.valid, false);
+  assert.ok(errorCodes(result).includes('MAIN_ROLE_MISSING'));
+});
+
+test('non-exposure validation forbids the Boss Main even if an untrusted candidate includes it', () => {
+  const nonExposure = {
+    ...buildTrainingCandidates({
+      bossMainExerciseId: 'barbell_bench_press',
+      bossMainExposure: false,
+      targetMuscles: ['chest'],
+      targetMovementPatterns: ['horizontal_push'],
+      equipmentProfile: barbellAndBenchProfile,
+    }),
+    candidateExercises: [
+      ...buildTrainingCandidates({
+        bossMainExerciseId: 'barbell_bench_press',
+        bossMainExposure: false,
+        targetMuscles: ['chest'],
+        targetMovementPatterns: ['horizontal_push'],
+        equipmentProfile: barbellAndBenchProfile,
+      }).candidateExercises,
+      candidatesWithMain.mainExercise,
+    ],
+  };
+  const result = validateTrainingPlanDraft(
+    { exercises: [plannedExercise('barbell_bench_press', 'main')] },
+    nonExposure,
+  );
+  assert.ok(errorCodes(result).includes('EXERCISE_NOT_ALLOWED'));
+});
+
+test('exposure validation requires the Boss Main as the main candidate', () => {
+  const exposure = buildTrainingCandidates({
+    bossMainExerciseId: 'barbell_bench_press',
+    bossMainExposure: true,
+    targetMuscles: ['chest'],
+    targetMovementPatterns: ['horizontal_push'],
+    equipmentProfile: barbellAndBenchProfile,
+  });
+  const result = validateTrainingPlanDraft(
+    { exercises: [plannedExercise('push_up', 'main')] },
+    { ...exposure, mainExercise: undefined },
+  );
+  assert.ok(errorCodes(result).includes('MAIN_EXERCISE_MISSING'));
 });
 
 test('D-030 rejects a plan with more than six exercises', () => {

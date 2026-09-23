@@ -30,6 +30,8 @@ export interface ValidatedStageTrainingProgram {
 /** Server-built context for validating one canonical Training Day. */
 export interface StageTrainingDayValidationContext {
   readonly dayIndex: number;
+  readonly sessionFocus: StageSessionFocus;
+  readonly bossMainExposure: boolean;
   readonly candidates: TrainingCandidateResult;
 }
 
@@ -42,6 +44,7 @@ export interface StageTrainingProgramValidationContext {
 export interface CanonicalStageTrainingDay {
   readonly dayIndex: number;
   readonly sessionFocus: StageSessionFocus;
+  readonly bossMainExposure: boolean;
 }
 
 export type StageTrainingProgramValidationErrorCode =
@@ -114,13 +117,20 @@ export function getCanonicalStageTrainingDays(
 ): readonly CanonicalStageTrainingDay[] {
   return roadmap.days.flatMap((day: StageRoadmapDay, dayIndex) => {
     if (day.type !== 'training') return [];
-    return [{ dayIndex, sessionFocus: copySessionFocus(day.sessionFocus) }];
+    return [{
+      dayIndex,
+      sessionFocus: copySessionFocus(day.sessionFocus),
+      bossMainExposure: day.bossMainExposure,
+    }];
   });
 }
 
 function isCandidateContextShape(value: unknown): value is StageTrainingDayValidationContext {
   return isRecord(value) &&
-    Object.keys(value).every((field) => ['dayIndex', 'candidates'].includes(field)) &&
+    Object.keys(value).every((field) => ['dayIndex', 'sessionFocus', 'bossMainExposure', 'candidates'].includes(field)) &&
+    isRecord(value.sessionFocus) &&
+    Array.isArray(value.sessionFocus.targetMuscles) &&
+    typeof value.bossMainExposure === 'boolean' &&
     isSafeDayIndex(value.dayIndex);
 }
 
@@ -188,7 +198,24 @@ export function validateStageTrainingDayContexts(
     }
 
     if (validateCandidateResult(value.candidates, `${path}.candidates`, errors)) {
-      values.push({ dayIndex: value.dayIndex, candidates: value.candidates });
+       const canonicalDay = canonicalDays.find((day) => day.dayIndex === value.dayIndex);
+       if (canonicalDay === undefined ||
+           value.bossMainExposure !== canonicalDay.bossMainExposure ||
+           JSON.stringify(value.sessionFocus) !== JSON.stringify(canonicalDay.sessionFocus)) {
+         errors.push({ code: 'INVALID_CANDIDATE_CONTEXT', path });
+       } else {
+         values.push({
+           dayIndex: value.dayIndex,
+           sessionFocus: {
+             targetMuscles: [...value.sessionFocus.targetMuscles],
+             ...(value.sessionFocus.targetMovementPatterns === undefined
+               ? {}
+               : { targetMovementPatterns: [...value.sessionFocus.targetMovementPatterns] }),
+           },
+           bossMainExposure: value.bossMainExposure,
+           candidates: value.candidates,
+         });
+       }
     }
   }
 
@@ -224,6 +251,7 @@ function isStageRoadmapShape(value: unknown): value is StageRoadmap {
     if (!isRecord(day) || (day.type !== 'training' && day.type !== 'recovery')) return false;
     if (day.type === 'recovery') return typeof day.date === 'string';
     return typeof day.date === 'string' &&
+      typeof day.bossMainExposure === 'boolean' &&
       isRecord(day.sessionFocus) &&
       Array.isArray(day.sessionFocus.targetMuscles);
   });

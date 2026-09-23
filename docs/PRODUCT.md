@@ -331,3 +331,10 @@ Nutrition詳細、Treasure効果、Support Stats連動、Authentication、Databa
 - Schedule変更とQuest Clearを混同しないか。
 - 次のQuest・Boss・Rewardが継続動機として機能するか。
 - AIが主役ではなく、体験を支える存在に見えるか。
+### D-032 Stage Training Program balance
+
+The onboarding-selected Main Strength Exercise remains the Stage `bossMainExercise` and the Stage Target/e1RM metric. It is not the session primary on every Training Day. Production Stage Programs use a deterministic frequency-based split (Full Body, Upper/Lower, Push/Pull/Legs variants) derived from the existing Catalog Muscle Group and Movement Pattern taxonomies; calendar weekdays do not select the split.
+
+Each Training Day carries a typed `sessionFocus` and `bossMainExposure` flag. Exposure Days include the Boss Main exactly once as `role: 'main'`; non-exposure Days exclude it and select exactly one focus-compatible candidate as the session main. Every session still has exactly one main, all candidates remain server-built, and the existing guardrails and atomic `planByDay` cache remain in force. Recovery and Boss nodes receive no Training Plan.
+
+This D-032 section supersedes the earlier D-026 prototype-level statement that every Day reused the Main Exercise's primary-muscle focus and omitted movement patterns.

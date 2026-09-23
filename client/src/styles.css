@@ -1333,6 +1333,48 @@ button.map-node:active {
 .training-plan-pending h2 { margin: 0.55rem 0 0; color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 1rem; }
 .training-plan-pending p:not(.training-plan-pending__eyebrow) { margin: 0.8rem 0 0; color: var(--color-muted); font-size: 0.85rem; line-height: 1.55; }
 
+/* D-033: keep Japanese presentation copy legible on the primary phone widths. */
+.onboarding-intro h1,
+.equipment-flow-center h1,
+.equipment-flow-main-card h2,
+.figma-exercise-card h3,
+.equipment-choice-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: strict;
+  text-wrap: balance;
+}
+
+.onboarding-intro h1 span { display: block; }
+.onboarding-intro > p:not(.onboarding-wordmark) { text-wrap: pretty; }
+.onboarding-screen--success h1 { overflow-wrap: break-word; word-break: normal; text-wrap: balance; }
+.onboarding-success-card dt { max-width: 62%; overflow-wrap: break-word; word-break: normal; letter-spacing: 0.02em; }
+
+.equipment-check-header > div,
+.equipment-check-section-heading .quest-section-title,
+.figma-exercise-card__identity { min-width: 0; }
+.equipment-check-header h1 { font-size: clamp(1.35rem, 5.5vw, 1.75rem); }
+.equipment-check-section-heading .quest-section-title h2 { white-space: normal; }
+.equipment-choice-label { line-height: 1.35; text-transform: none; }
+.equipment-choice--none { flex-direction: row; align-items: center; justify-content: flex-start; gap: 0.45rem; }
+.equipment-choice-note { position: static; margin-left: auto; text-align: right; }
+
+.equipment-flow-center h1 { font-size: clamp(1.35rem, 5.7vw, 2rem); letter-spacing: 0.015em; }
+.equipment-flow-description { width: 100%; overflow-wrap: break-word; word-break: normal; text-wrap: pretty; }
+.equipment-flow-main-card h2 { text-transform: none; }
+.equipment-flow-main-card p { overflow-wrap: break-word; word-break: normal; }
+
+.figma-exercise-card__identity { flex: 1 1 auto; align-items: flex-start; }
+.figma-exercise-card__heading > .quest-type-tag { flex: 0 0 auto; }
+.completed-exercise-summary { min-width: 0; }
+.exercise-edit-button { min-height: 2.75rem; }
+.set-input-row label { min-width: 0; }
+
+.map-node-caption { max-width: 8.5rem; }
+.map-node-name { text-align: center; line-height: 1.15; }
+.map-help { max-width: calc(100% - 1rem); text-wrap: balance; }
+
 @keyframes quest-clear-radiance { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {

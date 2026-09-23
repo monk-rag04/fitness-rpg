@@ -228,7 +228,7 @@ test('StrictMode renders Equipment Flow and survives effect cleanup before CTA s
   });
 
   const gear = findElements(container, (element) =>
-    element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent.includes('Barbell'))[0];
+    element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent.includes('バーベル'))[0];
   assert.ok(gear, 'Equipment card should render under StrictMode');
   await act(async () => { click(gear); });
 

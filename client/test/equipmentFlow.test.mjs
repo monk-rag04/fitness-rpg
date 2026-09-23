@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { EQUIPMENT_CATALOG } from '@fitness-rpg/shared';
+import { equipmentLabel } from '../src/presentation/trainingLabels.ts';
 
 // Use the existing client JSX transform when loading presentational TSX in Node.
 process.env.TSX_TSCONFIG_PATH = fileURLToPath(new URL('../tsconfig.app.json', import.meta.url));
@@ -46,11 +47,14 @@ test('Equipment Check starts at 0 SELECTED with all Catalog choices and no-equip
     onBack: () => {},
     onSubmit: () => {},
   }));
-  assert.match(markup, /0 SELECTED/);
+  assert.match(markup, /0件 選択中/);
   assert.equal((markup.match(/aria-pressed="false"/g) ?? []).length, EQUIPMENT_CATALOG.length + 1);
   assert.match(markup, /disabled=""/);
   assert.match(markup, /器具なし/);
-  for (const equipment of EQUIPMENT_CATALOG) assert.ok(markup.includes(equipment.displayName));
+  for (const equipment of EQUIPMENT_CATALOG) {
+    assert.ok(markup.includes(equipmentLabel(equipment.id)));
+    assert.equal(markup.includes(equipment.displayName), false);
+  }
   assert.equal(INITIAL_EQUIPMENT_DRAFT.kind, 'unselected');
   assert.equal(equipmentIdsForSubmission(INITIAL_EQUIPMENT_DRAFT), null);
 });
@@ -95,7 +99,7 @@ test('selected Equipment and explicit no-equipment enable the CTA and show press
     ...baseProps,
     draft: toggleEquipment(INITIAL_EQUIPMENT_DRAFT, 'barbell'),
   }));
-  assert.match(selectedMarkup, /1 SELECTED/);
+  assert.match(selectedMarkup, /1件 選択中/);
   assert.equal((selectedMarkup.match(/aria-pressed="true"/g) ?? []).length, 1);
   assert.doesNotMatch(selectedMarkup, /disabled=""/);
 
@@ -103,7 +107,7 @@ test('selected Equipment and explicit no-equipment enable the CTA and show press
     ...baseProps,
     draft: toggleNoEquipment(INITIAL_EQUIPMENT_DRAFT),
   }));
-  assert.match(noEquipmentMarkup, /1 SELECTED/);
+  assert.match(noEquipmentMarkup, /1件 選択中/);
   assert.equal((noEquipmentMarkup.match(/aria-pressed="true"/g) ?? []).length, 1);
   assert.doesNotMatch(noEquipmentMarkup, /disabled=""/);
 });
@@ -120,7 +124,7 @@ test('Equipment Check buttons pass draft changes and submit only selected IDs', 
     ...baseProps,
     draft: INITIAL_EQUIPMENT_DRAFT,
   }));
-  initialButtons.find((button) => buttonText(button).includes('Barbell')).props.onClick();
+  initialButtons.find((button) => buttonText(button).includes('バーベル')).props.onClick();
   assert.deepEqual(equipmentIdsForSubmission(drafts[0]), ['barbell']);
 
   const selectedButtons = buttonsIn(EquipmentCheckContent({ ...baseProps, draft: drafts[0] }));
@@ -139,8 +143,8 @@ test('Generating view shows the Stage-wide status without an automatic transitio
   const element = StageProgramGeneratingView({ onBack: () => { backCalls++; } });
   const markup = renderToStaticMarkup(element);
   assert.match(markup, /STAGE PROGRAM GENERATING/);
-  assert.match(markup, /このStageのTraining Programを準備しています/);
-  assert.match(markup, /PREPARING STAGE PROGRAM/);
+  assert.match(markup, /このStageのトレーニングプログラムを編成しています/);
+  assert.match(markup, /STAGE PROGRAM/);
   assert.doesNotMatch(markup, /今日のQuest生成/);
   assert.equal(backCalls, 0);
 });
@@ -154,7 +158,7 @@ test('Error view exposes explicit retry and Map callbacks without automatic retr
   });
   const markup = renderToStaticMarkup(element);
   assert.match(markup, /PROGRAM GENERATION FAILED/);
-  assert.match(markup, /登録した設備は保持されています/);
+  assert.match(markup, /選択した器具は保持されています/);
   assert.deepEqual([retryCalls, backCalls], [0, 0]);
   const buttons = buttonsIn(element);
   buttons.find((button) => buttonText(button) === 'もう一度試す').props.onClick();
@@ -166,13 +170,13 @@ test('Main Missing view displays its Exercise and leaves both choices to callbac
   let reselectCalls = 0;
   let changeMainCalls = 0;
   const element = MainEquipmentMissingView({
-    mainExerciseName: 'Bench Press',
+    mainExerciseName: 'バーベルベンチプレス',
     onReselectEquipment: () => { reselectCalls++; },
     onChangeMainStrength: () => { changeMainCalls++; },
   });
   const markup = renderToStaticMarkup(element);
   assert.match(markup, /MAIN EQUIPMENT MISSING/);
-  assert.match(markup, /<h2>Bench Press<\/h2>/);
+  assert.match(markup, /<h2>バーベルベンチプレス<\/h2>/);
   assert.deepEqual([reselectCalls, changeMainCalls], [0, 0]);
   const buttons = buttonsIn(element);
   buttons.find((button) => buttonText(button) === '装備を選び直す').props.onClick();

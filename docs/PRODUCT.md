@@ -149,13 +149,14 @@ Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calc
 - Roadmap DurationはStage Targetへの挑戦期間であり、Boss撃破保証ではない。MVPの候補は`14 / 21 / 28 / 35 / 42`日である。AIの`estimatedAchievementDays`以上となる最小候補を選び、14日以下は14日、42日超はclampせずstage replanning requiredとする（`roadmap-duration-ceiling-v1`）。
 - AIはStage Target、Duration候補、Boss date、Training / Recovery Node、Quest Clear、EXP、Boss Defeatedを決めない。頻度はDuration推定と将来Scheduleの入力だが、AIが曜日やNodeを選択しない。
 - D-026では、D-025で選択済みのDuration、`startDate`、`trainingFrequencyPerWeek`、`mainExerciseId`、Stage Targetから、Duration日数ぶんのTraining / Recovery Calendar Dayと1件のBoss Anchorを決定論的に生成する。DurationはBoss Challengeまでのelapsed calendar daysであり、Boss Anchorは`startDate + durationDays`である。
+- D-034の延期後も`startDate`はStageの当初開始日、`durationDays`はAIが当初選んだ基本期間とDaily Quest Slot数を示す。実際のBoss予定日は`roadmap.boss.date`、各Daily Slotの日付は`roadmap.days[].date`を参照する。
 - Schedule Generatorの頻度は構造上`1..7`の正整数とする。各相対7日blockでは`floor(i * 7 / frequency)`のoffsetをTraining、その他をRecoveryにする。Duration候補はすべて7の倍数のため、全期間のTraining数はfrequency × week数となる。
 - Training DayのSession FocusはMain ExerciseのCatalog `primaryMuscles`のみとし、`targetMovementPatterns`はMVPで設定しない。Exercise選択、sets、reps、weight、Full Body / Upper-Lower / PPLは含めない。
-- Schedule Changeは同一Roadmap内でTraining Dayと将来のRecovery Dayをswapするだけである。Training数、Boss date、Duration、Stage Targetを変更せず、Quest Clear、EXP、Map position、e1RM、Workout Result、Boss Stateを変更しない。
+- D-034のSchedule ChangeはCurrent Quest Slotの日付を未来へ延期し、そのSlot以降の全Daily SlotとBoss dateを同じカレンダー日数だけ後ろへずらす。完了済み過去Slotは変えず、Training / Recovery種別、Slot順、Stage Target、Main Strength、進行、Plan、Workout Resultは維持する。TrainingとRecoveryの入替えは行わない。
 - D-027ではRoadmap自体をQuest Clearで変更しない。別の`StageProgress.currentDayIndex`だけを進行Stateとし、`index < currentDayIndex`をcompleted、`===`をavailable、`>`をlockedとして導出する。`currentDayIndex === days.length`のときだけBoss Anchorがavailableになる。日付・missed day・Schedule Change・Workout Result記録・OpenAI・e1RM更新は進行させない。
 - Boss availabilityはRoadmap終端への到達だけを表す。Boss Strength判定、Shield、Challenge、Defeated、Stage Clear、Rewardは含めない。Boss Requirementは既存のStage Targetを後続Domainが参照する。
 
-**未決定**: 42日超時の再計画Algorithm・UX、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの保存・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの永続化・修正、AI推定の再試行Policy。
+**未決定**: 42日超時の再計画Algorithm・UX、Full Body / Upper-Lower / PPL、Main Exercise fatigue constraint、Recovery Quest内容、Schedule Changeの永続化・履歴、分岐、Event・Elite・Camp・Treasure NodeのProductionルール、timezone、Onboarding self-reportの永続化・修正、AI推定の再試行Policy。
 
 ## Daily Training Quest
 
@@ -195,12 +196,15 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 
 **決定済み**:
 
-- 予定どおりTrainingできない場合、明日以降の具体的な日付へ移動できる。
+- D-034ではCurrent Training / Recovery Quest Slotを未来の日付へ延期できる。
 - Schedule変更はQuest Clearではない。
 - 予定変更だけではEXP付与、Map進行、QUEST CLEAR表示を行わない。
-- D-026のMVPでは同一RoadmapのTraining Dayと将来のRecovery Dayを入れ替える。Boss日、Stage Target、Duration、Training数と、それ以外のDayを変えない。
+- `dayIndex`がSlot identityであり、Calendar dateだけを変更する。Current以降のSlotとBoss dateを同じ正の日数だけ延期し、完了済み過去Slotを保持する。`startDate`と基本期間 / Slot数を表す`durationDays`は維持し、実際のBoss予定日は`roadmap.boss.date`とする。
+- Training / Recoveryのswap、Nodeの移動・追加・削除・並べ替えは行わない。Training種別、Session Focus、Boss Main Exposure、`planByDay[dayIndex]`、Workout Result、Equipment、Stage Program context、`currentDayIndex`とProgressは変えない。延期は再生成やOpenAI呼び出しを起こさない。
+- 同じ日付は変更なしとして扱う。選択日がBrowser local todayまたはCurrent Slot日付より前なら拒否する。未来日の上限は設けない。日付の判定はdate-onlyカレンダー計算を用いる。
+- Runtime状態は現在React Adventure Session内だけで更新し、DB / localStorage / 変更履歴は追加しない。
 
-**未決定**: 再計画範囲、連続Trainingの制約、過去日・完了日の扱い、競合時の優先順位、AI提案と決定論的Validationの境界、保存・変更履歴。
+**未決定**: Scheduleの永続化・変更履歴、連続Trainingの追加制約、AI提案、timezoneを越える長期日付Policy。
 
 ## Recovery
 

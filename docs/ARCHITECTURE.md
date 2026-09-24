@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針を定義する。Frontend / Backend / sharedのFoundation、Training / Stage / Quest進行Domain、Adventure Map / Quest UI、BackendのOpenAI Integrationを実装済み。D-029ではOnboarding Application helperとAchievement Duration HTTP endpointを追加し、Clientの3-Step Onboarding UIをそのApplication Flowへ接続した。D-030ではServer-side Candidate Builderを通るTraining Plan HTTP endpoint、Client application helper、React Adventure Session内のDay cacheを追加した。D-031では、これらをStage-wide Training Programへ組み合わせる最終生成境界を決定した。現時点のRuntime実装は既存のper-day endpoint / helper / cacheを保持しており、Stage-wide生成への接続は未実装である。Equipment UI、Stage Program endpoint、Database、Authenticationは未実装。
+この文書はProduction Architectureの方針と現行実装を記録する。Frontend / Backend / sharedのFoundation、Onboarding、Adventure Map / Quest、Stage-wide Training Program生成とSession cache、Quest進行、Production servingを実装済み。OpenAIはBackend経由でのみ呼び出す。D-034ではCurrent Questの日付変更をshared date-only DomainからReact Adventure Sessionへ接続する。Database、Authentication、Schedule永続化は未実装。
 
 区分：
 
@@ -205,7 +205,9 @@ Stage PlanningのMVP Domain API（D-025）は`shared/src/domain/training/stagePl
 
 同じshared境界で`validateAchievementDurationEstimatorInput()`がDuration Estimator専用Inputを厳格に検証し、`validateAchievementDurationEstimate()`がAIの`estimatedAchievementDays`のみを再検証する。`selectRoadmapDuration()`は一箇所の`ROADMAP_DURATION_CANDIDATES`（14/21/28/35/42）からestimate以上の最小値を選ぶceiling ruleであり、42日超はclampせず`stage_replanning_required`を返す（`roadmap-duration-ceiling-v1`）。Schedule生成、曜日選択、Boss date、Boss Defeated、Quest / EXP / Mapは含めない。
 
-Stage Roadmap ScheduleのMVP Domain API（D-026）は`shared/src/domain/training/stageRoadmap.ts`に置く。`generateStageRoadmap()`はD-025で選択済みの候補Duration、厳格なローカル日付、週頻度`1..7`、Catalog上のMain Exercise、正のStage Targetから、`durationDays`件のTraining / Recovery Dayと`startDate + durationDays`のBoss Anchorを副作用なく生成する。各7日blockのTraining offsetは`floor(i * 7 / frequency)`であり、Training focusはMain Exerciseの`primaryMuscles`のみとする。`rescheduleTrainingDay()`は同一Roadmap内のTraining Dayと将来のRecovery Dayをswapする純粋関数で、Boss Anchor、Duration、Target、Training数、Game Stateを変えない。これは永続Schema、AI、API、UI、Quest / EXP / Map、Boss State、e1RM、Workout Result、Load / Progressionを含まない。
+Stage Roadmap ScheduleのMVP Domain API（D-026 / D-034）は`shared/src/domain/training/stageRoadmap.ts`に置く。`generateStageRoadmap()`はD-025で選択済みの候補Duration、厳格なローカル日付、週頻度`1..7`、Catalog上のMain Exercise、正のStage Targetから、`durationDays`件のTraining / Recovery Dayと当初の`startDate + durationDays`のBoss Anchorを副作用なく生成する。各7日blockのTraining offsetは`floor(i * 7 / frequency)`であり、Training focusはMain Exerciseの`primaryMuscles`のみとする。`rescheduleCurrentQuest()`は`currentDayIndex`のDaily Slotと以降の全SlotおよびBoss日を、明示されたBrowser local `today`と厳格なLocalDateに基づいて同じ正の日数だけ延期するpure functionである。Slot種別 / 順序 / Focus / Exposure、`startDate`、基本期間・Node数の`durationDays`、Target、進行Stateを変えず、完了済み過去Slotは不変とする。D-026の旧Training / Recovery swapはD-034によりProduction仕様から置き換えられた。
+
+D-034ではServerのStage Program snapshot validatorも、各Dayの`startDate + dayIndex`からのdelay offsetが非負・単調非減少であること、Boss delayが最終Daily Slotのdelayと一致することを検証する。Node数、Type、D-032由来のFocus / Exposure、Main、Target、generation rule等は引き続きcanonical snapshotと一致させる。ClientのAdventureQuestContextは成功したRoadmapだけをatomicに差し替え、`StageProgress`、`planByDay`、Workout Results、Equipment、Stage Program contextは更新しない。永続化、AI再生成、Quest / EXP / Map progressionは含まない。
 
 Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/domain/training/stageProgress.ts`に置く。`StageRoadmap`を不変のScheduleとして保ち、`StageProgress = { currentDayIndex }`だけを進行Stateにする。`createInitialStageProgress()`、`deriveStageProgressView()`、`evaluateTrainingQuestCompletion()`、`completeTrainingQuest()`、`completeRecoveryQuest()`はすべてPure TypeScriptである。Map viewはcompleted / available / locked、現在Node、Session Focus、Boss Anchor、Boss availability、完了数を返すが、UI表現を持たない。
 

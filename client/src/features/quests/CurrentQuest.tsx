@@ -6,10 +6,12 @@ import {
   QuestTypeTag,
 } from '../../components/QuestUi';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
+import { getBrowserLocalStartDate } from '../../application/onboardingRoadmap';
 import { RecoveryQuest } from './RecoveryQuest';
 import { TrainingQuest } from './TrainingQuest';
 import { EquipmentProgramFlow } from '../equipment/EquipmentProgramFlow';
 import { muscleLabel } from '../../presentation/trainingLabels';
+import { RescheduleQuestSheet } from './RescheduleQuestSheet';
 
 function BeginnerQuest() {
   const lessons = [
@@ -64,12 +66,17 @@ export function CurrentQuest() {
   const {
     progressView,
     returnToMap,
+    rescheduleCurrentQuest,
     trainingEvaluation,
     isTrainingPlanPending,
     clearCurrentQuest,
     validationMessage,
   } = useAdventureQuest();
   const [isBeginnerQuestVisible, setIsBeginnerQuestVisible] = useState(false);
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleToday, setRescheduleToday] = useState('');
+  const [rescheduleError, setRescheduleError] = useState(false);
   const currentNode = progressView.currentDailyNode;
 
   useEffect(() => {
@@ -88,6 +95,7 @@ export function CurrentQuest() {
     );
   }
 
+  const currentQuestDate = currentNode.date;
   const isTraining = currentNode.type === 'training';
   if (isTraining && isTrainingPlanPending) {
     return <EquipmentProgramFlow />;
@@ -98,6 +106,26 @@ export function CurrentQuest() {
   const helperText = isTraining && !trainingEvaluation.readyToClear
     ? 'すべての必須種目を記録するとQUESTを達成できます'
     : '完了するとQUEST CLEAR後にAdventure Mapへ戻ります';
+  const minimumRescheduleDate = rescheduleToday > currentQuestDate
+    ? rescheduleToday
+    : currentQuestDate;
+
+  function openRescheduleSheet() {
+    setRescheduleToday(getBrowserLocalStartDate());
+    setRescheduleDate(currentQuestDate);
+    setRescheduleError(false);
+    setIsRescheduleOpen(true);
+  }
+
+  function confirmReschedule() {
+    const result = rescheduleCurrentQuest(rescheduleDate, getBrowserLocalStartDate());
+    if (result === 'invalid') {
+      setRescheduleError(true);
+      return;
+    }
+    setIsRescheduleOpen(false);
+    setRescheduleError(false);
+  }
 
   return (
     <section className="current-quest" aria-labelledby="quest-title">
@@ -107,12 +135,16 @@ export function CurrentQuest() {
         </button>
         <div className="quest-header-row">
           <div>
-            <p className="quest-eyebrow">DAILY QUEST · {currentNode.date}</p>
+            <p className="quest-eyebrow">DAILY QUEST · {currentQuestDate}</p>
             <h1 id="quest-title">{isTraining ? 'トレーニングの日' : '休養の日'}</h1>
           </div>
           <QuestTypeTag>{isTraining ? 'Training' : 'Recovery'}</QuestTypeTag>
         </div>
       </header>
+
+      <button className="quest-reschedule-button" type="button" onClick={openRescheduleSheet}>
+        日程を変更
+      </button>
 
       <section className="quest-info-panel" aria-label="本日のQuest案内">
         <p>
@@ -147,6 +179,21 @@ export function CurrentQuest() {
         </QuestGoldButton>
         <p className="quest-footer__help">{helperText}</p>
       </footer>
+
+      {isRescheduleOpen && (
+        <RescheduleQuestSheet
+          currentDate={currentQuestDate}
+          minimumDate={minimumRescheduleDate}
+          selectedDate={rescheduleDate}
+          hasError={rescheduleError}
+          onDateChange={(date) => {
+            setRescheduleDate(date);
+            setRescheduleError(false);
+          }}
+          onConfirm={confirmReschedule}
+          onCancel={() => setIsRescheduleOpen(false)}
+        />
+      )}
     </section>
   );
 }

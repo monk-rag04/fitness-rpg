@@ -4,7 +4,9 @@ import {
   createInitialStageProgress,
   deriveStageProgressView,
   evaluateTrainingQuestCompletion,
+  rescheduleCurrentQuest as rescheduleRoadmapCurrentQuest,
   validateExerciseWorkoutResult,
+  CurrentQuestRescheduleError,
   type EquipmentId,
   type GymEquipmentProfile,
   type ExerciseWorkoutResult,
@@ -39,6 +41,7 @@ import {
 export { type AdventureQuestSession, createOnboardingAdventureSession } from './adventureSession';
 
 export type AppScreen = 'map' | 'quest';
+export type CurrentQuestRescheduleStatus = 'rescheduled' | 'unchanged' | 'invalid';
 
 interface DomainState {
   readonly roadmap: StageRoadmap;
@@ -68,6 +71,7 @@ type Action =
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'setStageEquipmentProfile'; readonly domain: DomainState }
+  | { readonly type: 'rescheduleCurrentQuest'; readonly roadmap: StageRoadmap }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
   | { readonly type: 'completeQuest'; readonly progress: StageProgress }
   | { readonly type: 'showValidationMessage'; readonly message: string }
@@ -137,6 +141,11 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         ...state,
         domain: action.domain,
       };
+    case 'rescheduleCurrentQuest':
+      return {
+        ...state,
+        domain: { ...state.domain, roadmap: action.roadmap },
+      };
     case 'saveWorkoutResult': {
       const dayIndex = state.domain.progress.currentDayIndex;
       const resultsForDay = state.domain.workoutResultsByDay[dayIndex] ?? {};
@@ -197,6 +206,7 @@ interface AdventureQuestContextValue {
   cacheTrainingPlanForDay: (dayIndex: number, plan: ValidatedTrainingPlan) => TrainingPlanCacheStatus;
   cacheStageTrainingProgram: (program: ValidatedStageTrainingProgram) => StageTrainingProgramCacheStatus;
   setStageEquipmentProfile: (equipmentIds: readonly EquipmentId[]) => StageEquipmentProfileStatus;
+  rescheduleCurrentQuest: (newDate: string, today: string) => CurrentQuestRescheduleStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
@@ -278,6 +288,22 @@ export function AdventureQuestProvider({
         dispatch({ type: 'setStageEquipmentProfile', domain: profileResult.target });
       }
       return profileResult.status;
+    },
+    rescheduleCurrentQuest: (newDate, today) => {
+      try {
+        const roadmap = rescheduleRoadmapCurrentQuest(
+          state.domain.roadmap,
+          state.domain.progress.currentDayIndex,
+          newDate,
+          today,
+        );
+        if (roadmap === state.domain.roadmap) return 'unchanged';
+        dispatch({ type: 'rescheduleCurrentQuest', roadmap });
+        return 'rescheduled';
+      } catch (error) {
+        if (error instanceof CurrentQuestRescheduleError) return 'invalid';
+        return 'invalid';
+      }
     },
     saveWorkoutResult: (input) => {
       const validation = validateExerciseWorkoutResult(input);

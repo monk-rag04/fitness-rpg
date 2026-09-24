@@ -4,6 +4,9 @@ import {
   MOVEMENT_PATTERNS,
   ROADMAP_DURATION_CANDIDATES,
   STAGE_ROADMAP_GENERATION_RULE,
+  addLocalDays,
+  differenceLocalDays,
+  generateStageRoadmap,
   getExerciseById,
   isValidLocalDate,
   type EquipmentId,
@@ -113,25 +116,8 @@ function isSessionFocus(value: unknown): value is StageSessionFocus {
       ));
 }
 
-function getDateParts(value: LocalDate): [number, number, number] {
-  return value.split('-').map(Number) as [number, number, number];
-}
-
-function addLocalDays(startDate: LocalDate, days: number): LocalDate {
-  const [year, month, day] = getDateParts(startDate);
-  const date = new Date(0);
-  date.setUTCFullYear(year, month - 1, day);
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() + days);
-  return [
-    String(date.getUTCFullYear()).padStart(4, '0'),
-    String(date.getUTCMonth() + 1).padStart(2, '0'),
-    String(date.getUTCDate()).padStart(2, '0'),
-  ].join('-');
-}
-
-function validateRoadmapDay(value: unknown, expectedDate: LocalDate): StageRoadmapDay | null {
-  if (!isRecord(value) || typeof value.date !== 'string' || value.date !== expectedDate) return null;
+function validateRoadmapDay(value: unknown): StageRoadmapDay | null {
+  if (!isRecord(value) || typeof value.date !== 'string' || !isValidLocalDate(value.date)) return null;
 
   if (value.type === 'recovery') {
     return hasOnlyFields(value, RECOVERY_DAY_FIELDS)
@@ -158,37 +144,67 @@ function validateRoadmapDay(value: unknown, expectedDate: LocalDate): StageRoadm
 }
 
 function validateRoadmap(value: unknown): StageRoadmap | null {
-  if (!isRecord(value) || !hasOnlyFields(value, ROADMAP_FIELDS) ||
-      typeof value.startDate !== 'string' || !isValidLocalDate(value.startDate) ||
-      typeof value.durationDays !== 'number' ||
-      !ROADMAP_DURATION_CANDIDATES.includes(value.durationDays as (typeof ROADMAP_DURATION_CANDIDATES)[number]) ||
-      !isValidFrequency(value.trainingFrequencyPerWeek) ||
-      typeof value.mainExerciseId !== 'string' ||
-      getExerciseById(value.mainExerciseId) === undefined ||
-      !isPositiveFinite(value.stageTargetE1rmKg) ||
-      !Array.isArray(value.days) || value.days.length !== value.durationDays ||
-      !isRecord(value.boss) || !hasOnlyFields(value.boss, BOSS_FIELDS) ||
-      value.boss.type !== 'boss' || typeof value.boss.date !== 'string' ||
-      value.boss.date !== addLocalDays(value.startDate, value.durationDays) ||
-      value.generationRuleVersion !== STAGE_ROADMAP_GENERATION_RULE.version) {
+  try {
+    if (!isRecord(value) || !hasOnlyFields(value, ROADMAP_FIELDS) ||
+        typeof value.startDate !== 'string' || !isValidLocalDate(value.startDate) ||
+        typeof value.durationDays !== 'number' ||
+        !ROADMAP_DURATION_CANDIDATES.includes(value.durationDays as (typeof ROADMAP_DURATION_CANDIDATES)[number]) ||
+        !isValidFrequency(value.trainingFrequencyPerWeek) ||
+        typeof value.mainExerciseId !== 'string' ||
+        getExerciseById(value.mainExerciseId) === undefined ||
+        !isPositiveFinite(value.stageTargetE1rmKg) ||
+        !Array.isArray(value.days) || value.days.length !== value.durationDays ||
+        !isRecord(value.boss) || !hasOnlyFields(value.boss, BOSS_FIELDS) ||
+        value.boss.type !== 'boss' || typeof value.boss.date !== 'string' ||
+        !isValidLocalDate(value.boss.date) ||
+        value.generationRuleVersion !== STAGE_ROADMAP_GENERATION_RULE.version) {
+      return null;
+    }
+
+    const days = value.days.map((day) => validateRoadmapDay(day));
+    if (days.some((day) => day === null)) return null;
+    const validatedDays = days as StageRoadmapDay[];
+
+    let lastDelayOffset = 0;
+    for (let index = 0; index < validatedDays.length; index += 1) {
+      const canonicalDate = addLocalDays(value.startDate, index);
+      const delayOffset = differenceLocalDays(validatedDays[index].date, canonicalDate);
+      if (delayOffset < 0 || (index > 0 && delayOffset < lastDelayOffset)) return null;
+      lastDelayOffset = delayOffset;
+    }
+
+    const canonicalBossDate = addLocalDays(value.startDate, value.durationDays);
+    if (differenceLocalDays(value.boss.date, canonicalBossDate) !== lastDelayOffset) return null;
+
+    const canonicalRoadmap = generateStageRoadmap({
+      startDate: value.startDate,
+      durationDays: value.durationDays,
+      trainingFrequencyPerWeek: value.trainingFrequencyPerWeek,
+      mainExerciseId: value.mainExerciseId,
+      stageTargetE1rmKg: value.stageTargetE1rmKg,
+    });
+    if (validatedDays.some((day, index) => {
+      const canonicalDay = canonicalRoadmap.days[index];
+      if (day.type !== canonicalDay.type) return true;
+      if (day.type === 'recovery') return false;
+      if (canonicalDay.type !== 'training') return true;
+      return day.bossMainExposure !== canonicalDay.bossMainExposure ||
+        JSON.stringify(day.sessionFocus) !== JSON.stringify(canonicalDay.sessionFocus);
+    })) return null;
+
+    return {
+      startDate: value.startDate,
+      durationDays: value.durationDays as StageRoadmap['durationDays'],
+      trainingFrequencyPerWeek: value.trainingFrequencyPerWeek,
+      mainExerciseId: value.mainExerciseId as ExerciseId,
+      stageTargetE1rmKg: value.stageTargetE1rmKg,
+      days: validatedDays,
+      boss: { type: 'boss', date: value.boss.date },
+      generationRuleVersion: STAGE_ROADMAP_GENERATION_RULE.version,
+    };
+  } catch {
     return null;
   }
-
-  const days = value.days.map((day, index) =>
-    validateRoadmapDay(day, addLocalDays(value.startDate as LocalDate, index)),
-  );
-  if (days.some((day) => day === null)) return null;
-
-  return {
-    startDate: value.startDate,
-    durationDays: value.durationDays as StageRoadmap['durationDays'],
-    trainingFrequencyPerWeek: value.trainingFrequencyPerWeek,
-    mainExerciseId: value.mainExerciseId as ExerciseId,
-    stageTargetE1rmKg: value.stageTargetE1rmKg,
-    days: days as StageRoadmapDay[],
-    boss: { type: 'boss', date: value.boss.date },
-    generationRuleVersion: STAGE_ROADMAP_GENERATION_RULE.version,
-  };
 }
 
 /** Validate the public snapshot without accepting candidates, plans, or UI state. */

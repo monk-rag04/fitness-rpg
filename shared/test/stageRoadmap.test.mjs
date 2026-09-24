@@ -5,11 +5,14 @@ import {
   STAGE_ROADMAP_GENERATION_RULE,
   STAGE_SESSION_FOCUS_PRESETS,
   STAGE_SESSION_SPLIT_BY_FREQUENCY,
-  StageRoadmapRescheduleError,
+  CurrentQuestRescheduleError,
   StageRoadmapValidationError,
+  addLocalDays,
+  compareLocalDates,
+  differenceLocalDays,
   generateStageRoadmap,
   getTrainingOffsetsForFrequency,
-  rescheduleTrainingDay,
+  rescheduleCurrentQuest,
 } from '../dist/index.js';
 
 function makeInput(overrides = {}) {
@@ -42,10 +45,10 @@ function assertGenerationError(input, code) {
   );
 }
 
-function assertRescheduleError(roadmap, sourceDate, targetDate, code) {
+function assertCurrentQuestRescheduleError(roadmap, currentDayIndex, newDate, today, code) {
   assert.throws(
-    () => rescheduleTrainingDay(roadmap, sourceDate, targetDate),
-    (error) => error instanceof StageRoadmapRescheduleError && error.code === code,
+    () => rescheduleCurrentQuest(roadmap, currentDayIndex, newDate, today),
+    (error) => error instanceof CurrentQuestRescheduleError && error.code === code,
   );
 }
 
@@ -177,31 +180,75 @@ test('generates deterministic output without depending on Date.now or host timez
   assert.deepEqual(roadmap(), roadmap());
 });
 
-test('moves a training day to a future recovery day and preserves the session focus', () => {
+test('delays the current slot, every later slot, and Boss while leaving completed slots untouched', () => {
   const original = roadmap();
-  const changed = rescheduleTrainingDay(original, '2026-09-22', '2026-09-23');
-  assert.equal(changed.days[0].type, 'recovery');
-  assert.deepEqual(changed.days[1], {
-    date: '2026-09-23',
-    type: 'training',
-    sessionFocus: { ...original.days[0].sessionFocus },
-    bossMainExposure: true,
-  });
-  assert.equal(trainingCount(changed), trainingCount(original));
-  assert.equal(changed.boss.date, original.boss.date);
-  assert.equal(changed.durationDays, original.durationDays);
-  assert.equal(changed.stageTargetE1rmKg, original.stageTargetE1rmKg);
-  assert.deepEqual(changed.days.slice(2), original.days.slice(2));
-  assert.equal(original.days[0].type, 'training');
+  const currentDayIndex = 2;
+  const result = rescheduleCurrentQuest(original, currentDayIndex, '2026-09-26', '2026-09-22');
+
+  assert.notEqual(result, original);
+  assert.deepEqual(result.days.slice(0, currentDayIndex), original.days.slice(0, currentDayIndex));
+  assert.deepEqual(result.days.slice(currentDayIndex).map((day) => day.date),
+    original.days.slice(currentDayIndex).map((day) => addLocalDays(day.date, 2)));
+  assert.equal(result.days[currentDayIndex].type, 'training');
+  assert.deepEqual(result.days[currentDayIndex].sessionFocus, original.days[currentDayIndex].sessionFocus);
+  assert.equal(result.days[currentDayIndex].bossMainExposure, original.days[currentDayIndex].bossMainExposure);
+  assert.equal(result.days[currentDayIndex + 1].type, 'recovery');
+  assert.deepEqual(result.days.map((day) => day.type), original.days.map((day) => day.type));
+  assert.equal(result.boss.date, addLocalDays(original.boss.date, 2));
+  assert.equal(result.startDate, original.startDate);
+  assert.equal(result.durationDays, original.durationDays);
+  assert.equal(result.mainExerciseId, original.mainExerciseId);
+  assert.equal(result.stageTargetE1rmKg, original.stageTargetE1rmKg);
+  assert.equal(result.generationRuleVersion, original.generationRuleVersion);
+  assert.deepEqual(original, roadmap());
 });
 
-test('rejects invalid schedule changes without changing roadmap state', () => {
+test('same date is a no-op and an index after the Daily Quest range cannot reschedule the Boss', () => {
   const original = roadmap();
-  assertRescheduleError(original, '2026-09-23', '2026-09-24', 'SOURCE_NOT_TRAINING');
-  assertRescheduleError(original, '2026-09-22', '2026-09-24', 'TARGET_NOT_RECOVERY');
-  assertRescheduleError(original, '2026-09-22', '2026-09-22', 'SOURCE_EQUALS_TARGET');
-  assertRescheduleError(original, '2026-09-24', '2026-09-23', 'TARGET_NOT_FUTURE');
-  assertRescheduleError(original, '2026-09-22', '2026-10-20', 'TARGET_IS_BOSS_DATE');
-  assertRescheduleError(original, '2026-09-22', '2026-10-21', 'DATE_OUTSIDE_ROADMAP');
-  assertRescheduleError(original, '2026-02-30', '2026-09-23', 'INVALID_DATE');
+  assert.equal(rescheduleCurrentQuest(original, 0, original.days[0].date, '2026-09-22'), original);
+  assertCurrentQuestRescheduleError(original, original.days.length, '2026-10-21', '2026-09-22', 'CURRENT_QUEST_UNAVAILABLE');
+  assertCurrentQuestRescheduleError(original, -1, '2026-09-23', '2026-09-22', 'INVALID_CURRENT_DAY_INDEX');
+  assertCurrentQuestRescheduleError(original, 1.5, '2026-09-23', '2026-09-22', 'INVALID_CURRENT_DAY_INDEX');
+});
+
+test('rejects dates before today, before the current slot, malformed dates, and nonexistent dates', () => {
+  const original = roadmap();
+  assertCurrentQuestRescheduleError(original, 2, '2026-09-23', '2026-09-24', 'DATE_BEFORE_TODAY');
+  assertCurrentQuestRescheduleError(original, 2, '2026-09-23', '2026-09-22', 'DATE_BEFORE_CURRENT_QUEST');
+  for (const date of ['2026/09/26', '2026-9-26', '2026-02-30', 'not-a-date']) {
+    assertCurrentQuestRescheduleError(original, 2, date, '2026-09-22', 'INVALID_DATE');
+  }
+  assertCurrentQuestRescheduleError(original, 2, '2026-09-26', '2026-02-30', 'INVALID_DATE');
+});
+
+test('rescheduling uses calendar arithmetic across month, year, and leap-day boundaries', () => {
+  const cases = [
+    { startDate: '2026-01-30', index: 0, next: '2026-02-01', shift: 2 },
+    { startDate: '2026-12-30', index: 0, next: '2027-01-01', shift: 2 },
+    { startDate: '2028-02-28', index: 0, next: '2028-02-29', shift: 1 },
+  ];
+  for (const { startDate, index, next, shift } of cases) {
+    const original = roadmap({ startDate });
+    const result = rescheduleCurrentQuest(original, index, next, startDate);
+    assert.equal(result.days[0].date, next);
+    assert.equal(result.boss.date, addLocalDays(original.boss.date, shift));
+  }
+  assert.equal(compareLocalDates('2026-12-31', '2027-01-01'), -1);
+  assert.equal(differenceLocalDays('2027-01-01', '2026-12-31'), 1);
+  assert.equal(differenceLocalDays('2028-03-01', '2028-02-28'), 2);
+});
+
+test('a later Current Quest can be rescheduled again without moving earlier slots', () => {
+  const original = roadmap();
+  const first = rescheduleCurrentQuest(original, 2, '2026-09-26', '2026-09-22');
+  const secondCurrentIndex = 4;
+  const secondCurrentDate = first.days[secondCurrentIndex].date;
+  const second = rescheduleCurrentQuest(first, secondCurrentIndex, '2026-10-01', '2026-09-22');
+
+  assert.deepEqual(second.days.slice(0, secondCurrentIndex), first.days.slice(0, secondCurrentIndex));
+  assert.deepEqual(second.days.slice(secondCurrentIndex).map((day) => day.date),
+    first.days.slice(secondCurrentIndex).map((day) => addLocalDays(day.date, 3)));
+  assert.equal(second.days[secondCurrentIndex].date, addLocalDays(secondCurrentDate, 3));
+  assert.equal(second.boss.date, addLocalDays(first.boss.date, 3));
+  assert.deepEqual(second.days.map((day) => day.type), first.days.map((day) => day.type));
 });

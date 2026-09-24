@@ -159,7 +159,7 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         ui: {
           ...state.ui,
           isClearFeedbackVisible: true,
-          questRewardSummary: transition.rewardSummary ?? null,
+          questRewardSummary: transition.rewardSummary,
           validationMessage: null,
         },
       };

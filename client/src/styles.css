@@ -1017,13 +1017,30 @@ button.map-node:active {
 .quest-gold-button:disabled { cursor: not-allowed; border-color: rgba(236, 227, 207, 0.16); background: rgba(236, 227, 207, 0.07); box-shadow: none; color: var(--color-faint); }
 .quest-footer__help { margin: 0.5rem 0 0; color: var(--color-faint); font-size: 0.6875rem; line-height: 1.45; text-align: center; }
 
-.quest-clear-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; overflow: hidden; place-items: center; padding: 1.25rem; background: rgba(3, 4, 8, 0.86); backdrop-filter: blur(8px); }
+.quest-clear-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; overflow-x: hidden; overflow-y: auto; place-items: center; padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left)); background: rgba(3, 4, 8, 0.86); backdrop-filter: blur(8px); }
 .quest-clear-radiance { position: absolute; width: min(96vw, 38rem); aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 0deg, transparent, rgba(233, 200, 118, 0.08), transparent, rgba(74, 168, 255, 0.09), transparent); animation: quest-clear-radiance 10s linear infinite; }
-.quest-clear-overlay { position: relative; z-index: 1; width: min(100%, 24rem); gap: 0.8rem; padding: 2.25rem 1.25rem; border-color: rgba(233, 200, 118, 0.74); border-radius: 0.65rem; background: linear-gradient(155deg, rgba(26, 32, 48, 0.98), rgba(11, 13, 18, 0.98)); box-shadow: 0 0 45px rgba(233, 200, 118, 0.22); }
+.quest-clear-overlay { position: relative; z-index: 1; width: min(100%, 20rem); max-height: calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); gap: 0.7rem; overflow-y: auto; overscroll-behavior: contain; padding: 1.2rem 1.1rem 1.1rem; border-color: rgba(233, 200, 118, 0.74); border-radius: 0.55rem; background: linear-gradient(155deg, rgba(26, 32, 48, 0.98), rgba(11, 13, 18, 0.98)); box-shadow: 0 0 45px rgba(233, 200, 118, 0.22); }
 .quest-clear-overlay__small { margin: 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; }
-.quest-clear-overlay h1 { margin: 0; background: linear-gradient(135deg, #fff1b7, var(--color-gold), var(--color-gold-bright)); -webkit-background-clip: text; background-clip: text; color: transparent; font-family: 'Cinzel Decorative', 'Cinzel', Georgia, serif; font-size: clamp(2.5rem, 13vw, 4rem); line-height: 1.05; letter-spacing: 0.05em; text-shadow: 0 0 28px rgba(233, 200, 118, 0.18); }
-.quest-clear-progress { display: grid; gap: 0.15rem; width: 100%; padding: 0.65rem; border: 1px solid rgba(74, 168, 255, 0.36); border-radius: 0.4rem; background: rgba(74, 168, 255, 0.09); color: var(--color-muted); font-size: 0.72rem; }
-.quest-clear-progress strong { color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.78rem; }
+.quest-clear-overlay__title { display: grid; justify-items: center; font-size: clamp(2.65rem, 12vw, 3.4rem); line-height: 0.98; letter-spacing: 0.06em; }
+.quest-clear-overlay__title span { white-space: nowrap; }
+.quest-clear-reward-card { width: 100%; min-width: 0; margin: 0; padding: 0.55rem 0.65rem; border: 1px solid rgba(201, 162, 75, 0.48); border-radius: 0.38rem; background: rgba(20, 24, 33, 0.82); text-align: left; }
+.quest-clear-reward-card--training .quest-section-title { justify-content: center; gap: 0.45rem; }
+.quest-clear-reward-card--training .quest-section-title__rule { flex: 1 1 auto; min-width: 0.7rem; }
+.quest-clear-reward-card--training .quest-section-title h2 { min-width: 0; color: var(--color-muted); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.08em; white-space: nowrap; }
+.quest-clear-reward-card__subtitle { margin: 0.25rem 0 0; color: var(--color-muted); font-size: 0.62rem; line-height: 1.35; }
+.quest-clear-reward-list { display: grid; margin: 0.15rem 0 0; }
+.quest-clear-reward-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; min-width: 0; min-height: 1.8rem; border-top: 1px solid rgba(236, 227, 207, 0.11); }
+.quest-clear-reward-row dt { min-width: 0; margin: 0; color: var(--color-text); font-family: 'Spectral', Georgia, serif; font-size: 0.74rem; line-height: 1.25; overflow-wrap: anywhere; }
+.quest-clear-reward-row dd { flex: 0 0 auto; margin: 0; color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.76rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.quest-clear-reward-card--recovery { border-color: rgba(74, 168, 255, 0.46); background: rgba(20, 35, 54, 0.68); }
+.quest-clear-reward-card--recovery .quest-clear-reward-row { border-top: 0; }
+.quest-clear-reward-card--recovery dt { color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; }
+.quest-clear-progress { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid rgba(74, 168, 255, 0.42); border-radius: 0.4rem; background: rgba(20, 35, 54, 0.72); color: var(--color-muted); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.05em; }
+.quest-clear-progress strong { flex: 0 0 auto; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.88rem; white-space: nowrap; }
+.quest-clear-reward-empty,
+.quest-clear-unavailable { width: 100%; margin: 0; color: var(--color-muted); font-size: 0.7rem; line-height: 1.45; text-align: center; }
+.quest-clear-reward-empty { padding-top: 0.4rem; }
+.quest-clear-return { min-height: 2.75rem; }
 
 /* Figma Make Onboarding structure, using D-029 input and roadmap boundaries. */
 .onboarding-screen {

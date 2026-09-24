@@ -179,6 +179,13 @@ For Training, all planned main and accessory exercises show completion only as d
 - Program成功後は現在DayのPlanを表示し、別のTraining Dayを開いても新しい生成画面やOpenAI呼び出しを表示しない。`planByDay[dayIndex]`の保存済みPlanを利用する。
 - Recovery DayとBoss AnchorにはTraining Plan UIを表示しない。Main ExerciseがEquipmentに適合しない場合は`MAIN_EQUIPMENT_MISSING`相当の状態で停止し、Mainを自動代替しない。
 
+### D-035 Exercise Baseline setup
+
+- Onboardingで記録済みのMain Strength ExerciseにはBaseline設定Panelを表示しない。Main以外のExerciseでBaselineが未設定の場合にだけ、Workout Result入力前に「初回設定」を表示する。
+- 通常のExerciseでは「経験あり / 初めて」を選べる。「経験あり」は重量と正の整数repsを空欄から入力し、「初めて」は架空のBaselineを作らず、最初のWorkout Resultから目安を作る旨を表示して進む。
+- Push-up、Pull-up、Glute Bridgeではkg自己申告を求めず、「初めて」の案内を基本表示する。Baseline設定後はPanelを隠し、既存のSet記録フォームを維持する。Baseline値をWorkout inputへ自動入力しない。
+- Baseline登録はEXP、Quest Clear、Map進行を発生させない。最初の有効Workout ResultからBaselineが取れた場合は記録後にPanelを隠す。
+
 ## Recovery Quest UX
 
 ### Prototype確認

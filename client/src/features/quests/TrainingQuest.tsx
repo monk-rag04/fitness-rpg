@@ -1,12 +1,24 @@
 import { useState } from 'react';
+import { canSelfReportExerciseBaseline } from '@fitness-rpg/shared';
 import { QuestOrnateFrame, QuestSectionTitle, QuestTypeTag } from '../../components/QuestUi';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import { exerciseLabel } from '../../presentation/trainingLabels';
+import { ExerciseBaselineSetup, type ExerciseBaselineSetupMode } from './ExerciseBaselineSetup';
 import { WorkoutResultForm } from './WorkoutResultForm';
 
 export function TrainingQuest() {
-  const { trainingPlan, workoutResults, trainingEvaluation } = useAdventureQuest();
+  const {
+    trainingPlan,
+    workoutResults,
+    trainingEvaluation,
+    stageTrainingProgramContext,
+    exerciseProgressById,
+    baselineSetupConfirmedById,
+    registerExerciseBaseline,
+    confirmExerciseBaselineSetup,
+  } = useAdventureQuest();
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [baselineModeById, setBaselineModeById] = useState<Readonly<Record<string, ExerciseBaselineSetupMode>>>({});
 
   if (trainingPlan === null) return null;
 
@@ -27,6 +39,15 @@ export function TrainingQuest() {
             );
             const isCompleted = completion?.completed ?? false;
             const isEditing = editingExerciseId === plan.exerciseId;
+            const hasBaseline = exerciseProgressById[plan.exerciseId]?.baseline !== undefined;
+            const isOnboardingMain = plan.exerciseId === stageTrainingProgramContext?.mainExerciseId;
+            const showBaselineSetup = stageTrainingProgramContext !== undefined &&
+              !isOnboardingMain &&
+              !hasBaseline &&
+              baselineSetupConfirmedById[plan.exerciseId] !== true;
+            const selfReportSupported = canSelfReportExerciseBaseline(plan.exerciseId);
+            const baselineMode = baselineModeById[plan.exerciseId] ??
+              (selfReportSupported ? 'choose' : 'first_time');
             const setSummary = existingResult?.completedSets
               .map((set) => `${set.weightKg}kg × ${set.reps} reps`)
               .join(' · ');
@@ -48,6 +69,22 @@ export function TrainingQuest() {
                 {!isCompleted || isEditing ? (
                   <>
                     <p className="figma-exercise-card__plan">{plan.sets} SETS · {plan.repRange.min}–{plan.repRange.max} REPS</p>
+                    {showBaselineSetup && (
+                      <ExerciseBaselineSetup
+                        mode={baselineMode}
+                        selfReportSupported={selfReportSupported}
+                        onModeChange={(mode) => setBaselineModeById((current) => ({
+                          ...current,
+                          [plan.exerciseId]: mode,
+                        }))}
+                        registerBaseline={(weightKg, reps) => registerExerciseBaseline({
+                          exerciseId: plan.exerciseId,
+                          weightKg,
+                          reps,
+                        })}
+                        onConfirmFirstTime={() => confirmExerciseBaselineSetup(plan.exerciseId)}
+                      />
+                    )}
                     <WorkoutResultForm
                       key={`${plan.exerciseId}-${existingResult?.performedAt ?? 'new'}`}
                       plan={plan}

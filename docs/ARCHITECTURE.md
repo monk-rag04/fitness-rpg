@@ -240,6 +240,10 @@ D-027では日別QuestのIdentityをRoadmap day indexとし、global Quest IDや
 
 D-035のShared DomainはCatalog Exercise IDからversion付きPrimary EXP Categoryを決定し、Plan整合・substitution検証済みのWorkout Resultにある`1..plannedSets`のSetだけをTraining EXP対象とする。Recovery QuestはWorkout ResultなしでRecovery EXPを付与する。Reward Summaryは適用済みの増分snapshotで、PresentationがResultから再計算しない。EXP単価やquest typeはDomainのversion付きRuleに集約し、UIへ埋め込まない。
 
+D-035 4Eの`ExerciseProgressState`はExercise ID keyedのSession内Mapとして`AdventureQuestDomainState`に保持し、各Exerciseの初回Baseline（重量、reps、任意の未丸めe1RMとD-023 Rule Version、source、captured day index）と成功Clear済みSession数を分けて記録する。Onboarding Main BaselineはAdventure Session生成時に初期化し、自己申告または初回Workout ResultからのBaseline取得は同じExerciseの既存Baselineを上書きしない。Workout ResultのBaseline帰属先はvalidated `performedExerciseId`であり、D-023 `calculateWorkoutResultE1rm()`を再利用する。e1RM非適格Setしかない場合は最初の有効working setを保存し、e1RM値を持たない。
+
+Baseline登録はResult保存・Quest Clear / EXPと独立する。Training Quest Clearが成功した場合だけ、同じ`completeAdventureQuest()`結果のDomain transitionで、Clearに含まれるunique `performedExerciseId`の`sessionsCompleted`を各1加算する。Recovery Clear、単なるResult保存、Baseline登録、rescheduleでは加算しない。Main Strength Baseline Panelを避ける判定にはOnboardingのBoss Main IDを使い、Session `role: 'main'`とは同一視しない。Persistence / localStorage / DBは追加しない。
+
 ### Future API / persistence workflow
 
 1. ClientがQuest IDとExercise completion情報を送る。

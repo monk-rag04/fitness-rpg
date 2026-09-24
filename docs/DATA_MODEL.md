@@ -282,6 +282,33 @@ Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps�
 
 `validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
 
+### ExerciseProgressState（D-035 4E Session内）
+
+```ts
+type ExerciseBaselineSource = 'onboarding' | 'self_report' | 'workout_result';
+
+type ExerciseBaseline = {
+  weightKg: number;
+  reps: number;
+  estimatedE1rmKg?: number;
+  e1rmRuleVersion?: typeof E1RM_RULE.version;
+  source: ExerciseBaselineSource;
+  capturedDayIndex: number;
+};
+
+type ExerciseProgressState = {
+  exerciseId: ExerciseId;
+  baseline?: ExerciseBaseline;
+  sessionsCompleted: number;
+};
+```
+
+`AdventureQuestDomainState.exerciseProgressById`はExercise ID keyedのin-memory map。Main StrengthだけはOnboardingの実測重量 / repsを`source: 'onboarding'`、初期day index、`sessionsCompleted: 0`で持つ。その他のExerciseは任意の`source: 'self_report'`、またはそのExerciseの初回有効Workout Resultから`source: 'workout_result'`でBaselineを得る。自己申告repsは正の整数で、重量は正の有限値。D-023でe1RM計算可能なら未丸め値とRule Versionを保持し、適格外でもBaselineは残す。
+
+Workout Result由来Baselineは`performedExerciseId`へ帰属する。D-023適格Setがある場合はWorkout内最大e1RMを選び、その根拠Setの重量 / repsを保存する。全Setがe1RM対象外なら、最小setNumberの有効SetをBaselineにしてe1RMを省略する。Baselineは一度設定した後、通常Resultで上書きしない。`push_up` / `pull_up` / `glute_bridge`はMVPのkg自己申告対象外である。
+
+`sessionsCompleted`は、成功したTraining Quest Clearに限り、実際に行った各unique Exerciseにつき一度だけ加算する。Result保存、Baseline登録、同一Questでの複数Result、Recovery Clear、失敗・二重Clearでは加算しない。Exercise Progressは現在のAdventure Session内だけにあり、Refresh後の保持、永続化、現在値・Progression値、推奨重量はこのTaskに含まれない。
+
 ### Quest（保存候補。D-027 MVPのidentityではない）
 
 **概念上の責務案**: 当日の攻略条件と結果を表す。

@@ -8,6 +8,7 @@ import {
   validateExerciseWorkoutResult,
   CurrentQuestRescheduleError,
   type EquipmentId,
+  type ExerciseId,
   type GymEquipmentProfile,
   type ExerciseWorkoutResult,
   type QuestCompletionResult,
@@ -36,7 +37,9 @@ import {
   getTrainingPlanForDay,
   saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
+  registerExerciseBaselineForCurrentDay as registerExerciseBaselineForSession,
   type AdventureQuestDomainState,
+  type ExerciseBaselineRegistrationStatus,
   type StageEquipmentProfileStatus,
   type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
@@ -53,6 +56,7 @@ interface EphemeralUiState {
   readonly isClearFeedbackVisible: boolean;
   readonly questRewardSummary: QuestRewardSummary | null;
   readonly validationMessage: string | null;
+  readonly baselineSetupConfirmedById: Readonly<Record<string, true>>;
 }
 
 interface AdventureQuestState {
@@ -66,6 +70,8 @@ type Action =
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'setStageEquipmentProfile'; readonly domain: AdventureQuestDomainState }
+  | { readonly type: 'registerExerciseBaseline'; readonly domain: AdventureQuestDomainState }
+  | { readonly type: 'confirmExerciseBaselineSetup'; readonly exerciseId: ExerciseId }
   | { readonly type: 'rescheduleCurrentQuest'; readonly roadmap: StageRoadmap }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
   | { readonly type: 'completeQuest'; readonly dayIndex: number }
@@ -88,6 +94,7 @@ function createInitialState(session: AdventureQuestSession): AdventureQuestState
       isClearFeedbackVisible: false,
       questRewardSummary: null,
       validationMessage: null,
+      baselineSetupConfirmedById: {},
     },
   };
 }
@@ -130,6 +137,19 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         ...state,
         domain: action.domain,
       };
+    case 'registerExerciseBaseline':
+      return { ...state, domain: action.domain };
+    case 'confirmExerciseBaselineSetup':
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          baselineSetupConfirmedById: {
+            ...state.ui.baselineSetupConfirmedById,
+            [action.exerciseId]: true,
+          },
+        },
+      };
     case 'rescheduleCurrentQuest':
       return {
         ...state,
@@ -145,10 +165,11 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
     case 'completeQuest': {
       const transition = completeAdventureQuest(state.domain, action.dayIndex);
       if (transition.status !== 'completed') {
-        if (transition.status === 'invalid_reward_state') {
+        if (transition.status === 'invalid_reward_state' ||
+            transition.status === 'invalid_exercise_progress_state') {
           return {
             ...state,
-            ui: { ...state.ui, validationMessage: '報酬を確定できませんでした。状態を確認してください。' },
+            ui: { ...state.ui, validationMessage: 'Questの結果を確定できませんでした。状態を確認してください。' },
           };
         }
         return state;
@@ -192,6 +213,8 @@ interface AdventureQuestContextValue {
   readonly isTrainingPlanPending: boolean;
   readonly equipmentProfile: GymEquipmentProfile | undefined;
   readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
+  readonly exerciseProgressById: AdventureQuestDomainState['exerciseProgressById'];
+  readonly baselineSetupConfirmedById: Readonly<Record<string, true>>;
   readonly workoutResults: readonly ExerciseWorkoutResult[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
@@ -203,6 +226,8 @@ interface AdventureQuestContextValue {
   cacheTrainingPlanForDay: (dayIndex: number, plan: ValidatedTrainingPlan) => TrainingPlanCacheStatus;
   cacheStageTrainingProgram: (program: ValidatedStageTrainingProgram) => StageTrainingProgramCacheStatus;
   setStageEquipmentProfile: (equipmentIds: readonly EquipmentId[]) => StageEquipmentProfileStatus;
+  registerExerciseBaseline: (input: { readonly exerciseId: string; readonly weightKg: unknown; readonly reps: unknown }) => ExerciseBaselineRegistrationStatus;
+  confirmExerciseBaselineSetup: (exerciseId: ExerciseId) => void;
   rescheduleCurrentQuest: (newDate: string, today: string) => CurrentQuestRescheduleStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
@@ -250,6 +275,8 @@ export function AdventureQuestProvider({
     isTrainingPlanPending,
     equipmentProfile: state.domain.equipmentProfile,
     stageTrainingProgramContext: state.domain.stageTrainingProgramContext,
+    exerciseProgressById: state.domain.exerciseProgressById,
+    baselineSetupConfirmedById: state.ui.baselineSetupConfirmedById,
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
@@ -287,6 +314,16 @@ export function AdventureQuestProvider({
         dispatch({ type: 'setStageEquipmentProfile', domain: profileResult.target });
       }
       return profileResult.status;
+    },
+    registerExerciseBaseline: (input) => {
+      const transition = registerExerciseBaselineForSession(state.domain, input);
+      if (transition.status === 'registered') {
+        dispatch({ type: 'registerExerciseBaseline', domain: transition.domain });
+      }
+      return transition.status;
+    },
+    confirmExerciseBaselineSetup: (exerciseId) => {
+      dispatch({ type: 'confirmExerciseBaselineSetup', exerciseId });
     },
     rescheduleCurrentQuest: (newDate, today) => {
       try {

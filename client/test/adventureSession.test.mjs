@@ -8,6 +8,7 @@ import {
   createAdventureQuestDomainState,
   createOnboardingAdventureSession,
   getTrainingPlanForDay,
+  registerExerciseBaselineForCurrentDay,
   saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile,
 } from '../src/state/adventureSession.ts';
@@ -78,6 +79,75 @@ test('onboarding session begins with an empty day-based Plan cache and no Demo f
   assert.equal(session.equipmentProfile, undefined);
 });
 
+test('onboarding initializes the Main Strength exercise baseline from the accepted record', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+    stageTrainingProgramContext: {
+      mainExerciseId: 'barbell_bench_press',
+      currentE1rmKg: 76,
+      trainingExperienceMonths: 8,
+      trainingFrequencyPerWeek: 3,
+    },
+    onboardingBaseline: { exerciseId: 'barbell_bench_press', weightKg: 60, reps: 8 },
+  });
+  const domain = createAdventureQuestDomainState(session);
+
+  assert.deepEqual(domain.exerciseProgressById.barbell_bench_press, {
+    exerciseId: 'barbell_bench_press',
+    baseline: {
+      weightKg: 60,
+      reps: 8,
+      estimatedE1rmKg: 76,
+      e1rmRuleVersion: 'epley-v1',
+      source: 'onboarding',
+      capturedDayIndex: 0,
+    },
+    sessionsCompleted: 0,
+  });
+});
+
+test('onboarding ignores a baseline that does not match the selected Main Strength', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+    stageTrainingProgramContext: {
+      mainExerciseId: 'barbell_bench_press',
+      currentE1rmKg: 76,
+      trainingExperienceMonths: 8,
+      trainingFrequencyPerWeek: 3,
+    },
+    onboardingBaseline: { exerciseId: 'barbell_back_squat', weightKg: 80, reps: 5 },
+  });
+
+  assert.deepEqual(session.exerciseProgressById, undefined);
+});
+
+test('self-report registration updates only the current exercise baseline and not session count', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: { currentDayIndex: 2 },
+  });
+  const initial = createAdventureQuestDomainState(session);
+  const result = registerExerciseBaselineForCurrentDay(initial, {
+    exerciseId: 'dumbbell_lateral_raise',
+    weightKg: 6,
+    reps: 8,
+  });
+
+  assert.equal(result.status, 'registered');
+  assert.equal(result.domain.exerciseProgressById.dumbbell_lateral_raise.baseline.source, 'self_report');
+  assert.equal(result.domain.exerciseProgressById.dumbbell_lateral_raise.baseline.capturedDayIndex, 2);
+  assert.equal(result.domain.exerciseProgressById.dumbbell_lateral_raise.sessionsCompleted, 0);
+  assert.deepEqual(initial.exerciseProgressById, {});
+  assert.equal(registerExerciseBaselineForCurrentDay(result.domain, {
+    exerciseId: 'dumbbell_lateral_raise', weightKg: 7, reps: 8,
+  }).status, 'baseline_already_set');
+});
+
 function createRewardTestDomain(roadmap = DEMO_STAGE_ROADMAP, progress = createInitialStageProgress(roadmap)) {
   return createAdventureQuestDomainState({
     source: 'demo',
@@ -120,6 +190,30 @@ test('saving or replacing a Workout Result never awards EXP before Quest Clear',
   assert.notEqual(recorded.workoutResultsByDay, initial.workoutResultsByDay);
   const edited = saveCompleteDemoResults(recorded);
   assert.deepEqual(edited.characterGrowth, initial.characterGrowth);
+  assert.ok(Object.values(recorded.exerciseProgressById).every((progress) => progress.sessionsCompleted === 0));
+});
+
+test('first Workout Result captures a baseline from the performed exercise and later results keep it fixed', () => {
+  const initial = createRewardTestDomain();
+  const result = {
+    plannedExerciseId: 'dumbbell_lateral_raise',
+    performedExerciseId: 'push_up',
+    role: 'accessory',
+    plannedSets: 3,
+    plannedRepRange: { min: 10, max: 15 },
+    completedSets: [{ setNumber: 1, weightKg: 20, reps: 5 }],
+    performedAt: '2026-09-24T10:00:00.000Z',
+  };
+  const first = saveWorkoutResultForCurrentDay(initial, result);
+  const second = saveWorkoutResultForCurrentDay(first, {
+    ...result,
+    completedSets: [{ setNumber: 1, weightKg: 30, reps: 3 }],
+  });
+
+  assert.equal(first.exerciseProgressById.push_up.baseline.source, 'workout_result');
+  assert.equal(first.exerciseProgressById.dumbbell_lateral_raise, undefined);
+  assert.deepEqual(second.exerciseProgressById.push_up.baseline, first.exerciseProgressById.push_up.baseline);
+  assert.equal(second.exerciseProgressById.push_up.sessionsCompleted, 0);
 });
 
 test('Training Quest completion applies progress, growth, and summary in one transition', () => {
@@ -156,6 +250,7 @@ test('Training Quest completion applies progress, growth, and summary in one tra
   assert.equal(completed.domain.workoutResultsByDay, snapshots.results);
   assert.equal(completed.domain.equipmentProfile, snapshots.equipment);
   assert.equal(completed.domain.stageTrainingProgramContext, snapshots.context);
+  assert.ok(Object.values(completed.domain.exerciseProgressById).every((progress) => progress.sessionsCompleted === 1));
 });
 
 test('replaying the same Training completion cannot award growth or progress twice', () => {
@@ -167,6 +262,7 @@ test('replaying the same Training completion cannot award growth or progress twi
   assert.equal(replayed.domain, completed.domain);
   assert.deepEqual(replayed.domain.characterGrowth, completed.domain.characterGrowth);
   assert.deepEqual(replayed.domain.progress, { currentDayIndex: 1 });
+  assert.ok(Object.values(replayed.domain.exerciseProgressById).every((progress) => progress.sessionsCompleted === 1));
 });
 
 test('Recovery Quest completion grants only Recovery EXP and is idempotent', () => {
@@ -182,6 +278,7 @@ test('Recovery Quest completion grants only Recovery EXP and is idempotent', () 
   assert.equal(completed.domain.progress.currentDayIndex, recoveryIndex + 1);
   assert.equal(completed.domain.characterGrowth.recoveryExp, 10);
   assert.deepEqual(completed.domain.characterGrowth.trainingExp, initial.characterGrowth.trainingExp);
+  assert.equal(completed.domain.exerciseProgressById, initial.exerciseProgressById);
   assert.deepEqual(completed.rewardSummary, {
     dayIndex: recoveryIndex,
     questType: 'recovery',
@@ -197,11 +294,16 @@ test('rescheduling preserves day-index reward identity and the cached plan/resul
   const initial = saveCompleteDemoResults(createRewardTestDomain());
   const shiftedRoadmap = rescheduleCurrentQuest(initial.roadmap, 0, '2026-09-24', '2026-09-22');
   const rescheduled = { ...initial, roadmap: shiftedRoadmap };
+  assert.deepEqual(rescheduled.exerciseProgressById, initial.exerciseProgressById);
   const completed = completeAdventureQuest(rescheduled, 0);
 
   assert.equal(completed.status, 'completed');
   assert.equal(completed.rewardSummary.dayIndex, 0);
   assert.equal(completed.domain.progress.currentDayIndex, 1);
+  for (const [exerciseId, before] of Object.entries(initial.exerciseProgressById)) {
+    assert.deepEqual(completed.domain.exerciseProgressById[exerciseId].baseline, before.baseline);
+    assert.equal(completed.domain.exerciseProgressById[exerciseId].sessionsCompleted, 1);
+  }
   assert.equal(completed.domain.planByDay, initial.planByDay);
   assert.equal(completed.domain.workoutResultsByDay, initial.workoutResultsByDay);
 });

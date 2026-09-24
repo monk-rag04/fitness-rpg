@@ -176,11 +176,14 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 
 - MVPではTraining Planが`exerciseId`、role、sets、rep rangeを提示し、AIやSystemがTraining Weightを自動決定しない。
 - Main / Accessoryを問わず、ユーザーが実施した各Setの`weightKg`と`reps`を記録する。Strength HistoryがないExerciseへ根拠のない初期重量を生成しない。
+- D-035 4Eでは、ExerciseごとのStage開始時BaselineをSession内で保持する。Main StrengthはOnboardingの実記録を使い、その他の種目は任意の自己申告または最初の有効Workout Resultから取得する。架空の初期重量は作らない。
 - Workout Resultは予定Exercise IDと実施Exercise IDを別に保持する。代替Exerciseの実績は実施したExerciseの履歴・e1RM根拠となり、元Exerciseのe1RMや重量履歴を自動移管しない。
 - rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
 - Workout Resultの有効SetはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。
+- Baselineは初回固定し、以後のWorkout Resultで更新しない。Exerciseの完了Session数は、そのExerciseを実施したTraining QuestのClear成功時だけ1増やす。Baseline登録やResult保存ではEXP・Rewardを付けない。
+- `push_up` / `pull_up` / `glute_bridge`はMVPの重量自己申告Baseline対象外とし、kg入力を求めない。e1RM eligibilityはD-023の既存Ruleに従い、計算対象外でもSet記録からBaselineを取得できる。
 
-**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの保存方法。
+**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの永続化方法、Baseline修正Policy。
 
 ## Exercise substitution
 

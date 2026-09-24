@@ -3,7 +3,12 @@ import {
   completeRecoveryQuestWithReward,
   completeTrainingQuestWithReward,
   createInitialCharacterGrowth,
+  captureFirstWorkoutExerciseBaseline,
+  createOnboardingExerciseProgressState,
+  incrementExerciseSessionsCompleted,
+  registerSelfReportedExerciseBaseline,
   type CharacterGrowth,
+  type ExerciseProgressById,
   type ExerciseWorkoutResult,
   type QuestRewardSummary,
 } from '@fitness-rpg/shared';
@@ -36,6 +41,13 @@ export interface AdventureQuestSession {
   readonly planByDay: TrainingPlanByDay;
   readonly equipmentProfile?: GymEquipmentProfile;
   readonly stageTrainingProgramContext?: StageTrainingProgramSessionContext;
+  readonly exerciseProgressById?: ExerciseProgressById;
+}
+
+export interface OnboardingMainExerciseBaseline {
+  readonly exerciseId: ExerciseId;
+  readonly weightKg: number;
+  readonly reps: number;
 }
 
 /** In-memory domain state owned by the current Adventure Quest session. */
@@ -45,6 +57,7 @@ export interface AdventureQuestDomainState {
   readonly planByDay: TrainingPlanByDay;
   readonly equipmentProfile: GymEquipmentProfile | undefined;
   readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
+  readonly exerciseProgressById: ExerciseProgressById;
   readonly workoutResultsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>>;
   readonly characterGrowth: CharacterGrowth;
 }
@@ -56,6 +69,7 @@ export type AdventureQuestTransitionStatus =
   | 'wrong_quest_type'
   | 'not_ready_to_clear'
   | 'invalid_reward_state'
+  | 'invalid_exercise_progress_state'
   | 'invalid_day_index';
 
 export type AdventureQuestRewardTransition =
@@ -78,6 +92,7 @@ export function createAdventureQuestDomainState(
     planByDay: session.planByDay,
     equipmentProfile: session.equipmentProfile,
     stageTrainingProgramContext: session.stageTrainingProgramContext,
+    exerciseProgressById: session.exerciseProgressById ?? {},
     workoutResultsByDay: {},
     characterGrowth: createInitialCharacterGrowth(),
   };
@@ -90,8 +105,14 @@ export function saveWorkoutResultForCurrentDay(
 ): AdventureQuestDomainState {
   const dayIndex = domain.progress.currentDayIndex;
   const resultsForDay = domain.workoutResultsByDay[dayIndex] ?? {};
+  const exerciseProgressById = captureFirstWorkoutExerciseBaseline(
+    domain.exerciseProgressById,
+    result,
+    dayIndex,
+  );
   return {
     ...domain,
+    exerciseProgressById,
     workoutResultsByDay: {
       ...domain.workoutResultsByDay,
       [dayIndex]: {
@@ -135,12 +156,19 @@ export function completeAdventureQuest(
     );
 
   if (completion.status !== 'completed') return { status: completion.status, domain };
+  let exerciseProgressById = domain.exerciseProgressById;
+  if (day.type === 'training') {
+    const sessions = incrementExerciseSessionsCompleted(exerciseProgressById, results);
+    if (!sessions.valid) return { status: 'invalid_exercise_progress_state', domain };
+    exerciseProgressById = sessions.exerciseProgressById;
+  }
   return {
     status: 'completed',
     domain: {
       ...domain,
       progress: completion.progress,
       characterGrowth: completion.characterGrowth,
+      exerciseProgressById,
     },
     rewardSummary: completion.rewardSummary,
   };
@@ -360,8 +388,20 @@ export function setStageEquipmentProfile<TTarget extends StageEquipmentProfileTa
 
 /** An onboarding result starts with no generated plan and no Demo fixture. */
 export function createOnboardingAdventureSession(
-  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress' | 'stageTrainingProgramContext'>,
+  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress' | 'stageTrainingProgramContext'> & {
+    readonly onboardingBaseline?: OnboardingMainExerciseBaseline;
+  },
 ): AdventureQuestSession {
+  const onboardingBaseline = result.onboardingBaseline;
+  const mainProgress = onboardingBaseline === undefined ||
+      onboardingBaseline.exerciseId !== result.roadmap.mainExerciseId ||
+      (result.stageTrainingProgramContext !== undefined &&
+        onboardingBaseline.exerciseId !== result.stageTrainingProgramContext.mainExerciseId)
+    ? null
+    : createOnboardingExerciseProgressState({
+      ...onboardingBaseline,
+      capturedDayIndex: result.initialProgress.currentDayIndex,
+    });
   return {
     source: 'onboarding',
     roadmap: result.roadmap,
@@ -370,5 +410,51 @@ export function createOnboardingAdventureSession(
     ...(result.stageTrainingProgramContext === undefined
       ? {}
       : { stageTrainingProgramContext: result.stageTrainingProgramContext }),
+    ...(mainProgress === null
+      ? {}
+      : { exerciseProgressById: { [mainProgress.exerciseId]: mainProgress } }),
+  };
+}
+
+export type ExerciseBaselineRegistrationStatus =
+  | 'registered'
+  | 'unknown_exercise'
+  | 'baseline_already_set'
+  | 'self_report_not_supported'
+  | 'invalid_baseline_weight'
+  | 'invalid_baseline_reps'
+  | 'invalid_day_index';
+
+export interface ExerciseBaselineRegistrationTransition {
+  readonly status: ExerciseBaselineRegistrationStatus;
+  readonly domain: AdventureQuestDomainState;
+}
+
+/** Register an optional baseline at the current Quest index without completing a session. */
+export function registerExerciseBaselineForCurrentDay(
+  domain: AdventureQuestDomainState,
+  input: { readonly exerciseId: string; readonly weightKg: unknown; readonly reps: unknown },
+): ExerciseBaselineRegistrationTransition {
+  const result = registerSelfReportedExerciseBaseline(domain.exerciseProgressById, {
+    ...input,
+    capturedDayIndex: domain.progress.currentDayIndex,
+  });
+  if (!result.valid) {
+    const status: ExerciseBaselineRegistrationStatus = result.code === 'UNKNOWN_EXERCISE'
+      ? 'unknown_exercise'
+      : result.code === 'BASELINE_ALREADY_SET'
+        ? 'baseline_already_set'
+        : result.code === 'SELF_REPORT_NOT_SUPPORTED'
+          ? 'self_report_not_supported'
+          : result.code === 'INVALID_BASELINE_WEIGHT'
+            ? 'invalid_baseline_weight'
+            : result.code === 'INVALID_BASELINE_REPS'
+              ? 'invalid_baseline_reps'
+              : 'invalid_day_index';
+    return { status, domain };
+  }
+  return {
+    status: 'registered',
+    domain: { ...domain, exerciseProgressById: result.exerciseProgressById },
   };
 }

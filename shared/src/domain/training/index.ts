@@ -15,4 +15,5 @@ export * from './stageProgress.js';
 export * from './characterGrowth.js';
 export * from './exerciseExpCategory.js';
 export * from './questReward.js';
+export * from './exerciseProgress.js';
 export * from './onboardingRoadmap.js';

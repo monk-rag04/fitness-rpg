@@ -39,6 +39,11 @@ export default function App() {
                 trainingExperienceMonths: result.input.trainingExperienceMonths,
                 trainingFrequencyPerWeek: result.input.trainingFrequencyPerWeek,
               },
+              onboardingBaseline: {
+                exerciseId: result.baseline.exerciseId,
+                weightKg: result.baseline.weightKg,
+                reps: result.baseline.reps,
+              },
             }));
           }}
         />

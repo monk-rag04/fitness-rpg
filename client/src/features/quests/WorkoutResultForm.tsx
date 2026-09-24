@@ -4,6 +4,8 @@ import {
   type FormEvent,
 } from 'react';
 import type {
+  CompletedSetRecord,
+  ExerciseDifficultyFeedback,
   ExerciseWorkoutResult,
   ValidatedPlannedExercise,
 } from '@fitness-rpg/shared';
@@ -13,6 +15,41 @@ import { workoutResultErrorMessage } from '../../presentation/trainingLabels';
 interface SetDraft {
   readonly weightKg: string;
   readonly reps: string;
+}
+
+const difficultyFeedbackOptions: readonly {
+  readonly value: ExerciseDifficultyFeedback;
+  readonly label: string;
+}[] = [
+  { value: 'too_hard', label: 'きつすぎた' },
+  { value: 'just_right', label: 'ちょうどいい' },
+  { value: 'easy', label: '余裕あり' },
+];
+
+export function toggleDifficultyFeedback(
+  current: ExerciseDifficultyFeedback | undefined,
+  selected: ExerciseDifficultyFeedback,
+): ExerciseDifficultyFeedback | undefined {
+  return current === selected ? undefined : selected;
+}
+
+export function createWorkoutResultInput(
+  plan: ValidatedPlannedExercise,
+  completedSets: readonly CompletedSetRecord[],
+  existingResult: ExerciseWorkoutResult | undefined,
+  difficultyFeedback: ExerciseDifficultyFeedback | undefined,
+  performedAt: string,
+): ExerciseWorkoutResult {
+  const result = {
+    plannedExerciseId: plan.exerciseId,
+    performedExerciseId: existingResult?.performedExerciseId ?? plan.exerciseId,
+    role: plan.role,
+    plannedSets: plan.sets,
+    plannedRepRange: plan.repRange,
+    completedSets,
+    performedAt,
+  };
+  return difficultyFeedback === undefined ? result : { ...result, difficultyFeedback };
 }
 
 function createInitialDrafts(
@@ -47,6 +84,9 @@ export function WorkoutResultForm({
 }: WorkoutResultFormProps) {
   const { saveWorkoutResult } = useAdventureQuest();
   const [drafts, setDrafts] = useState<SetDraft[]>(() => createInitialDrafts(plan.sets, existingResult));
+  const [difficultyFeedback, setDifficultyFeedback] = useState<ExerciseDifficultyFeedback | undefined>(
+    () => existingResult?.difficultyFeedback,
+  );
   const [message, setMessage] = useState<string | null>(
     existingResult === undefined ? null : '記録済みです。入力を変更して再記録できます。',
   );
@@ -89,15 +129,13 @@ export function WorkoutResultForm({
       completedSets.push({ setNumber: index + 1, weightKg, reps });
     }
 
-    const validation = saveWorkoutResult({
-      plannedExerciseId: plan.exerciseId,
-      performedExerciseId: plan.exerciseId,
-      role: plan.role,
-      plannedSets: plan.sets,
-      plannedRepRange: plan.repRange,
+    const validation = saveWorkoutResult(createWorkoutResultInput(
+      plan,
       completedSets,
-      performedAt: new Date().toISOString(),
-    });
+      existingResult,
+      difficultyFeedback,
+      new Date().toISOString(),
+    ));
 
     if (validation.valid) {
       setMessage(`${exerciseName}を記録しました。`);
@@ -150,6 +188,29 @@ export function WorkoutResultForm({
           })}
         </div>
       </fieldset>
+      <section className="difficulty-feedback" aria-labelledby={`${plan.exerciseId}-difficulty-feedback-label`}>
+        <div className="difficulty-feedback__heading">
+          <h4 id={`${plan.exerciseId}-difficulty-feedback-label`}>今回の負荷は？</h4>
+          <span>任意</span>
+        </div>
+        <div className="difficulty-feedback__options" role="group" aria-labelledby={`${plan.exerciseId}-difficulty-feedback-label`}>
+          {difficultyFeedbackOptions.map((option) => (
+            <button
+              aria-pressed={difficultyFeedback === option.value}
+              className="difficulty-feedback__option"
+              key={option.value}
+              onClick={() => {
+                setDifficultyFeedback((current) => toggleDifficultyFeedback(current, option.value));
+                setMessage(null);
+              }}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p className="difficulty-feedback__help">未選択でも記録・QUEST CLEARできます。</p>
+      </section>
       {message !== null && <p className="form-message" role="status">{message}</p>}
       <button className="quest-record-button" type="submit">記録する</button>
     </form>

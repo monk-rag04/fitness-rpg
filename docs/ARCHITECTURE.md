@@ -244,6 +244,8 @@ D-035 4Eの`ExerciseProgressState`はExercise ID keyedのSession内Mapとして`
 
 Baseline登録はResult保存・Quest Clear / EXPと独立する。Training Quest Clearが成功した場合だけ、同じ`completeAdventureQuest()`結果のDomain transitionで、Clearに含まれるunique `performedExerciseId`の`sessionsCompleted`を各1加算する。Recovery Clear、単なるResult保存、Baseline登録、rescheduleでは加算しない。Main Strength Baseline Panelを避ける判定にはOnboardingのBoss Main IDを使い、Session `role: 'main'`とは同一視しない。Persistence / localStorage / DBは追加しない。
 
+D-036 Task 4Fでは、Sharedの`ExerciseWorkoutResult`が任意のExercise単位`difficultyFeedback`を保持し、既存のResult validatorが`too_hard` / `just_right` / `easy`のみを受け入れる。Workout Result formはSet入力とFeedbackを同じSubmitで送り、既存Resultの編集時はSet値・`performedExerciseId`・Feedbackを復元してResult全体を置換する。Feedbackは独立Stateに保存せず、未選択でもResult保存と既存Quest Clearを許可する。Baseline、`sessionsCompleted`、EXP / Reward、Clear条件、Progressionへの影響はなく、Adventure Session内だけで保持する。次のTask 4GまでSuggested Weight / RepsやProgressionへ接続しない。
+
 ### Future API / persistence workflow
 
 1. ClientがQuest IDとExercise completion情報を送る。

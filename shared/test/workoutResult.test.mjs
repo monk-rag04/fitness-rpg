@@ -48,6 +48,21 @@ test('valid main exercise workout result records each completed set', () => {
   assert.equal(result.role, 'main');
 });
 
+test('difficulty feedback is optional and accepts only its three supported values', () => {
+  const withoutFeedback = expectValid(workoutResult());
+  assert.equal(Object.hasOwn(withoutFeedback, 'difficultyFeedback'), false);
+
+  for (const difficultyFeedback of ['too_hard', 'just_right', 'easy']) {
+    assert.equal(expectValid(workoutResult({ difficultyFeedback })).difficultyFeedback, difficultyFeedback);
+  }
+
+  assert.equal(Object.hasOwn(expectValid(workoutResult({ difficultyFeedback: undefined })), 'difficultyFeedback'), false);
+  for (const difficultyFeedback of ['medium', 'TOO_HARD', null, {}]) {
+    assert.ok(errorCodes(workoutResult({ difficultyFeedback }))
+      .includes('INVALID_DIFFICULTY_FEEDBACK'));
+  }
+});
+
 test('accessory exercise result is valid', () => {
   const result = expectValid(workoutResult({
     plannedExerciseId: 'dumbbell_curl',

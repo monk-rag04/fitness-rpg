@@ -276,11 +276,11 @@ Stage Program RequestのRoadmap validationは、各Daily Slotのcanonical `start
 
 Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps、sets、完了、substitution理由。
 
-**MVP時点の決定済みDomain境界（D-024）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、`performedAt`を持つ。各Setは`weightKg`と`reps`を持ち、Exercise全体へ一つの重量を固定しない。これは正式なTable / 保存Schemaではない。
+**MVP時点の決定済みDomain境界（D-024 / D-036 Task 4F）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、任意のExercise単位`difficultyFeedback`、`performedAt`を持つ。`difficultyFeedback`は`too_hard` / `just_right` / `easy`のいずれかであり、Set単位ではない。各Setは`weightKg`と`reps`を持ち、Exercise全体へ一つの重量を固定しない。これは正式なTable / 保存Schemaではない。
 
-`validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、正の有限重量、正の整数rep、timestamp、未知Fieldを検査する。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
+`validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、正の有限重量、正の整数rep、任意のExercise単位`difficultyFeedback`、timestamp、未知Fieldを検査する。Feedbackの許可値は`too_hard`、`just_right`、`easy`であり、未指定なら有効、未知値は拒否する。FeedbackはResultと一緒に保存・編集される。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
 
-`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
+`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。D-036 Task 4FのFeedbackは記録専用で、Baseline、Clear条件、EXP / Reward、Progressionに影響しない。Suggested Weight / Reps、Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
 
 ### ExerciseProgressState（D-035 4E Session内）
 

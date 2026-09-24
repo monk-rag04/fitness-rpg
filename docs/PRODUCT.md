@@ -180,7 +180,9 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 - Workout Resultは予定Exercise IDと実施Exercise IDを別に保持する。代替Exerciseの実績は実施したExerciseの履歴・e1RM根拠となり、元Exerciseのe1RMや重量履歴を自動移管しない。
 - rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
 - Workout Resultの有効SetはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。
+- D-036 Task 4Fでは、Exercise単位のWorkout Resultへ`difficultyFeedback`（`too_hard` / `just_right` / `easy`）を任意で含められる。Set単位ではなくResultと一緒に保存し、編集時はResult全体を置換する。未選択でも記録・Quest Clearできる。
 - Baselineは初回固定し、以後のWorkout Resultで更新しない。Exerciseの完了Session数は、そのExerciseを実施したTraining QuestのClear成功時だけ1増やす。Baseline登録やResult保存ではEXP・Rewardを付けない。
+- Difficulty Feedbackは現在は記録するだけで、Baseline、Quest Clear条件、EXP / Reward、Suggested Weight / Reps、Progressionを変更しない。将来のD-036 Task 4GでProgressionへの入力として利用する予定である。
 - `push_up` / `pull_up` / `glute_bridge`はMVPの重量自己申告Baseline対象外とし、kg入力を求めない。e1RM eligibilityはD-023の既存Ruleに従い、計算対象外でもSet記録からBaselineを取得できる。
 
 **未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの永続化方法、Baseline修正Policy。

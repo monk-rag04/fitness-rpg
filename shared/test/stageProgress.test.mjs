@@ -10,7 +10,7 @@ import {
   deriveStageProgressView,
   evaluateTrainingQuestCompletion,
   generateStageRoadmap,
-  rescheduleTrainingDay,
+  rescheduleCurrentQuest,
 } from '../dist/index.js';
 
 function roadmap(overrides = {}) {
@@ -118,9 +118,10 @@ test('exposes training focus but no UI-specific map state', () => {
 test('is deterministic and schedule dates alone do not move progress', () => {
   const progress = { currentDayIndex: 1 };
   const original = roadmap();
-  const rescheduled = rescheduleTrainingDay(original, '2026-09-22', '2026-09-23');
+  const rescheduled = rescheduleCurrentQuest(original, progress.currentDayIndex, '2026-09-25', '2026-09-22');
   assert.deepEqual(deriveStageProgressView(original, progress), deriveStageProgressView(original, progress));
   assert.equal(deriveStageProgressView(rescheduled, progress).currentDayIndex, 1);
+  assert.deepEqual(progress, { currentDayIndex: 1 });
 });
 
 test('makes the boss available only after every daily node is complete', () => {

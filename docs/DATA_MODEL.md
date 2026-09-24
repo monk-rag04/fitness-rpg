@@ -231,7 +231,11 @@ AI出力は`AchievementDurationEstimate`の`estimatedAchievementDays`のみで�
 
 **D-026の計算用境界（保存Schemaではない）**: `StageRoadmapGenerationInput`は`startDate`（厳格な`YYYY-MM-DD`）、D-025の`RoadmapDurationDays`、構造上`1..7`の`trainingFrequencyPerWeek`、Catalog `mainExerciseId`、正で有限の`stageTargetE1rmKg`を持つ。`generateStageRoadmap()`は同数の`StageRoadmapDay[]`と、`startDate + durationDays`の`StageBossAnchor`を返す。Training Dayは`sessionFocus.targetMuscles`だけを持ち、値はMain ExerciseのCatalog `primaryMuscles`から得る。これはExercise plan、sets、reps、weight、movement focus、Quest / EXP / Map / Boss Stateを表さない。
 
-`rescheduleTrainingDay()`は保存済み変更履歴やUser stateを受け取らず、生成済みRoadmapのsource Training Dayと将来のtarget Recovery Dayを入れ替える計算用関数である。Training数、Boss Anchor、Duration、Stage Targetは不変とし、過去日・完了日・競合・永続化のPolicyは未決定のまま残す。
+**D-034のSchedule変更境界（保存Schemaではない）**: `StageRoadmap.days[index]`のidentityはindex / `dayIndex`であり、`date`は変更可能なCalendar schedule fieldである。`startDate`はStageの当初開始日としてimmutable、`durationDays`は当初の基本期間とDaily Slot数としてimmutableである。実際のBoss予定日は`roadmap.boss.date`で表す。
+
+`rescheduleCurrentQuest(roadmap, currentDayIndex, newDate, today)`はCurrent Daily Slotの日付を未来へ延期し、Current index以降の全Daily SlotとBoss Anchorへ同じカレンダー日数を加えるpure calculationである。完了済み過去Slotは完全に保持し、Nodeを挿入・削除・sortせず、Quest Type、Session Focus、Boss Main Exposure、Stage Target、Main Exercise、`currentDayIndex` / `StageProgress`を変更しない。date-only strict `YYYY-MM-DD` validation、UTC-based calendar-day add、timezone非依存のGregorian calendar differenceを用い、DomainはClockを読まない。変更後も`planByDay[dayIndex]`と`workoutResultsByDay[dayIndex]`は同じindex / 内容に残る。
+
+Stage Program RequestのRoadmap validationは、各Daily Slotのcanonical `startDate + index`との差であるdelay offsetを検証する。全offsetは0以上かつslot順に非減少で、Boss dateのoffsetは最後のDaily Slotのoffsetと同じでなければならない。期間、daily count/type、D-032 Focus / Exposure、Main / Target / generation version等のcanonical validationは維持する。React Session内でRoadmapのみを更新し、DB、localStorage、schedule historyは追加しない。
 
 **D-027の計算用進行境界（保存Schemaではない）**: `StageProgress`は`{ currentDayIndex: number }`だけを持つ。`0..roadmap.days.length`の整数だけを許可し、Roadmap本体や日別Nodeに完了Stateを書き込まない。indexより前はcompleted、同じindexはavailable、後ろはlockedとして`StageProgressView`へ導出する。indexがdaily node総数と等しいときBoss Anchorはavailableだが、Boss State、Strength判定、Defeated、Stage Clear、Rewardを表さない。
 

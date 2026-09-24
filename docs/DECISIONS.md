@@ -221,7 +221,7 @@ Status:
 - Decision: Schedule生成専用の週頻度は構造上`1..7`の正整数とする。この範囲はD-025 Achievement Duration EstimatorのProduct上のfrequency rangeを変更しない。各相対7日blockについて`floor(i * 7 / frequency)`（`i = 0..frequency-1`）をTraining offset、その他をRecoveryとし、Duration候補が7の倍数であるため全期間のTraining数はfrequency × week数となる。
 - Decision: Training Dayの`sessionFocus`はMain ExerciseのCatalog `primaryMuscles`だけを持つ。`targetMovementPatterns`、Exercise選択、sets、reps、weight、Full Body / Upper-Lower / PPL、Main Exercise fatigue制約はこのDomainに含めない。Schedule生成はBoss e1RM対象ExerciseのAllowlistを検証しない。
 - Decision: ローカル日付は厳格な`YYYY-MM-DD`だけを受け、純粋なUTC calendar arithmeticで加算する。`Date.now()`、host timezone、DST、Browser localeへ依存しない。User timezoneの正式Policyは別Decisionとして残す。
-- Decision: `rescheduleTrainingDay(roadmap, sourceDate, targetDate)`は、同一Roadmap内のTraining Dayを後続のRecovery Dayへswapする純粋関数とする。sourceとtargetの一致、Roadmap外、source非Training、target非Recovery、targetがsource以前、Boss日を拒否する。Training数、Boss Anchor、Duration、Stage Target、無関係なDayは保持する。Quest Clear、EXP、Map Position、e1RM、Workout Result、Boss State、進行ロジックを更新しない。
+- Decision (superseded by D-034): ProductionはTraining Day / Recovery Dayをswapしない。Current Questの日付延期はD-034に従う。
 - Consequence: sharedに生成・変更API、入力エラー、Rule Version（`stage-roadmap-even-spread-v1`）とRegression Testを置く。API endpoint、Database、Frontend / Figma実装、AI Call、Schedule再計画、Quest / EXP / Map / Boss Stateは今回含めない。
 - Alternatives: Figmaの固定開始日、Session数からの日数算出、nearest duration、Prototype Stateの更新、AIによる曜日・Node・Boss date選択、任意のTraining / Recovery自由選択、全日付の再計画は採用しない。
 - Affected docs / code: `docs/PRODUCT.md`、`docs/UX.md`、`docs/ARCHITECTURE.md`、`docs/DATA_MODEL.md`、`docs/DECISIONS.md`、`shared/src/domain/training/stageRoadmap.ts`、`shared/src/domain/training/index.ts`、`shared/test/stageRoadmap.test.mjs`。
@@ -231,7 +231,7 @@ Status:
 
 - Status: Accepted
 - Context: D-024 is the Workout Result boundary, D-025 defines Stage Target / Duration, and D-026 defines an immutable StageRoadmap. The remaining MVP boundary is how a Daily Quest clears and which event moves the map. Figma Prototype `mapPosition`, checkboxes, date behavior, moved-node jumps, fixed EXP, and Boss toggles are prototype-only observations, not Production rules.
-- Decision: Keep `StageRoadmap` immutable and use only `StageProgress = { currentDayIndex }` for MVP progress. Accept an integer from `0` through `roadmap.days.length`; derive completed / available / locked from its relation to each day index. The current quest is `roadmap.days[currentDayIndex]`. Calendar date, missed days, `Date.now`, skip, expire, and automatic catch-up do not move progress. Day index is the MVP quest identity; do not add a global Quest ID or a Roadmap Day ID to D-026.
+- Decision: Quest Clear does not mutate `StageRoadmap`; use only `StageProgress = { currentDayIndex }` for MVP progress. D-034 separately permits an explicit schedule action to replace Calendar dates without changing progress. Accept an integer from `0` through `roadmap.days.length`; derive completed / available / locked from its relation to each day index. The current quest is `roadmap.days[currentDayIndex]`. Calendar date, missed days, `Date.now`, skip, expire, and automatic catch-up do not move it. Day index is the MVP quest identity; do not add a global Quest ID or a Roadmap Day ID to D-026.
 - Decision: All validated Training Plan `main` and `accessory` exercises are required. Each planned exercise needs exactly one Workout Result with at least one completed set that passes existing Workout Result and plan-snapshot validation. Partial sets and reps outside the planned range do not block clear. Checkboxes are derived rather than persisted. Only when planned and performed IDs differ, use existing `getSubstitutionCandidates()` with the provided GymEquipmentProfile; D-024 attribution remains with the performed exercise.
 - Decision: Recording a valid Workout Result or evaluating it does not advance progress. An explicit Training Clear or Recovery Clear advances the current index by exactly one; Recovery has no MVP checklist. An old index returns `already_completed`, a future index returns `not_current_quest`, and neither changes state. Schedule Change, e1RM, OpenAI output, EXP, and result storage do not advance progress.
 - Decision: When `currentDayIndex === roadmap.days.length`, the Boss Anchor is available. This only exposes the existing Stage Target for a later Boss domain; it does not implement Boss Strength eligibility, Shield, Challenge, Defeated, Stage Clear, Reward, EXP, HP, or Level.
@@ -401,7 +401,7 @@ Proposedを実装しただけでAcceptedへ変更しない。採用理由、代�
 | Support Stats | 固定値。Leg Pressが常にLagging | ProductionではTrend評価予定 |
 | Progress | 8週Trend、Boss履歴、7日Streakが固定 | 保存Dataから集計する |
 | Beginner Quest | 手動Toggle、Chest / Bench固定、40kg×8×2 | 発生・重量・ContentはOpen |
-| Schedule update | 2 Nodeだけを書換え「以降もAI調整」と表示 | D-026はTraining Dayと将来Recovery Dayの純粋swapのみ。AI調整・UI State更新・再計画は含めない |
+| Schedule update | 2 Nodeだけを書換え「以降もAI調整」と表示 | D-034はCurrent Questの日付と以降のSlot / Bossを同日数だけ延期する。Node swap・AI再計画は行わない |
 
 ## Known Prototype Gaps / Contradictions
 
@@ -449,11 +449,12 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-023としてMVPのe1RM式、適格Set、Workout代表値、rolling 30日現在値、PB分離、未丸めBoss比較、対象Exerciseを採用。
 - 2026-09-22: D-024としてSet単位のWorkout Result、予定 / 実施Exerciseの分離、D-023 e1RM接続、Quest Clear・Load / Progressionとの責務分離を採用。
 - 2026-09-22: D-025として固定+5kgの決定論的Stage Target、AIのAchievement Duration Estimate、候補Durationのceiling選択と42日超のreplanning statusを採用。Schedule / Boss Stateは含めない。
-- 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focus、将来Recovery Dayへの純粋なSchedule swapを採用。永続化、UI、AI再計画、Game Stateは含めない。
+- 2026-09-22: D-026として選択済みRoadmap Durationからの決定論的Training / Recovery配置、Boss Anchor、Main Exercise Primary Muscle Focusを採用。将来Recovery DayへのSchedule swapは後続D-034で置き換えられた。
 - 2026-09-22: D-027としてWorkout Resultから導出するTraining Clear、明示的Recovery Clear、day indexによるLinear Map進行、終端でのBoss availabilityを採用。EXP、Boss State、Stage Clear、永続化、UIは含めない。
 - 2026-09-22: D-029として自己申告Baseline、Boss対象Main、直接入力の経験月数・Goal、Onboarding 1..7頻度、Backend Duration endpoint、純粋なRoadmap組立て境界を採用。後続Client実装でFigma 3-Step UIをApplication Flowへ接続し、実Training Plan生成は引き続き次工程とする。
 - 2026-09-22: D-030としてEquipmentの初回Training Node収集、Main Exercise unavailable停止、Server-side Candidate Builder境界、Training Plan guardrail、明示Retry、day単位cache、React Session-only保持、当時のFigma未確定Equipment UI境界を採用。
 - 2026-09-22: D-031として1 Stage = 1 Training Program、Equipment確定後のStage-wide生成、全Training Day exact coverage、Atomic `planByDay` cache、Stage Program全体の明示Retryを採用。D-030のper-day生成 timing / generation retryだけをsupersedeし、Equipment・guardrail・fallback禁止・Session-only保持は維持。
+- 2026-09-24: D-034としてCurrent Quest Slotの日付延期、Current以降とBossの同日数shift、day-index identity、canonical delay validator、Training / Recovery QuestのMobile sheetを採用。D-026のProduction Schedule swapを置き換え、Progress / cache / Workout Result / Equipment stateは維持し、永続化は追加しない。
 
 ### D-032: Stage Training Program Balance and Boss Main Exposure
 
@@ -465,3 +466,17 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Decision**: Roadmap generation, server candidate context, stage-wide prompt, client validation context, and atomic `planByDay` caching preserve the same focus/exposure metadata. Recovery and Boss nodes remain excluded; the legacy per-day endpoint remains compatible.
 - **Consequence**: Stage-wide generation is no longer Main Strength-biased. The Stage Target/Boss metric remains separate from the session primary-exercise role.
 - **Open**: Periodization details, fatigue limits, exact production prompt/model, persistence, and UI redesign remain undecided.
+
+### D-034: Current Quest Date Rescheduling
+
+- **Status**: Accepted (MVP)
+- **Context**: D-026 defined the original Stage calendar and a Training / Recovery swap operation. The Production Current Quest flow needs to defer the current daily slot without moving its identity, changing its type, or altering game progress. The Figma Prototype's node swapping and AI rescheduling are not the intended Production behavior.
+- **Decision**: A Quest Slot's identity is its `dayIndex`; its calendar `date` is a mutable schedule field. `rescheduleCurrentQuest(roadmap, currentDayIndex, newDate, today)` is deterministic shared Domain logic. It rejects an absent / Boss current slot, invalid or nonexistent strict `YYYY-MM-DD`, a new date before browser-local `today`, or before the current slot. The same date is an unchanged no-op; future dates have no configured maximum.
+- **Decision**: For a positive calendar shift, preserve completed past slots and add the same number of calendar days to the current and every subsequent Daily Slot plus `roadmap.boss.date`. Keep array order/count, `dayIndex`, Training / Recovery type, `sessionFocus`, `bossMainExposure`, Main Strength, Stage Target, `startDate` (original Stage start), `durationDays` (original base duration / slot count), and `generationRuleVersion`. The actual scheduled Boss date is `roadmap.boss.date`. Repeated rescheduling shifts only the then-current slot and later slots.
+- **Decision**: The server Stage Program snapshot validator accepts canonical dates or a canonical delay schedule: each actual daily date's offset from `startDate + dayIndex` is nonnegative and non-decreasing; Boss offset from `startDate + durationDays` equals the last Daily Slot's offset. Daily count / type, D-032 focus and Boss exposure, generation inputs and all other canonical validations remain enforced.
+- **Decision**: Current Training and Recovery Quest surfaces provide a secondary `日程を変更` action, not shown for Boss. Its mobile-first sheet uses browser-local `today` as the minimum input date, while shared Domain independently validates. On success only the React Adventure Session Roadmap is atomically replaced. Progress, `planByDay[dayIndex]`, Workout Results, Equipment Profile, Stage Program context, quest contents, and Map Node identity / position are preserved. No quest completion, reward, AI call, or regeneration occurs.
+- **Decision**: No database, localStorage, schedule history, or persistence is introduced. Reload / lifecycle persistence remains outside this MVP.
+- **Alternatives**: Swapping Training and Recovery, moving a quest to a different Node, inserting / deleting / sorting nodes, regenerating plans, AI schedule adjustment, changing `durationDays`, and altering `currentDayIndex` are not adopted.
+- **Consequence**: D-034 supersedes only D-026's former Production swap rule. D-026's canonical generation, offset, focus, and initial Boss date remain unchanged. D-027's index-based progress remains unchanged; an explicit date update does not complete or advance a Quest.
+- **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/DECISIONS.md`, shared Stage Roadmap Domain / tests, Stage Program request validation / tests, Adventure Quest context, Current Quest UI / tests.
+- **Date**: 2026-09-24

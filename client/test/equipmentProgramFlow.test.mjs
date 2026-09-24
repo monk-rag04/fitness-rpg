@@ -305,3 +305,29 @@ test('missing session context and cache failure never request or expose a partia
   assert.deepEqual(cacheFailure.states, ['generating', 'error']);
   assert.equal(cacheFailure.readyCalls, 0);
 });
+
+test('Current Training and Recovery quests show the reschedule action while Boss does not', () => {
+  const roadmap = createRoadmap();
+  const markupAt = (currentDayIndex) => {
+    const node = roadmap.days[currentDayIndex];
+    const baseSession = createOnboardingAdventureSession({
+      roadmap,
+      initialProgress: { currentDayIndex },
+    });
+    const session = {
+      ...baseSession,
+      planByDay: node?.type === 'training' ? { [currentDayIndex]: DEMO_TRAINING_PLAN } : {},
+    };
+    return renderToStaticMarkup(createElement(
+      AdventureQuestProvider,
+      { session },
+      createElement(CurrentQuest),
+    ));
+  };
+
+  const trainingIndex = roadmap.days.findIndex((day) => day.type === 'training');
+  const recoveryIndex = roadmap.days.findIndex((day) => day.type === 'recovery');
+  assert.match(markupAt(trainingIndex), /日程を変更/);
+  assert.match(markupAt(recoveryIndex), /日程を変更/);
+  assert.doesNotMatch(markupAt(roadmap.days.length), /日程を変更/);
+});

@@ -133,7 +133,7 @@ Step 3:
 
 Production UIはsharedが生成した`durationDays`件のCalendar Dayと、その翌日のBoss Anchorを表示する。Training / Recoveryの配置は`trainingFrequencyPerWeek`から決定論的に得る。Training DayにはMain ExerciseのPrimary Muscle由来のSession Focusだけを表示用に受け渡せるが、Exercise list、sets、reps、weight、Movement PatternはこのRoadmapの出力に含めない。Boss AnchorはStage Targetと同じRequirementを示す境界であり、Boss State / Shield / Defeatedを表すものではない。
 
-UIが提供する将来日の変更は、同一Roadmap内でTraining Dayと後続Recovery Dayをswapする操作だけである。変更後もTraining数、Boss date、Duration、Stage Targetは不変であり、Quest Clear、EXP、Map Position、e1RM、Workout Result、Boss Stateを更新しない。永続化、過去日・完了日の扱い、競合、再計画UI、AIによる提案は未決定である。
+日付の変更UIはD-034に従い、現在のDaily Questを未来へ延期する。Current Slotから後ろの各日付とBoss dateを同じカレンダー日数だけずらし、完了済み過去Slotは保持する。Quest Type、Node順・位置、Focus、Boss exposure、Current index、Progress、Training Program / Workout Resultは変わらない。TrainingとRecoveryをswapするUIではない。
 
 ### D-027 Quest / Map View Boundary
 
@@ -224,12 +224,14 @@ Recovery has no MVP checklist. The user explicitly clears the current Recovery n
 - 移動先Quest完了時、`mapPosition`を移動先の次まで進めるため、間のNodeをまとめて飛ばし得る。
 - `schedule`配列はStateにあるが、Reschedule処理では更新されず、UIにも週間Scheduleとして表示されない。
 
-### Production要件
+### D-034 Production UI
 
-- 変更前後の計画、理由、提案、ユーザー確定を区別する。
-- Schedule変更TransactionとQuest完了Transactionを分離する。
-- 再計画後も日付順・休養制約・Stage期限・Map進行の整合性を保つ。
-- 移動先の完了で未完了日を暗黙にClearしない。
+- Current Training QuestとCurrent Recovery Questに、Primary Clear CTAより控えめな「日程を変更」Secondary Actionを表示する。Boss Anchorには表示しない。
+- 操作はMobile-first Bottom Sheet / Modalで行い、「QUESTの日程を変更」、現在日、日付入力、延期内容、進行・Training内容が変わらない旨、「この日付に変更」「キャンセル」を示す。
+- 日付入力の最小値はBrowser local todayとCurrent Slot日付の遅い方。Current日付そのものは変更なしなのでConfirmを無効にする。UI制約に加えてshared Domainでも厳格な日付・過去日検証を行う。
+- 成功時はSheetを閉じ、同じQuest Slotの表示日だけ更新する。Mapへ戻っても同じNodeがCurrentのまま。追加Toastは表示しない。
+- 不正日付は短い日本語Errorで伝える。内部Validation code / field / stackは表示しない。
+- 変更Stateは画面離脱・Reload後まで永続化しない。`figma-reference/`に見られるNode swap / 移動先選択 / 以後のAI再計画のPrototype挙動は採用しない。
 
 ## Quest Clear / EXP / Level Up
 

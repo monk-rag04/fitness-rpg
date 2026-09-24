@@ -134,20 +134,19 @@ export class StageRoadmapValidationError extends Error {
   }
 }
 
-export type StageRoadmapRescheduleErrorCode =
+export type CurrentQuestRescheduleErrorCode =
   | 'INVALID_DATE'
-  | 'SOURCE_EQUALS_TARGET'
-  | 'DATE_OUTSIDE_ROADMAP'
-  | 'SOURCE_NOT_TRAINING'
-  | 'TARGET_NOT_RECOVERY'
-  | 'TARGET_NOT_FUTURE'
-  | 'TARGET_IS_BOSS_DATE';
+  | 'INVALID_CURRENT_DAY_INDEX'
+  | 'CURRENT_QUEST_UNAVAILABLE'
+  | 'DATE_BEFORE_TODAY'
+  | 'DATE_BEFORE_CURRENT_QUEST'
+  | 'DATE_OUT_OF_RANGE';
 
-export class StageRoadmapRescheduleError extends Error {
-  public readonly name = 'StageRoadmapRescheduleError';
+export class CurrentQuestRescheduleError extends Error {
+  public readonly name = 'CurrentQuestRescheduleError';
 
-  public constructor(public readonly code: StageRoadmapRescheduleErrorCode) {
-    super(`Invalid stage roadmap reschedule request: ${code}`);
+  public constructor(public readonly code: CurrentQuestRescheduleErrorCode) {
+    super(`Invalid current quest reschedule request: ${code}`);
   }
 }
 
@@ -192,14 +191,46 @@ function formatLocalDate(date: Date): LocalDate {
   return `${year}-${month}-${day}`;
 }
 
-function addLocalDays(startDate: LocalDate, days: number): LocalDate {
+export function addLocalDays(startDate: LocalDate, days: number): LocalDate {
   const parts = parseLocalDate(startDate);
   if (parts === null) throw new StageRoadmapValidationError('INVALID_START_DATE');
+  if (!Number.isSafeInteger(days)) throw new RangeError('Calendar day offset must be a safe integer.');
   const date = new Date(0);
   date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() + days);
-  return formatLocalDate(date);
+  const result = formatLocalDate(date);
+  if (parseLocalDate(result) === null) throw new RangeError('Calendar day result is outside LocalDate range.');
+  return result;
+}
+
+/** Compare strict YYYY-MM-DD values without parsing them as local-time Date strings. */
+export function compareLocalDates(left: LocalDate, right: LocalDate): -1 | 0 | 1 {
+  if (parseLocalDate(left) === null || parseLocalDate(right) === null) {
+    throw new StageRoadmapValidationError('INVALID_START_DATE');
+  }
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function localDateOrdinal(parts: LocalDateParts): number {
+  let year = parts.year;
+  const adjustedYear = year - (parts.month <= 2 ? 1 : 0);
+  const era = Math.floor(adjustedYear / 400);
+  year = adjustedYear - era * 400;
+  const shiftedMonth = parts.month + (parts.month > 2 ? -3 : 9);
+  const dayOfYear = Math.floor((153 * shiftedMonth + 2) / 5) + parts.day - 1;
+  const dayOfEra = year * 365 + Math.floor(year / 4) - Math.floor(year / 100) + dayOfYear;
+  return era * 146097 + dayOfEra;
+}
+
+/** Return the signed Gregorian calendar-day distance `later - earlier`, without milliseconds or timezone. */
+export function differenceLocalDays(later: LocalDate, earlier: LocalDate): number {
+  const laterParts = parseLocalDate(later);
+  const earlierParts = parseLocalDate(earlier);
+  if (laterParts === null || earlierParts === null) {
+    throw new StageRoadmapValidationError('INVALID_START_DATE');
+  }
+  return localDateOrdinal(laterParts) - localDateOrdinal(earlierParts);
 }
 
 function isRoadmapDurationDays(value: unknown): value is RoadmapDurationDays {
@@ -319,60 +350,45 @@ export function generateStageRoadmap(input: unknown): StageRoadmap {
   };
 }
 
-function assertRescheduleDate(value: unknown): asserts value is LocalDate {
-  if (parseLocalDate(value) === null) throw new StageRoadmapRescheduleError('INVALID_DATE');
-}
-
-/**
- * Move one training day's focus to a later recovery day without changing the
- * stage duration, boss anchor, target, or any game state.
- */
-export function rescheduleTrainingDay(
+/** Delay the current Daily Quest slot and every subsequent slot by the same calendar-day offset. */
+export function rescheduleCurrentQuest(
   roadmap: StageRoadmap,
-  sourceDate: LocalDate,
-  targetDate: LocalDate,
+  currentDayIndex: number,
+  newDate: LocalDate,
+  today: LocalDate,
 ): StageRoadmap {
-  assertRescheduleDate(sourceDate);
-  assertRescheduleDate(targetDate);
-  if (sourceDate === targetDate) throw new StageRoadmapRescheduleError('SOURCE_EQUALS_TARGET');
-  if (targetDate === roadmap.boss.date) throw new StageRoadmapRescheduleError('TARGET_IS_BOSS_DATE');
+  if (parseLocalDate(newDate) === null || parseLocalDate(today) === null) {
+    throw new CurrentQuestRescheduleError('INVALID_DATE');
+  }
+  if (!Number.isSafeInteger(currentDayIndex) || currentDayIndex < 0) {
+    throw new CurrentQuestRescheduleError('INVALID_CURRENT_DAY_INDEX');
+  }
+  if (currentDayIndex >= roadmap.days.length) {
+    throw new CurrentQuestRescheduleError('CURRENT_QUEST_UNAVAILABLE');
+  }
+  const currentQuest = roadmap.days[currentDayIndex];
+  if (currentQuest === undefined) {
+    throw new CurrentQuestRescheduleError('CURRENT_QUEST_UNAVAILABLE');
+  }
+  if (parseLocalDate(currentQuest.date) === null) {
+    throw new CurrentQuestRescheduleError('INVALID_DATE');
+  }
+  if (compareLocalDates(newDate, today) < 0) {
+    throw new CurrentQuestRescheduleError('DATE_BEFORE_TODAY');
+  }
+  if (compareLocalDates(newDate, currentQuest.date) < 0) {
+    throw new CurrentQuestRescheduleError('DATE_BEFORE_CURRENT_QUEST');
+  }
+  if (newDate === currentQuest.date) return roadmap;
 
-  const sourceIndex = roadmap.days.findIndex((day) => day.date === sourceDate);
-  const targetIndex = roadmap.days.findIndex((day) => day.date === targetDate);
-  if (sourceIndex < 0 || targetIndex < 0) throw new StageRoadmapRescheduleError('DATE_OUTSIDE_ROADMAP');
-  if (targetDate <= sourceDate) throw new StageRoadmapRescheduleError('TARGET_NOT_FUTURE');
-
-  const source = roadmap.days[sourceIndex];
-  const target = roadmap.days[targetIndex];
-  if (source.type !== 'training') throw new StageRoadmapRescheduleError('SOURCE_NOT_TRAINING');
-  if (target.type !== 'recovery') throw new StageRoadmapRescheduleError('TARGET_NOT_RECOVERY');
-
-  const movedFocus: StageSessionFocus = {
-    targetMuscles: [...source.sessionFocus.targetMuscles],
-    ...(source.sessionFocus.targetMovementPatterns === undefined
-      ? {}
-      : { targetMovementPatterns: [...source.sessionFocus.targetMovementPatterns] }),
-  };
-  const movedExposure = source.bossMainExposure;
-  const days = roadmap.days.map((day, index): StageRoadmapDay => {
-    if (index === sourceIndex) return { date: day.date, type: 'recovery' };
-    if (index === targetIndex) {
-      return { date: day.date, type: 'training', sessionFocus: movedFocus, bossMainExposure: movedExposure };
-    }
-    return day.type === 'training'
-      ? {
-        date: day.date,
-        type: 'training',
-        sessionFocus: {
-          targetMuscles: [...day.sessionFocus.targetMuscles],
-          ...(day.sessionFocus.targetMovementPatterns === undefined
-            ? {}
-            : { targetMovementPatterns: [...day.sessionFocus.targetMovementPatterns] }),
-        },
-        bossMainExposure: day.bossMainExposure,
-      }
-      : { date: day.date, type: 'recovery' };
-  });
-
-  return { ...roadmap, days, boss: { ...roadmap.boss } };
+  const shiftDays = differenceLocalDays(newDate, currentQuest.date);
+  try {
+    const days = roadmap.days.map((day, index) => index < currentDayIndex
+      ? day
+      : { ...day, date: addLocalDays(day.date, shiftDays) });
+    const boss = { ...roadmap.boss, date: addLocalDays(roadmap.boss.date, shiftDays) };
+    return { ...roadmap, days, boss };
+  } catch {
+    throw new CurrentQuestRescheduleError('DATE_OUT_OF_RANGE');
+  }
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildTrainingCandidates,
+  addLocalDays,
   EQUIPMENT_IDS,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
@@ -79,6 +80,21 @@ function validRequest(roadmap = createRoadmap()) {
   };
 }
 
+function roadmapWithDelayOffsets(roadmap, offsets) {
+  const days = roadmap.days.map((day, index) => ({
+    ...day,
+    date: addLocalDays(addLocalDays(roadmap.startDate, index), offsets[index]),
+  }));
+  return {
+    ...roadmap,
+    days,
+    boss: {
+      ...roadmap.boss,
+      date: addLocalDays(roadmap.boss.date, offsets.at(-1)),
+    },
+  };
+}
+
 async function callEndpoint(app, body, raw = false) {
   const server = app.listen(0, '127.0.0.1');
   try {
@@ -126,6 +142,65 @@ test('valid request returns only the validated Stage Program and calls generatio
   assert.equal(fake.getProviderCalls(), 1);
   assert.deepEqual(fake.calls[0].equipmentProfile.availableEquipmentIds, EQUIPMENT_IDS);
   assert.equal(Object.hasOwn(result.body, 'candidates'), false);
+});
+
+test('accepts canonical, single-delay-block, and repeated-delay schedules', async () => {
+  const roadmap = createRoadmap();
+  const patterns = [
+    Array.from({ length: roadmap.durationDays }, () => 0),
+    [0, 0, ...Array.from({ length: roadmap.durationDays - 2 }, () => 2)],
+    [0, 0, 2, ...Array.from({ length: roadmap.durationDays - 3 }, () => 5)],
+  ];
+  for (const offsets of patterns) {
+    const delayed = roadmapWithDelayOffsets(roadmap, offsets);
+    const fake = createFakeStageGenerator();
+    const result = await callEndpoint(createApp(undefined, undefined, fake.generator), validRequest(delayed));
+    assert.equal(result.status, 200);
+    assert.equal(fake.getProviderCalls(), 1);
+  }
+});
+
+test('rejects negative and decreasing delay offsets, and a Boss delay that differs from the final slot', async () => {
+  const roadmap = createRoadmap();
+  const cases = [
+    roadmapWithDelayOffsets(roadmap, [-1, ...Array.from({ length: roadmap.durationDays - 1 }, () => 0)]),
+    roadmapWithDelayOffsets(roadmap, [0, 2, 1, ...Array.from({ length: roadmap.durationDays - 3 }, () => 1)]),
+    { ...roadmap, boss: { ...roadmap.boss, date: addLocalDays(roadmap.boss.date, 1) } },
+  ];
+  for (const invalidRoadmap of cases) {
+    const result = await callEndpoint(createApp(undefined, undefined, async () => {
+      throw new Error('must not be called');
+    }), validRequest(invalidRoadmap));
+    assert.equal(result.status, 400);
+    assert.deepEqual(result.body, { error: { code: 'INVALID_REQUEST' } });
+  }
+});
+
+test('rejects altered daily count, type, and D-032 session focus or Boss exposure', async () => {
+  const roadmap = createRoadmap();
+  const trainingIndex = roadmap.days.findIndex((day) => day.type === 'training');
+  const recoveryIndex = roadmap.days.findIndex((day) => day.type === 'recovery');
+  const changedTraining = roadmap.days[trainingIndex];
+  const cases = [
+    { ...roadmap, days: roadmap.days.slice(1) },
+    { ...roadmap, days: roadmap.days.map((day, index) => index === trainingIndex ? { date: day.date, type: 'recovery' } : day) },
+    { ...roadmap, days: roadmap.days.map((day, index) => index === trainingIndex
+      ? { ...day, sessionFocus: { ...day.sessionFocus, targetMuscles: ['calves'] } }
+      : day) },
+    { ...roadmap, days: roadmap.days.map((day, index) => index === trainingIndex
+      ? { ...day, bossMainExposure: !day.bossMainExposure }
+      : day) },
+    { ...roadmap, days: roadmap.days.map((day, index) => index === recoveryIndex
+      ? { ...day, type: 'training', sessionFocus: changedTraining.sessionFocus, bossMainExposure: changedTraining.bossMainExposure }
+      : day) },
+  ];
+  for (const invalidRoadmap of cases) {
+    const result = await callEndpoint(createApp(undefined, undefined, async () => {
+      throw new Error('must not be called');
+    }), validRequest(invalidRoadmap));
+    assert.equal(result.status, 400);
+    assert.deepEqual(result.body, { error: { code: 'INVALID_REQUEST' } });
+  }
 });
 
 test('twelve Training Days still use one Stage generation operation', async () => {

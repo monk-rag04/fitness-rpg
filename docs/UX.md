@@ -186,6 +186,14 @@ For Training, all planned main and accessory exercises show completion only as d
 - Push-up、Pull-up、Glute Bridgeではkg自己申告を求めず、「初めて」の案内を基本表示する。Baseline設定後はPanelを隠し、既存のSet記録フォームを維持する。Baseline値をWorkout inputへ自動入力しない。
 - Baseline登録はEXP、Quest Clear、Map進行を発生させない。最初の有効Workout ResultからBaselineが取れた場合は記録後にPanelを隠す。
 
+### D-036 Task 4F: Exercise difficulty feedback
+
+- 各ExerciseのSET入力欄の下に「今回の負荷は？」と「任意」を表示し、「きつすぎた」「ちょうどいい」「余裕あり」の3つから選べる。
+- 未選択でも記録とQUEST CLEARが可能であることを短く示す。Feedbackだけを先に確定せず、「記録する」とSet実績を一緒に保存する。
+- 既存Resultを編集するときはFeedbackを復元し、選択を変更または解除できる。選択中は`aria-pressed`とborder / inset stateで明確にし、色だけに依存しない。
+- 375〜430pxのMobile幅で3択とRecord CTAをカード内に収める。FeedbackはResult単位であり、Setごとの欄にはしない。
+- 現時点では記録専用で、Baseline、Quest Clear条件、EXP / Reward、Suggested Weight / Reps、Progressionに影響させない。Session内だけで保持し、Persistenceは追加しない。
+
 ## Recovery Quest UX
 
 ### Prototype確認

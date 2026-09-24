@@ -17,6 +17,8 @@ export interface CompletedSetRecord {
   readonly reps: number;
 }
 
+export type ExerciseDifficultyFeedback = 'too_hard' | 'just_right' | 'easy';
+
 /**
  * A completed exercise result. This is a domain boundary, not a persistence
  * draft and not a Quest Clear result.
@@ -28,6 +30,8 @@ export interface ExerciseWorkoutResult {
   readonly plannedSets: number;
   readonly plannedRepRange: RepRange;
   readonly completedSets: readonly CompletedSetRecord[];
+  /** Optional effort feedback for this exercise result, not an individual Set. */
+  readonly difficultyFeedback?: ExerciseDifficultyFeedback;
   /** A parseable timestamp string; persistence's canonical format is still undecided. */
   readonly performedAt: string;
 }
@@ -46,6 +50,7 @@ export type WorkoutResultValidationErrorCode =
   | 'DUPLICATE_SET_NUMBER'
   | 'INVALID_WEIGHT_KG'
   | 'INVALID_REPS'
+  | 'INVALID_DIFFICULTY_FEEDBACK'
   | 'INVALID_PERFORMED_AT';
 
 export interface WorkoutResultValidationError {
@@ -86,6 +91,10 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function isRole(value: unknown): value is PlannedExerciseRole {
   return value === 'main' || value === 'accessory';
+}
+
+function isExerciseDifficultyFeedback(value: unknown): value is ExerciseDifficultyFeedback {
+  return value === 'too_hard' || value === 'just_right' || value === 'easy';
 }
 
 function isExerciseId(value: unknown): value is ExerciseId {
@@ -140,6 +149,7 @@ export function validateExerciseWorkoutResult(
       'plannedSets',
       'plannedRepRange',
       'completedSets',
+      'difficultyFeedback',
       'performedAt',
     ],
     'workoutResult',
@@ -153,6 +163,7 @@ export function validateExerciseWorkoutResult(
     plannedSets,
     plannedRepRange,
     completedSets,
+    difficultyFeedback,
     performedAt,
   } = input;
 
@@ -176,6 +187,9 @@ export function validateExerciseWorkoutResult(
   }
   if (!isTimestamp(performedAt)) {
     errors.push({ code: 'INVALID_PERFORMED_AT', path: 'performedAt' });
+  }
+  if (difficultyFeedback !== undefined && !isExerciseDifficultyFeedback(difficultyFeedback)) {
+    errors.push({ code: 'INVALID_DIFFICULTY_FEEDBACK', path: 'difficultyFeedback' });
   }
 
   const validatedSets: CompletedSetRecord[] = [];
@@ -220,6 +234,7 @@ export function validateExerciseWorkoutResult(
     !isRole(role) ||
     !isPositiveInteger(plannedSets) ||
     !isRepRange(plannedRepRange) ||
+    (difficultyFeedback !== undefined && !isExerciseDifficultyFeedback(difficultyFeedback)) ||
     !isTimestamp(performedAt)
   ) {
     return { valid: false, errors };
@@ -234,6 +249,7 @@ export function validateExerciseWorkoutResult(
       plannedSets,
       plannedRepRange: { min: plannedRepRange.min, max: plannedRepRange.max },
       completedSets: validatedSets.sort((a, b) => a.setNumber - b.setNumber),
+      ...(difficultyFeedback === undefined ? {} : { difficultyFeedback }),
       performedAt,
     },
   };

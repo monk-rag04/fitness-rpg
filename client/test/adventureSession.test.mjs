@@ -19,6 +19,7 @@ import {
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
   rescheduleCurrentQuest,
+  validateExerciseWorkoutResult,
 } from '@fitness-rpg/shared';
 
 function createRoadmap() {
@@ -191,6 +192,70 @@ test('saving or replacing a Workout Result never awards EXP before Quest Clear',
   const edited = saveCompleteDemoResults(recorded);
   assert.deepEqual(edited.characterGrowth, initial.characterGrowth);
   assert.ok(Object.values(recorded.exerciseProgressById).every((progress) => progress.sessionsCompleted === 0));
+});
+
+test('difficulty feedback is saved and edited with its Workout Result, and clearing it removes the old value', () => {
+  const initial = createRewardTestDomain();
+  const input = {
+    plannedExerciseId: 'barbell_bench_press',
+    performedExerciseId: 'dumbbell_bench_press',
+    role: 'main',
+    plannedSets: 3,
+    plannedRepRange: { min: 8, max: 12 },
+    completedSets: [{ setNumber: 1, weightKg: 20, reps: 10 }],
+    performedAt: '2026-09-24T10:00:00.000Z',
+    difficultyFeedback: 'just_right',
+  };
+  const firstValidation = validateExerciseWorkoutResult(input);
+  assert.equal(firstValidation.valid, true);
+  const first = saveWorkoutResultForCurrentDay(initial, firstValidation.value);
+  const firstStored = first.workoutResultsByDay[0].barbell_bench_press;
+  const firstBaseline = first.exerciseProgressById.dumbbell_bench_press.baseline;
+  assert.equal(firstStored.difficultyFeedback, 'just_right');
+  assert.equal(firstStored.performedExerciseId, 'dumbbell_bench_press');
+
+  const editedValidation = validateExerciseWorkoutResult({
+    ...input,
+    completedSets: [{ setNumber: 1, weightKg: 22, reps: 9 }],
+    performedAt: '2026-09-24T10:05:00.000Z',
+    difficultyFeedback: 'easy',
+  });
+  assert.equal(editedValidation.valid, true);
+  const edited = saveWorkoutResultForCurrentDay(first, editedValidation.value);
+  assert.equal(edited.workoutResultsByDay[0].barbell_bench_press.difficultyFeedback, 'easy');
+  assert.equal(edited.workoutResultsByDay[0].barbell_bench_press.performedExerciseId, 'dumbbell_bench_press');
+
+  const clearedValidation = validateExerciseWorkoutResult({
+    ...input,
+    performedAt: '2026-09-24T10:10:00.000Z',
+    difficultyFeedback: undefined,
+  });
+  assert.equal(clearedValidation.valid, true);
+  const cleared = saveWorkoutResultForCurrentDay(edited, clearedValidation.value);
+  assert.equal(Object.hasOwn(cleared.workoutResultsByDay[0].barbell_bench_press, 'difficultyFeedback'), false);
+  assert.deepEqual(cleared.exerciseProgressById.dumbbell_bench_press.baseline, firstBaseline);
+  assert.deepEqual(initial.workoutResultsByDay, {});
+  assert.equal(cleared.characterGrowth, initial.characterGrowth);
+});
+
+test('optional difficulty feedback does not change Quest Clear or EXP rewards', () => {
+  const initial = createRewardTestDomain();
+  const recorded = saveCompleteDemoResults(initial);
+  const existingResult = recorded.workoutResultsByDay[0].barbell_bench_press;
+  const feedbackValidation = validateExerciseWorkoutResult({
+    ...existingResult,
+    difficultyFeedback: 'too_hard',
+  });
+  assert.equal(feedbackValidation.valid, true);
+  const withFeedback = saveWorkoutResultForCurrentDay(recorded, feedbackValidation.value);
+
+  const withoutFeedbackClear = completeAdventureQuest(recorded, 0);
+  const withFeedbackClear = completeAdventureQuest(withFeedback, 0);
+  assert.equal(withFeedbackClear.status, 'completed');
+  assert.deepEqual(withFeedbackClear.rewardSummary, withoutFeedbackClear.rewardSummary);
+  assert.deepEqual(withFeedbackClear.domain.characterGrowth, withoutFeedbackClear.domain.characterGrowth);
+  assert.deepEqual(withFeedbackClear.domain.exerciseProgressById, withoutFeedbackClear.domain.exerciseProgressById);
+  assert.equal(withFeedbackClear.domain.workoutResultsByDay[0].barbell_bench_press.difficultyFeedback, 'too_hard');
 });
 
 test('first Workout Result captures a baseline from the performed exercise and later results keep it fixed', () => {

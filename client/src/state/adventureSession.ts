@@ -58,11 +58,16 @@ export type AdventureQuestTransitionStatus =
   | 'invalid_reward_state'
   | 'invalid_day_index';
 
-export interface AdventureQuestRewardTransition {
-  readonly status: AdventureQuestTransitionStatus;
-  readonly domain: AdventureQuestDomainState;
-  readonly rewardSummary?: QuestRewardSummary;
-}
+export type AdventureQuestRewardTransition =
+  | {
+    readonly status: 'completed';
+    readonly domain: AdventureQuestDomainState;
+    readonly rewardSummary: QuestRewardSummary;
+  }
+  | {
+    readonly status: Exclude<AdventureQuestTransitionStatus, 'completed'>;
+    readonly domain: AdventureQuestDomainState;
+  };
 
 export function createAdventureQuestDomainState(
   session: AdventureQuestSession,

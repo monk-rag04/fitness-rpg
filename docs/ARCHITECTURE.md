@@ -234,9 +234,11 @@ MVPでIn-memory実装を使うか、最初からDatabaseを使うかは未決定
 
 ## Core Workflows
 
-### Quest completion (D-027 current boundary)
+### Quest completion (D-027 / D-035 current boundary)
 
-D-027では日別QuestのIdentityをRoadmap day indexとし、global Quest IDやAPI transactionはまだ導入しない。TrainingはWorkout Resultを評価して`readyToClear`を得た後、RecoveryはChecklistなしで、どちらも明示的Clear operationが成功したときだけ`currentDayIndex`を一つ進める。再送された過去indexは`already_completed`、未来indexは`not_current_quest`となりStateを変えない。EXP、HP、Reward、Level Up、永続化時のidempotency keyは後続の責務である。
+D-027では日別QuestのIdentityをRoadmap day indexとし、global Quest IDやAPI transactionはまだ導入しない。TrainingはWorkout Resultを評価して`readyToClear`を得た後、RecoveryはChecklistなしで、どちらも明示的Clear operationが成功したときだけ`currentDayIndex`を一つ進める。D-035ではその成功処理でProgress、Character Growth EXP、Reward Summaryを一つの純粋なDomain結果と一つのClient reducer transitionで確定する。再送された過去indexは`already_completed`となり、EXPとProgressを再適用しない。現段階ではSession内のみで、Level・永続化時のidempotency keyは未実装である。
+
+D-035のShared DomainはCatalog Exercise IDからversion付きPrimary EXP Categoryを決定し、Plan整合・substitution検証済みのWorkout Resultにある`1..plannedSets`のSetだけをTraining EXP対象とする。Recovery QuestはWorkout ResultなしでRecovery EXPを付与する。Reward Summaryは適用済みの増分snapshotで、PresentationがResultから再計算しない。EXP単価やquest typeはDomainのversion付きRuleに集約し、UIへ埋め込まない。
 
 ### Future API / persistence workflow
 

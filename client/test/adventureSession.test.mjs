@@ -2,18 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  completeAdventureQuest,
   cacheStageTrainingProgram,
   cacheTrainingPlanForDay,
+  createAdventureQuestDomainState,
   createOnboardingAdventureSession,
   getTrainingPlanForDay,
+  saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile,
 } from '../src/state/adventureSession.ts';
-import { DEMO_EQUIPMENT_PROFILE, DEMO_TRAINING_PLAN } from '../src/demo/fixture.ts';
+import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../src/demo/fixture.ts';
 import {
   createInitialStageProgress,
   EQUIPMENT_IDS,
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
+  rescheduleCurrentQuest,
 } from '@fitness-rpg/shared';
 
 function createRoadmap() {
@@ -72,6 +76,143 @@ test('onboarding session begins with an empty day-based Plan cache and no Demo f
   assert.deepEqual(session.planByDay, {});
   assert.equal(getTrainingPlanForDay(roadmap, session.planByDay, firstTrainingDay), null);
   assert.equal(session.equipmentProfile, undefined);
+});
+
+function createRewardTestDomain(roadmap = DEMO_STAGE_ROADMAP, progress = createInitialStageProgress(roadmap)) {
+  return createAdventureQuestDomainState({
+    source: 'demo',
+    roadmap,
+    initialProgress: progress,
+    planByDay: { 0: DEMO_TRAINING_PLAN },
+    equipmentProfile: DEMO_EQUIPMENT_PROFILE,
+  });
+}
+
+function saveCompleteDemoResults(domain, dayIndex = domain.progress.currentDayIndex) {
+  const plan = domain.planByDay[dayIndex];
+  return plan.exercises.reduce((nextDomain, exercise) => saveWorkoutResultForCurrentDay(nextDomain, {
+    plannedExerciseId: exercise.exerciseId,
+    performedExerciseId: exercise.exerciseId,
+    role: exercise.role,
+    plannedSets: exercise.sets,
+    plannedRepRange: exercise.repRange,
+    completedSets: Array.from({ length: exercise.sets }, (_, index) => ({
+      setNumber: index + 1,
+      weightKg: 30,
+      reps: exercise.repRange.min,
+    })),
+    performedAt: '2026-09-24T10:00:00.000Z',
+  }), domain);
+}
+
+test('new Adventure domain state initializes Character Growth at zero', () => {
+  const state = createRewardTestDomain();
+  assert.deepEqual(state.characterGrowth, {
+    trainingExp: { chest: 0, back: 0, shoulders: 0, arms: 0, legs: 0 },
+    recoveryExp: 0,
+  });
+});
+
+test('saving or replacing a Workout Result never awards EXP before Quest Clear', () => {
+  const initial = createRewardTestDomain();
+  const recorded = saveCompleteDemoResults(initial);
+  assert.deepEqual(recorded.characterGrowth, initial.characterGrowth);
+  assert.notEqual(recorded.workoutResultsByDay, initial.workoutResultsByDay);
+  const edited = saveCompleteDemoResults(recorded);
+  assert.deepEqual(edited.characterGrowth, initial.characterGrowth);
+});
+
+test('Training Quest completion applies progress, growth, and summary in one transition', () => {
+  const initial = createRewardTestDomain();
+  const recorded = saveCompleteDemoResults(initial);
+  const snapshots = {
+    roadmap: recorded.roadmap,
+    planByDay: recorded.planByDay,
+    results: recorded.workoutResultsByDay,
+    equipment: recorded.equipmentProfile,
+    context: recorded.stageTrainingProgramContext,
+  };
+
+  const completed = completeAdventureQuest(recorded, 0);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.domain.progress.currentDayIndex, 1);
+  assert.deepEqual(completed.domain.characterGrowth.trainingExp, {
+    chest: 40,
+    back: 0,
+    shoulders: 0,
+    arms: 0,
+    legs: 0,
+  });
+  assert.equal(completed.domain.characterGrowth.recoveryExp, 0);
+  assert.deepEqual(completed.rewardSummary, {
+    dayIndex: 0,
+    questType: 'training',
+    trainingExpGained: { chest: 40 },
+    recoveryExpGained: 0,
+    mapProgressGained: 1,
+  });
+  assert.equal(completed.domain.roadmap, snapshots.roadmap);
+  assert.equal(completed.domain.planByDay, snapshots.planByDay);
+  assert.equal(completed.domain.workoutResultsByDay, snapshots.results);
+  assert.equal(completed.domain.equipmentProfile, snapshots.equipment);
+  assert.equal(completed.domain.stageTrainingProgramContext, snapshots.context);
+});
+
+test('replaying the same Training completion cannot award growth or progress twice', () => {
+  const recorded = saveCompleteDemoResults(createRewardTestDomain());
+  const completed = completeAdventureQuest(recorded, 0);
+  const replayed = completeAdventureQuest(completed.domain, 0);
+
+  assert.equal(replayed.status, 'already_completed');
+  assert.equal(replayed.domain, completed.domain);
+  assert.deepEqual(replayed.domain.characterGrowth, completed.domain.characterGrowth);
+  assert.deepEqual(replayed.domain.progress, { currentDayIndex: 1 });
+});
+
+test('Recovery Quest completion grants only Recovery EXP and is idempotent', () => {
+  const recoveryIndex = DEMO_STAGE_ROADMAP.days.findIndex((day) => day.type === 'recovery');
+  const initial = createRewardTestDomain(
+    DEMO_STAGE_ROADMAP,
+    { currentDayIndex: recoveryIndex },
+  );
+  const completed = completeAdventureQuest(initial, recoveryIndex);
+  const replayed = completeAdventureQuest(completed.domain, recoveryIndex);
+
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.domain.progress.currentDayIndex, recoveryIndex + 1);
+  assert.equal(completed.domain.characterGrowth.recoveryExp, 10);
+  assert.deepEqual(completed.domain.characterGrowth.trainingExp, initial.characterGrowth.trainingExp);
+  assert.deepEqual(completed.rewardSummary, {
+    dayIndex: recoveryIndex,
+    questType: 'recovery',
+    trainingExpGained: {},
+    recoveryExpGained: 10,
+    mapProgressGained: 1,
+  });
+  assert.equal(replayed.status, 'already_completed');
+  assert.equal(replayed.domain, completed.domain);
+});
+
+test('rescheduling preserves day-index reward identity and the cached plan/result', () => {
+  const initial = saveCompleteDemoResults(createRewardTestDomain());
+  const shiftedRoadmap = rescheduleCurrentQuest(initial.roadmap, 0, '2026-09-24', '2026-09-22');
+  const rescheduled = { ...initial, roadmap: shiftedRoadmap };
+  const completed = completeAdventureQuest(rescheduled, 0);
+
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.rewardSummary.dayIndex, 0);
+  assert.equal(completed.domain.progress.currentDayIndex, 1);
+  assert.equal(completed.domain.planByDay, initial.planByDay);
+  assert.equal(completed.domain.workoutResultsByDay, initial.workoutResultsByDay);
+});
+
+test('an invalid completion leaves progress and growth untouched', () => {
+  const initial = createRewardTestDomain();
+  const failed = completeAdventureQuest(initial, 0);
+  assert.equal(failed.status, 'not_ready_to_clear');
+  assert.equal(failed.domain, initial);
+  assert.equal(failed.domain.progress, initial.progress);
+  assert.equal(failed.domain.characterGrowth, initial.characterGrowth);
 });
 
 test('a validated plan is cached and read only for its Training Day', () => {

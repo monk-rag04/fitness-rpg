@@ -354,12 +354,14 @@ TrendはStrengthRecord等から集計し、固定配列を保存の正としな�
 
 **概念上の責務案**: 現実の身体とは別のゲーム内成長状態を表す。
 
+**D-035 MVPで決定済みのSession内State**: `CharacterGrowth`は5つの`trainingExp` category（chest / back / shoulders / arms / legs）と`recoveryExp`を持つ累積EXPだけを表し、初期値は全て0。Level、HP、Nutrition EXP、AppearanceはこのStateに含めない。ExerciseからPrimary Training EXP categoryへの対応は`exercise-exp-category-v1`、Quest rewardは`quest-reward-v1`で管理する。これはDatabase schemaや永続化Decisionではない。
+
 **Field候補**:
 
 - `userId`
 - `level`
 - `totalExp`
-- `trainingExp`
+- `trainingExp`: chest / back / shoulders / arms / legs別の累積整数EXP
 - `nutritionExp`
 - `recoveryExp`
 - `expIntoLevel`
@@ -368,7 +370,19 @@ TrendはStrengthRecord等から集計し、固定配列を保存の正としな�
 - `playStyleId`
 - `titleIds`
 
-EXP値、Level curve、HP、Appearance遷移は未決定。手動Appearance Toggleは保存しない。
+Level curve、HP、Appearance遷移と将来のEXP配分変更は未決定。手動Appearance Toggleは保存しない。
+
+### QuestRewardSummary（D-035 Session内結果）
+
+Quest Clear時の実適用RewardをPresentationへ渡す一時的なsnapshot。
+
+- `dayIndex`
+- `questType`: training / recovery
+- `trainingExpGained`: 今回増加したTraining categoryのみ
+- `recoveryExpGained`
+- `mapProgressGained`: 1
+
+Workout ResultやCalendar dateをQuest identityとして使わない。Progress、CharacterGrowth、Reward Summaryを同じClear transitionで更新し、Overlay表示・再表示では再付与しない。保存形式、取消・訂正履歴、永続化は未決定。
 
 ### BossProgress
 

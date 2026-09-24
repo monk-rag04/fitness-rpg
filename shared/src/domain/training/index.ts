@@ -12,4 +12,7 @@ export * from './workoutResult.js';
 export * from './stagePlanning.js';
 export * from './stageRoadmap.js';
 export * from './stageProgress.js';
+export * from './characterGrowth.js';
+export * from './exerciseExpCategory.js';
+export * from './questReward.js';
 export * from './onboardingRoadmap.js';

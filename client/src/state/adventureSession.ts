@@ -1,4 +1,12 @@
 import { EQUIPMENT_IDS } from '@fitness-rpg/shared';
+import {
+  completeRecoveryQuestWithReward,
+  completeTrainingQuestWithReward,
+  createInitialCharacterGrowth,
+  type CharacterGrowth,
+  type ExerciseWorkoutResult,
+  type QuestRewardSummary,
+} from '@fitness-rpg/shared';
 import type {
   EquipmentId,
   ExerciseId,
@@ -28,6 +36,109 @@ export interface AdventureQuestSession {
   readonly planByDay: TrainingPlanByDay;
   readonly equipmentProfile?: GymEquipmentProfile;
   readonly stageTrainingProgramContext?: StageTrainingProgramSessionContext;
+}
+
+/** In-memory domain state owned by the current Adventure Quest session. */
+export interface AdventureQuestDomainState {
+  readonly roadmap: StageRoadmap;
+  readonly progress: StageProgress;
+  readonly planByDay: TrainingPlanByDay;
+  readonly equipmentProfile: GymEquipmentProfile | undefined;
+  readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
+  readonly workoutResultsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>>;
+  readonly characterGrowth: CharacterGrowth;
+}
+
+export type AdventureQuestTransitionStatus =
+  | 'completed'
+  | 'already_completed'
+  | 'not_current_quest'
+  | 'wrong_quest_type'
+  | 'not_ready_to_clear'
+  | 'invalid_reward_state'
+  | 'invalid_day_index';
+
+export interface AdventureQuestRewardTransition {
+  readonly status: AdventureQuestTransitionStatus;
+  readonly domain: AdventureQuestDomainState;
+  readonly rewardSummary?: QuestRewardSummary;
+}
+
+export function createAdventureQuestDomainState(
+  session: AdventureQuestSession,
+): AdventureQuestDomainState {
+  return {
+    roadmap: session.roadmap,
+    progress: session.initialProgress,
+    planByDay: session.planByDay,
+    equipmentProfile: session.equipmentProfile,
+    stageTrainingProgramContext: session.stageTrainingProgramContext,
+    workoutResultsByDay: {},
+    characterGrowth: createInitialCharacterGrowth(),
+  };
+}
+
+/** Save a validated Result only; EXP is awarded later by successful Quest Clear. */
+export function saveWorkoutResultForCurrentDay(
+  domain: AdventureQuestDomainState,
+  result: ExerciseWorkoutResult,
+): AdventureQuestDomainState {
+  const dayIndex = domain.progress.currentDayIndex;
+  const resultsForDay = domain.workoutResultsByDay[dayIndex] ?? {};
+  return {
+    ...domain,
+    workoutResultsByDay: {
+      ...domain.workoutResultsByDay,
+      [dayIndex]: {
+        ...resultsForDay,
+        [result.plannedExerciseId]: result,
+      },
+    },
+  };
+}
+
+/**
+ * Re-evaluate a requested day against the supplied current state, then return
+ * progress and growth together. Failure preserves the exact input state.
+ */
+export function completeAdventureQuest(
+  domain: AdventureQuestDomainState,
+  requestedDayIndex: number,
+): AdventureQuestRewardTransition {
+  if (!Number.isSafeInteger(requestedDayIndex) ||
+      requestedDayIndex < 0 || requestedDayIndex >= domain.roadmap.days.length) {
+    return { status: 'invalid_day_index', domain };
+  }
+
+  const day = domain.roadmap.days[requestedDayIndex];
+  const results = Object.values(domain.workoutResultsByDay[requestedDayIndex] ?? {});
+  const completion = day.type === 'training'
+    ? completeTrainingQuestWithReward(
+      domain.roadmap,
+      domain.progress,
+      requestedDayIndex,
+      getTrainingPlanForDay(domain.roadmap, domain.planByDay, requestedDayIndex) ?? undefined,
+      results,
+      domain.equipmentProfile,
+      domain.characterGrowth,
+    )
+    : completeRecoveryQuestWithReward(
+      domain.roadmap,
+      domain.progress,
+      requestedDayIndex,
+      domain.characterGrowth,
+    );
+
+  if (completion.status !== 'completed') return { status: completion.status, domain };
+  return {
+    status: 'completed',
+    domain: {
+      ...domain,
+      progress: completion.progress,
+      characterGrowth: completion.characterGrowth,
+    },
+    rewardSummary: completion.rewardSummary,
+  };
 }
 
 /**

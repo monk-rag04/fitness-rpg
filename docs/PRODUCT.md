@@ -236,12 +236,15 @@ D-027 Recovery is also explicit: the user clears the current Recovery node witho
 - Character GrowthはCore Game Loopに含める。
 - Characterは現実の身体そのものではなく、別のゲーム内表現として扱う。
 - 手動の「標準 / 鍛錬後」切替はProduction仕様ではない。
+- D-035では、5つのTraining EXP（chest / back / shoulders / arms / legs）と独立したRecovery EXPを、明示的なQuest Clear成功時に累積する。Exerciseごとの主Category、1 planned setあたり5 EXP、Recovery Clearあたり10 EXPをversion付きDomain Ruleとして扱う。
+- Progress、Character Growth、実際に適用したReward Summaryは、1つのQuest completion state transitionで同時に確定する。Workout Result保存・編集だけではEXPを付与しない。
+- D-035 MVPのCharacter Growthは累積EXPのみで、Level化しない。値は現在のReact Adventure Session内に限り、永続化しない。
 
 **有力方針**: Character AppearanceをLevel / EXP等に応じて自動成長させる。ただし、連動指標、段階、遷移条件は未決定。
 
 **候補となる表示項目**: Level、Total EXP、Training EXP、Nutrition EXP、Recovery EXP、HP、Status、Play Style / Title、Appearance、Equipment。
 
-**未決定**: EXP値、Level curve、Appearance段階、Status計算、HPルール、Equipment効果。
+**未決定**: Level curve、Appearance段階、Status計算、HPルール、Equipment効果。EXPの将来のCategory配分変更や複数部位への比率配分も未決定。
 
 ## Play Style
 

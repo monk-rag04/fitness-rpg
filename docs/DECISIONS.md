@@ -455,6 +455,7 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-030としてEquipmentの初回Training Node収集、Main Exercise unavailable停止、Server-side Candidate Builder境界、Training Plan guardrail、明示Retry、day単位cache、React Session-only保持、当時のFigma未確定Equipment UI境界を採用。
 - 2026-09-22: D-031として1 Stage = 1 Training Program、Equipment確定後のStage-wide生成、全Training Day exact coverage、Atomic `planByDay` cache、Stage Program全体の明示Retryを採用。D-030のper-day生成 timing / generation retryだけをsupersedeし、Equipment・guardrail・fallback禁止・Session-only保持は維持。
 - 2026-09-24: D-034としてCurrent Quest Slotの日付延期、Current以降とBossの同日数shift、day-index identity、canonical delay validator、Training / Recovery QuestのMobile sheetを採用。D-026のProduction Schedule swapを置き換え、Progress / cache / Workout Result / Equipment stateは維持し、永続化は追加しない。
+- 2026-09-24: D-035としてExerciseごとの5種Training EXP Category、eligible planned setあたり5 EXP、Recovery Clearの10 EXP、dayIndex基準のAtomic Progress / Growth / Reward Summary更新を採用。Character GrowthはSession内の累積EXPのみとし、LevelとPersistenceは追加しない。
 
 ### D-032: Stage Training Program Balance and Boss Main Exposure
 
@@ -479,4 +480,16 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Alternatives**: Swapping Training and Recovery, moving a quest to a different Node, inserting / deleting / sorting nodes, regenerating plans, AI schedule adjustment, changing `durationDays`, and altering `currentDayIndex` are not adopted.
 - **Consequence**: D-034 supersedes only D-026's former Production swap rule. D-026's canonical generation, offset, focus, and initial Boss date remain unchanged. D-027's index-based progress remains unchanged; an explicit date update does not complete or advance a Quest.
 - **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/DECISIONS.md`, shared Stage Roadmap Domain / tests, Stage Program request validation / tests, Adventure Quest context, Current Quest UI / tests.
+- **Date**: 2026-09-24
+
+### D-035: Character Growth EXP and Atomic Quest Rewards
+
+- **Status**: Accepted (MVP)
+- **Context**: D-027 already advances one current Roadmap `dayIndex` only after explicit Training or Recovery Quest Clear. Workout Result is stored separately and can be edited before Clear. Character Growth needs a deterministic reward boundary that cannot grant EXP on save, extra sets, or repeated completion.
+- **Decision**: Shared Domain defines the five `TrainingExpCategory` values `chest`, `back`, `shoulders`, `arms`, and `legs`. A versioned `exercise-exp-category-v1` mapping assigns every Catalog Exercise ID to exactly one primary category. Unknown IDs have no fallback category and cannot receive a reward.
+- **Decision**: `quest-reward-v1` awards 5 Training EXP per valid completed planned Set and 10 Recovery EXP for a successfully cleared Recovery Quest. A Set is eligible only when its validated Set number is in `1..plannedSets`; partial planned Sets count, extra Set numbers do not count, and a valid Set remains eligible when its reps miss the planned rep range. Category attribution uses validated `performedExerciseId`, including only a substitution accepted by the existing Quest completion validation.
+- **Decision**: EXP is awarded only when explicit Quest completion succeeds. Recording or editing a Workout Result, opening or closing the overlay, rescheduling a Quest, and calendar date changes do not award EXP. `CharacterGrowth` contains only cumulative nonnegative integer EXP by the five Training categories and `recoveryExp`, initialized to zero; Level is not implemented.
+- **Decision**: A successful clear applies `StageProgress`, `CharacterGrowth`, and a `QuestRewardSummary` snapshot together in one pure Domain completion result and one current-state Client reducer transition. The `dayIndex` remains the identity, so an old-day replay is idempotently rejected. Summary data records the reward actually applied; Presentation does not recalculate it from Workout Results.
+- **Decision**: Growth state is held only in the in-memory React Adventure Session. No database, localStorage, or other persistence is introduced. D-023 e1RM, Stage Target, split/exposure, Stage Program, plan cache, Roadmap, Workout Result contents, overlay visuals, and AI prompts remain outside this decision.
+- **Consequence**: Adds versioned Shared mapping/reward helpers and zero-initialized Session state with regression tests. Exercise Progression, Baseline, Suggested Weight, Difficulty Feedback, Stage Growth Summary, Level, Boss evaluation, and Next Stage AI emphasis remain future tasks.
 - **Date**: 2026-09-24

@@ -11,6 +11,7 @@ import {
   type GymEquipmentProfile,
   type ExerciseWorkoutResult,
   type QuestCompletionResult,
+  type QuestRewardSummary,
   type StageRoadmap,
   type StageProgress,
   type ValidatedStageTrainingProgram,
@@ -28,10 +29,14 @@ import {
 import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '../demo/fixture';
 import {
   type AdventureQuestSession,
+  completeAdventureQuest,
+  createAdventureQuestDomainState,
   cacheStageTrainingProgram as cacheStageTrainingProgramForRoadmap,
   cacheTrainingPlanForDay as cacheTrainingPlanForRoadmapDay,
   getTrainingPlanForDay,
+  saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
+  type AdventureQuestDomainState,
   type StageEquipmentProfileStatus,
   type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
@@ -43,25 +48,15 @@ export { type AdventureQuestSession, createOnboardingAdventureSession } from './
 export type AppScreen = 'map' | 'quest';
 export type CurrentQuestRescheduleStatus = 'rescheduled' | 'unchanged' | 'invalid';
 
-interface DomainState {
-  readonly roadmap: StageRoadmap;
-  readonly progress: StageProgress;
-  readonly planByDay: Readonly<Partial<Record<number, ValidatedTrainingPlan>>>;
-  readonly equipmentProfile: GymEquipmentProfile | undefined;
-  readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
-  readonly workoutResultsByDay: Readonly<
-    Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>
-  >;
-}
-
 interface EphemeralUiState {
   readonly screen: AppScreen;
   readonly isClearFeedbackVisible: boolean;
+  readonly questRewardSummary: QuestRewardSummary | null;
   readonly validationMessage: string | null;
 }
 
 interface AdventureQuestState {
-  readonly domain: DomainState;
+  readonly domain: AdventureQuestDomainState;
   readonly ui: EphemeralUiState;
 }
 
@@ -70,10 +65,10 @@ type Action =
   | { readonly type: 'returnToMap' }
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
-  | { readonly type: 'setStageEquipmentProfile'; readonly domain: DomainState }
+  | { readonly type: 'setStageEquipmentProfile'; readonly domain: AdventureQuestDomainState }
   | { readonly type: 'rescheduleCurrentQuest'; readonly roadmap: StageRoadmap }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
-  | { readonly type: 'completeQuest'; readonly progress: StageProgress }
+  | { readonly type: 'completeQuest'; readonly dayIndex: number }
   | { readonly type: 'showValidationMessage'; readonly message: string }
   | { readonly type: 'continueAdventure' };
 
@@ -87,17 +82,11 @@ export const DEMO_ADVENTURE_SESSION: AdventureQuestSession = {
 
 function createInitialState(session: AdventureQuestSession): AdventureQuestState {
   return {
-    domain: {
-      roadmap: session.roadmap,
-      progress: session.initialProgress,
-      planByDay: session.planByDay,
-      equipmentProfile: session.equipmentProfile,
-      stageTrainingProgramContext: session.stageTrainingProgramContext,
-      workoutResultsByDay: {},
-    },
+    domain: createAdventureQuestDomainState(session),
     ui: {
       screen: 'map',
       isClearFeedbackVisible: false,
+      questRewardSummary: null,
       validationMessage: null,
     },
   };
@@ -147,29 +136,34 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         domain: { ...state.domain, roadmap: action.roadmap },
       };
     case 'saveWorkoutResult': {
-      const dayIndex = state.domain.progress.currentDayIndex;
-      const resultsForDay = state.domain.workoutResultsByDay[dayIndex] ?? {};
       return {
         ...state,
-        domain: {
-          ...state.domain,
-          workoutResultsByDay: {
-            ...state.domain.workoutResultsByDay,
-            [dayIndex]: {
-              ...resultsForDay,
-              [action.result.plannedExerciseId]: action.result,
-            },
-          },
-        },
+        domain: saveWorkoutResultForCurrentDay(state.domain, action.result),
         ui: { ...state.ui, validationMessage: null },
       };
     }
-    case 'completeQuest':
+    case 'completeQuest': {
+      const transition = completeAdventureQuest(state.domain, action.dayIndex);
+      if (transition.status !== 'completed') {
+        if (transition.status === 'invalid_reward_state') {
+          return {
+            ...state,
+            ui: { ...state.ui, validationMessage: '報酬を確定できませんでした。状態を確認してください。' },
+          };
+        }
+        return state;
+      }
       return {
         ...state,
-        domain: { ...state.domain, progress: action.progress },
-        ui: { ...state.ui, isClearFeedbackVisible: true, validationMessage: null },
+        domain: transition.domain,
+        ui: {
+          ...state.ui,
+          isClearFeedbackVisible: true,
+          questRewardSummary: transition.rewardSummary ?? null,
+          validationMessage: null,
+        },
       };
+    }
     case 'showValidationMessage':
       return {
         ...state,
@@ -182,6 +176,7 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
           ...state.ui,
           screen: 'map',
           isClearFeedbackVisible: false,
+          questRewardSummary: null,
           validationMessage: null,
         },
       };
@@ -200,6 +195,8 @@ interface AdventureQuestContextValue {
   readonly workoutResults: readonly ExerciseWorkoutResult[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
+  readonly questRewardSummary: QuestRewardSummary | null;
+  readonly characterGrowth: AdventureQuestDomainState['characterGrowth'];
   readonly validationMessage: string | null;
   openCurrentQuest: () => void;
   returnToMap: () => void;
@@ -256,6 +253,8 @@ export function AdventureQuestProvider({
     workoutResults,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
+    questRewardSummary: state.ui.questRewardSummary,
+    characterGrowth: state.domain.characterGrowth,
     validationMessage: state.ui.validationMessage,
     openCurrentQuest: () => {
       if (progressView.currentDailyNode !== null) {
@@ -346,7 +345,7 @@ export function AdventureQuestProvider({
         );
 
       if (completion.status === 'completed') {
-        dispatch({ type: 'completeQuest', progress: completion.progress });
+        dispatch({ type: 'completeQuest', dayIndex: currentNode.dayIndex });
       } else if (completion.status === 'not_ready_to_clear') {
         dispatch({
           type: 'showValidationMessage',

@@ -5,7 +5,6 @@ import { createInitialCharacterGrowth, generateStageRoadmap } from '@fitness-rpg
 import { getBottomNavigationItems } from '../src/components/bottomNavigationItems.ts';
 import {
   deriveCharacterScreenModel,
-  PROGRESS_PLACEHOLDER_COPY,
 } from '../src/features/character/characterPresentation.ts';
 
 function makeRoadmap() {
@@ -132,6 +131,15 @@ test('Stage completed and total Quest counts use StageProgress and Roadmap daily
   assert.equal(model.stageProgress.totalQuestCount, 14);
 });
 
+test('Stage Training and Recovery clear counts use the same completed Roadmap prefix', () => {
+  const model = deriveCharacterScreenModel(makeSource({ progress: { currentDayIndex: 4 } }));
+  const completedDays = makeRoadmap().days.slice(0, 4);
+  assert.equal(model.stageProgress.trainingQuestClearCount, completedDays.filter((day) => day.type === 'training').length);
+  assert.equal(model.stageProgress.recoveryQuestClearCount, completedDays.filter((day) => day.type === 'recovery').length);
+  assert.equal(model.stageProgress.trainingQuestClearCount, 2);
+  assert.equal(model.stageProgress.recoveryQuestClearCount, 2);
+});
+
 test('Boss remaining is total daily Quests minus completed Quests', () => {
   const model = deriveCharacterScreenModel(makeSource({ progress: { currentDayIndex: 4 } }));
   assert.equal(model.stageProgress.bossQuestsRemaining, 10);
@@ -158,13 +166,6 @@ test('Bottom Navigation exposes the PROGRESS navigation destination', () => {
   assert.ok(getBottomNavigationItems('character').some((item) => item.screen === 'progress' && item.label === 'PROGRESS'));
 });
 
-test('Progress destination uses the agreed placeholder copy', () => {
-  assert.deepEqual(PROGRESS_PLACEHOLDER_COPY, {
-    title: 'PROGRESS',
-    message: '進行記録は準備中です',
-  });
-});
-
 test('a missing Session derives a safe empty Character state', () => {
   const model = deriveCharacterScreenModel(null);
   assert.equal(model.mainStrength.exerciseName, null);
@@ -176,6 +177,8 @@ test('a missing Session derives a safe empty Character state', () => {
   assert.deepEqual(model.stageProgress, {
     completedQuestCount: 0,
     totalQuestCount: 0,
+    trainingQuestClearCount: 0,
+    recoveryQuestClearCount: 0,
     bossQuestsRemaining: 0,
     percent: 0,
   });

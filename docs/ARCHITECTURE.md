@@ -136,7 +136,7 @@ Frontendが担当するもの：
 - AccessibilityとResponsive layout
 - Serverから返されたGame State / View Modelの表示
 
-D-038 Character ScreenはReact Adventure Session内の既存Roadmap、StageProgress、CharacterGrowth、Baseline、Workout ResultをPresentation helperで読む。OnboardingのFinal Goalは既存Sessionへ引き継ぐ。画面表示用の派生値以外の新しいGrowth / Quest判定や永続化は持たず、Hub Navigationは既存のClient screen stateで切り替える。
+D-038 Character ScreenとD-039 Progress ScreenはReact Adventure Session内の既存Roadmap、StageProgress、CharacterGrowth、Exercise Baseline、Workout Result、Exercise SuggestionをPresentation helperで読む。OnboardingのFinal Goalは既存Sessionへ引き継ぐ。共通helperがStage completed / total、Training / Recovery clear count、Boss remainingとMain Strength actual recordを導出する。画面表示用の派生値以外の新しいGrowth / Quest判定や永続化は持たず、Hub Navigationは既存のClient screen stateで切り替える。
 
 Frontendが担当しないもの：
 

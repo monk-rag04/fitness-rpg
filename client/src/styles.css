@@ -1613,7 +1613,7 @@ button.map-node:active {
 
 /* D-038 Character v1 — existing Session facts in the shared dark-fantasy visual language. */
 .character-screen,
-.progress-placeholder {
+.progress-screen {
   width: min(100%, 430px);
   min-width: 0;
   margin-inline: auto;
@@ -1754,13 +1754,57 @@ button.map-node:active {
 .bottom-navigation__item--active .bottom-navigation__icon { text-shadow: 0 0 9px rgba(233, 200, 118, 0.36); }
 .bottom-navigation__label { font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.48rem; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2; }
 
-.progress-placeholder { min-height: 75dvh; }
-.progress-placeholder__header { padding-top: 1.35rem; text-align: center; }
-.progress-placeholder__eyebrow { margin: 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.14em; }
-.progress-placeholder__header h1 { margin: 0.25rem 0 0; color: var(--color-gold-bright); font-family: 'Cinzel', Georgia, serif; font-size: 1.55rem; letter-spacing: 0.12em; }
-.progress-placeholder__card { display: grid; min-height: 11rem; margin-top: 1.4rem; place-content: center; justify-items: center; gap: 0.9rem; border: 1px solid rgba(201, 162, 75, 0.34); border-radius: 0.55rem; background: linear-gradient(150deg, rgba(25, 32, 50, 0.76), rgba(15, 19, 28, 0.86)); text-align: center; }
-.progress-placeholder__card > span { color: var(--color-gold-dim); font-size: 1.5rem; }
-.progress-placeholder__card p { margin: 0; color: var(--color-muted); font-size: 0.86rem; }
+.progress-screen__header { margin-bottom: 0.85rem; text-align: center; }
+.progress-screen__header p { margin: 0; color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.15em; }
+.progress-screen__header h1 { margin: 0.16rem 0 0; color: var(--color-gold-bright); font-family: 'Cinzel', Georgia, serif; font-size: clamp(1.45rem, 7vw, 1.7rem); letter-spacing: 0.12em; line-height: 1.2; }
+.progress-stage-card { padding: 0.78rem 0.72rem 0.7rem; }
+.progress-stage-card > h2 { margin: 0; }
+.progress-stage-card__quest-count { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 0.4rem; margin-top: 0.58rem; }
+.progress-stage-card__quest-count > span { color: var(--color-muted); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.52rem; }
+.progress-stage-card__quest-count p { display: flex; align-items: baseline; gap: 0.24rem; margin: 0; color: var(--color-text); font-family: 'Space Mono', ui-monospace, monospace; white-space: nowrap; }
+.progress-stage-card__quest-count p strong { color: var(--color-gold-bright); font-family: 'Spectral', Georgia, serif; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.progress-stage-card__quest-count p span { color: var(--color-muted); font-size: 0.49rem; }
+.progress-stage-card__track { height: 0.34rem; margin-top: 0.36rem; overflow: hidden; border: 1px solid rgba(201, 162, 75, 0.3); border-radius: 999px; background: rgba(0, 0, 0, 0.4); }
+.progress-stage-card__track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--color-gold), var(--color-gold-bright)); }
+.progress-stage-card__clear-counts { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.42rem; margin-top: 0.55rem; }
+.progress-stage-card__clear-counts > div { min-width: 0; padding: 0.46rem 0.52rem; border: 1px solid rgba(236, 227, 207, 0.15); border-radius: 0.34rem; background: rgba(12, 16, 24, 0.75); }
+.progress-stage-card__clear-counts > div > span { color: var(--color-gold-bright); font-size: 0.59rem; }
+.progress-stage-card__clear-counts p { display: flex; align-items: baseline; gap: 0.22rem; margin: 0.12rem 0 0; color: var(--color-text); }
+.progress-stage-card__clear-counts p strong { font-family: 'Spectral', Georgia, serif; font-size: 1.08rem; line-height: 1; }
+.progress-stage-card__clear-counts p small { color: var(--color-muted); font-size: 0.52rem; }
+.progress-stage-card__clear-counts .progress-stage-card__recovery { border-color: rgba(74, 168, 255, 0.5); background: linear-gradient(145deg, rgba(20, 35, 54, 0.72), rgba(12, 17, 27, 0.8)); }
+.progress-stage-card__clear-counts .progress-stage-card__recovery > span,
+.progress-stage-card__clear-counts .progress-stage-card__recovery p strong { color: var(--color-arcane); }
+.progress-stage-card__boss { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0.45rem; margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px solid rgba(236, 227, 207, 0.13); }
+.progress-stage-card__boss > span { color: var(--color-danger-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.46rem; font-weight: 700; letter-spacing: 0.05em; }
+.progress-stage-card__boss > strong { color: var(--color-text); font-size: 0.66rem; white-space: nowrap; }
+.progress-main-record,
+.progress-exercise-records { margin-top: 1.05rem; }
+.progress-main-record__card { padding: 0.72rem 0.68rem 0.65rem; }
+.progress-main-record__exercise { min-width: 0; margin: 0 0 0.55rem; color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 0.75rem; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.progress-main-record__metrics { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.32rem; }
+.progress-main-record__metrics > div { display: flex; min-width: 0; min-height: 2.45rem; flex-direction: column; justify-content: center; gap: 0.17rem; padding: 0.34rem 0.38rem; border: 1px solid rgba(236, 227, 207, 0.14); border-radius: 0.3rem; background: rgba(9, 12, 18, 0.62); }
+.progress-main-record__metrics > div:nth-child(2) { border-color: rgba(201, 162, 75, 0.45); background: rgba(201, 162, 75, 0.075); }
+.progress-main-record__metrics span { color: var(--color-faint); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.43rem; }
+.progress-main-record__metrics strong { min-width: 0; color: var(--color-text); font-family: 'Spectral', Georgia, serif; font-size: 0.67rem; line-height: 1.3; overflow-wrap: anywhere; }
+.progress-next-suggestion { display: grid; min-width: 0; gap: 0.23rem; margin-top: 0.52rem; padding: 0.48rem 0.55rem; border-left: 2px solid var(--color-arcane); background: linear-gradient(100deg, rgba(31, 54, 82, 0.58), rgba(20, 35, 54, 0.22)); }
+.progress-next-suggestion > span { color: var(--color-muted); font-size: 0.48rem; }
+.progress-next-suggestion > strong { color: var(--color-arcane); font-family: 'Spectral', Georgia, serif; font-size: 0.83rem; line-height: 1.3; overflow-wrap: anywhere; }
+.progress-exercise-records__list { display: grid; min-width: 0; gap: 0.48rem; }
+.progress-exercise-card { min-width: 0; padding: 0.63rem 0.64rem 0.58rem; border: 1px solid rgba(236, 227, 207, 0.17); border-radius: 0.45rem; background: linear-gradient(150deg, rgba(20, 24, 33, 0.96), rgba(12, 15, 22, 0.98)); }
+.progress-exercise-card__header { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 0.38rem; }
+.progress-exercise-card__header h3 { min-width: 0; margin: 0; color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 0.7rem; line-height: 1.35; overflow-wrap: anywhere; }
+.progress-exercise-card__header > strong { flex: 0 0 auto; color: var(--color-text); font-size: 0.68rem; white-space: nowrap; }
+.progress-exercise-card__meta { display: flex; min-width: 0; flex-wrap: wrap; gap: 0.05rem 0.16rem; margin: 0.28rem 0 0.42rem; color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.43rem; line-height: 1.4; overflow-wrap: anywhere; }
+.progress-exercise-card__meta span:first-child { letter-spacing: 0.02em; }
+.progress-exercise-card__records { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; padding-top: 0.42rem; border-top: 1px solid rgba(236, 227, 207, 0.13); }
+.progress-exercise-card__records > div { display: grid; min-width: 0; align-content: start; gap: 0.2rem; }
+.progress-exercise-card__records > div > span { color: var(--color-faint); font-size: 0.46rem; }
+.progress-exercise-card__records > div > strong { min-width: 0; color: var(--color-text); font-family: 'Spectral', Georgia, serif; font-size: 0.63rem; line-height: 1.35; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.progress-exercise-card__records .progress-exercise-card__suggestion > strong { color: var(--color-arcane); }
+.progress-records-empty { display: grid; min-height: 4.8rem; align-content: center; gap: 0.32rem; padding: 0.65rem; text-align: center; }
+.progress-records-empty > p { margin: 0; color: var(--color-text); font-size: 0.72rem; }
+.progress-records-empty > span { color: var(--color-muted); font-size: 0.56rem; line-height: 1.45; }
 
 @media (min-width: 560px) {
   .bottom-navigation { bottom: var(--space-6); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }

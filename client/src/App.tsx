@@ -5,7 +5,7 @@ import { AdventureMap } from './features/adventure/AdventureMap';
 import { Onboarding } from './features/onboarding/Onboarding';
 import { CurrentQuest } from './features/quests/CurrentQuest';
 import { CharacterScreen } from './features/character/CharacterScreen';
-import { ProgressPlaceholder } from './features/character/ProgressPlaceholder';
+import { ProgressScreen } from './features/progress/ProgressScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import {
   AdventureQuestProvider,
@@ -22,7 +22,7 @@ function AdventureQuestApp() {
       {screen === 'map' && <AdventureMap />}
       {screen === 'quest' && <CurrentQuest />}
       {screen === 'character' && <CharacterScreen />}
-      {screen === 'progress' && <ProgressPlaceholder />}
+      {screen === 'progress' && <ProgressScreen />}
       {screen !== 'quest' && (
         <BottomNavigation activeScreen={screen} onNavigate={navigateToHub} />
       )}

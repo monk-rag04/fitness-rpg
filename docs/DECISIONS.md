@@ -457,6 +457,7 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-24: D-034としてCurrent Quest Slotの日付延期、Current以降とBossの同日数shift、day-index identity、canonical delay validator、Training / Recovery QuestのMobile sheetを採用。D-026のProduction Schedule swapを置き換え、Progress / cache / Workout Result / Equipment stateは維持し、永続化は追加しない。
 - 2026-09-24: D-035としてExerciseごとの5種Training EXP Category、eligible planned setあたり5 EXP、Recovery Clearの10 EXP、dayIndex基準のAtomic Progress / Growth / Reward Summary更新を採用。Character GrowthはSession内の累積EXPのみとし、LevelとPersistenceは追加しない。
 - 2026-09-25: D-038として既存SessionのMain Strength / EXP / Stage進行を表示するCharacter Screen v1、MAP / CHARACTER / PROGRESS Hub Navigation、Progress Placeholderを採用。未実装RPG stats、Stage ordinal、Persistenceは追加しない。
+- 2026-09-25: D-039としてProgress Placeholderを既存実績とExercise Suggestionの閲覧画面へ置き換える。Stage Growth Analysis、Chart、Persistenceは追加しない。
 
 ### D-032: Stage Training Program Balance and Boss Main Exposure
 
@@ -539,8 +540,18 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Decision**: Add a Character Screen with the Figma-confirmed Dark Fantasy hierarchy: Character Hero, Main Strength, five Training EXP cards plus Recovery EXP, and Stage progress. Use existing Adventure Session data only. Do not show Level, HP, MP, Attack, Defense, Rank, Equipment, Skill, Badge, or Achievement values.
 - **Decision**: Main Strength START uses the existing Main Exercise Baseline; CURRENT uses an actual result from the latest Clear済み Training Quest whose `performedExerciseId` is the Main Exercise; TARGET uses the Onboarding-confirmed Final Goal, not the current Stage Target. For a result with multiple valid sets, the representative set is the valid completed Set with greatest `setNumber`; no best-record or e1RM summary is calculated. Suggestions are never used as CURRENT.
 - **Decision**: Display the five existing `CharacterGrowth.trainingExp` categories and `recoveryExp` as-is, including zero. Completed Quest count is `StageProgress.currentDayIndex`; total Quest count is `roadmap.days.length` (Daily Quest slots, excluding the Boss Anchor); Boss remaining is `max(0, total - completed)`. Do not infer or display a Stage ordinal because the current Roadmap does not store one.
-- **Decision**: Add the three-tab MAP / CHARACTER / PROGRESS bottom navigation to Adventure hub screens only. MAP returns to the existing Adventure Map, CHARACTER opens this screen, and PROGRESS opens a restrained “進行記録は準備中です” placeholder. Hide the navigation during Quest and other focused flows. The active tab is exposed with `aria-current` as well as visual styling.
+- **Decision**: Add the three-tab MAP / CHARACTER / PROGRESS bottom navigation to Adventure hub screens only. MAP returns to the existing Adventure Map, CHARACTER opens this screen, and PROGRESS initially opened a restrained placeholder (superseded by D-039). Hide the navigation during Quest and other focused flows. The active tab is exposed with `aria-current` as well as visual styling.
 - **Decision**: A missing Session is rendered as a safe empty Character state by the Presentation boundary; the App's normal flow continues to keep hub navigation behind completed Onboarding. No fake Session or persistence is added.
 - **Consequence**: No EXP, Quest, Baseline, progression, Roadmap, Reward, Boss, AI, or persistence behavior changes. The final Onboarding goal is retained in the existing in-memory Adventure Session so the Presentation can distinguish it from the Stage Target.
 - **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, Client Character presentation, hub navigation, and regression tests.
+- **Date**: 2026-09-25
+
+### D-039: Progress Screen v1 Training Log
+
+- **Status**: Accepted (MVP)
+- **Context**: D-038 introduced Main Strength / EXP / Stage presentation and a Progress placeholder. Production already retains clear-scoped actual results, Exercise baselines, session counts, and progression suggestions in the in-memory Adventure Session.
+- **Decision**: Replace the placeholder with a read-only Training Log using only existing Session state. Reuse D-038 Stage summary and Main Strength actual / baseline / Final Goal rules so Character and Progress show the same facts. Main latest record and Exercise latest records come only from cleared Training Quest results matched by `performedExerciseId`; representative set remains the valid completed set with greatest `setNumber`. Main Exercise is omitted from the Exercise list; other entries require `sessionsCompleted > 0` and reuse the shared D-035 Exercise EXP Category mapping.
+- **Decision**: Show Baseline and latest Workout Result as actual records, and `nextSuggestion` separately as “次回の目安”. Bodyweight records and suggestions are reps-only; `weight_up_ready` is shown as “重量UPのタイミング” without a load-step action. Stage counts use the same completed Roadmap prefix as Character.
+- **Consequence**: PROGRESS v1 is existing records plus suggestions for viewing, not Stage Growth Analysis. No growth rates, comparisons, charts, PR / streak / achievement, AI Review, filters, new state, persistence, or API calls are added.
+- **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, Client Progress presentation / screen, and Client presentation tests.
 - **Date**: 2026-09-25

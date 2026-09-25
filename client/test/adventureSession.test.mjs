@@ -81,6 +81,19 @@ test('onboarding session begins with an empty day-based Plan cache and no Demo f
   assert.equal(session.equipmentProfile, undefined);
 });
 
+test('onboarding session retains the confirmed Main Strength final goal separately from the Stage target', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+    mainStrengthGoalE1rmKg: 95,
+  });
+
+  assert.equal(session.mainStrengthGoalE1rmKg, 95);
+  assert.notEqual(session.mainStrengthGoalE1rmKg, roadmap.stageTargetE1rmKg);
+  assert.equal(createAdventureQuestDomainState(session).mainStrengthGoalE1rmKg, 95);
+});
+
 test('onboarding initializes the Main Strength exercise baseline from the accepted record', () => {
   const roadmap = createRoadmap();
   const session = createOnboardingAdventureSession({

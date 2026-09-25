@@ -4,6 +4,9 @@ import { QuestClearFeedback } from './components/QuestClearFeedback';
 import { AdventureMap } from './features/adventure/AdventureMap';
 import { Onboarding } from './features/onboarding/Onboarding';
 import { CurrentQuest } from './features/quests/CurrentQuest';
+import { CharacterScreen } from './features/character/CharacterScreen';
+import { ProgressPlaceholder } from './features/character/ProgressPlaceholder';
+import { BottomNavigation } from './components/BottomNavigation';
 import {
   AdventureQuestProvider,
   createOnboardingAdventureSession,
@@ -12,11 +15,17 @@ import {
 } from './state/AdventureQuestContext';
 
 function AdventureQuestApp() {
-  const { screen } = useAdventureQuest();
+  const { screen, navigateToHub } = useAdventureQuest();
 
   return (
     <>
-      {screen === 'map' ? <AdventureMap /> : <CurrentQuest />}
+      {screen === 'map' && <AdventureMap />}
+      {screen === 'quest' && <CurrentQuest />}
+      {screen === 'character' && <CharacterScreen />}
+      {screen === 'progress' && <ProgressPlaceholder />}
+      {screen !== 'quest' && (
+        <BottomNavigation activeScreen={screen} onNavigate={navigateToHub} />
+      )}
       <QuestClearFeedback />
     </>
   );
@@ -39,6 +48,7 @@ export default function App() {
                 trainingExperienceMonths: result.input.trainingExperienceMonths,
                 trainingFrequencyPerWeek: result.input.trainingFrequencyPerWeek,
               },
+              mainStrengthGoalE1rmKg: result.input.finalGoalE1rmKg,
               onboardingBaseline: {
                 exerciseId: result.baseline.exerciseId,
                 weightKg: result.baseline.weightKg,

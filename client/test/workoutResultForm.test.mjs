@@ -8,7 +8,9 @@ await import('tsx');
 const { createElement } = await import('react');
 const { renderToStaticMarkup } = await import('react-dom/server');
 const { DEMO_TRAINING_PLAN } = await import('../src/demo/fixture.ts');
-const { AdventureQuestProvider } = await import('../src/state/AdventureQuestContext.tsx');
+const { AdventureQuestProvider, DEMO_ADVENTURE_SESSION } = await import('../src/state/AdventureQuestContext.tsx');
+const { EXERCISE_PROGRESSION_RULE_VERSION } = await import('@fitness-rpg/shared');
+const { weightEntryHint } = await import('../src/presentation/trainingLabels.ts');
 const {
   WorkoutResultForm,
   createWorkoutResultInput,
@@ -31,10 +33,13 @@ function existingResult(difficultyFeedback) {
   };
 }
 
-function renderForm(result) {
+function renderForm(result, exerciseProgressById) {
+  const session = exerciseProgressById === undefined
+    ? undefined
+    : { ...DEMO_ADVENTURE_SESSION, exerciseProgressById };
   return renderToStaticMarkup(createElement(
     AdventureQuestProvider,
-    null,
+    session === undefined ? null : { session },
     createElement(WorkoutResultForm, {
       plan,
       exerciseName: 'テスト種目',
@@ -51,6 +56,99 @@ test('feedback choices, optional hint, and unselected submit are rendered', () =
   assert.match(markup, /未選択でも記録・QUEST CLEARできます。/);
   assert.equal((markup.match(/aria-pressed="false"/g) ?? []).length, 3);
   assert.match(markup, /class="quest-record-button" type="submit">記録する/);
+});
+
+test('initial and baseline suggestions are hints and never prefill actual Result inputs', () => {
+  const emptyMarkup = renderForm(undefined);
+  assert.match(emptyMarkup, /今回の目安/);
+  assert.match(emptyMarkup, /重量：未設定　回数：8回/);
+  assert.match(emptyMarkup, /初回は無理のない重量から始めてください。/);
+  assert.match(emptyMarkup, /value=""/);
+
+  const baselineProgress = {
+    [plan.exerciseId]: {
+      exerciseId: plan.exerciseId,
+      baseline: { weightKg: 60, reps: 8, source: 'onboarding', capturedDayIndex: 0 },
+      sessionsCompleted: 0,
+    },
+  };
+  const baselineMarkup = renderForm(undefined, baselineProgress);
+  assert.match(baselineMarkup, /60kg × 8回/);
+  assert.doesNotMatch(baselineMarkup, /value="60"/);
+  assert.doesNotMatch(baselineMarkup, /value="8"/);
+});
+
+test('progressed suggestion renders text without a preview selector or synthetic input defaults', () => {
+  const progressed = {
+    [plan.exerciseId]: {
+      exerciseId: plan.exerciseId,
+      sessionsCompleted: 1,
+      nextSuggestion: {
+        weightKg: 60,
+        targetReps: 9,
+        repRange: plan.repRange,
+        status: 'active',
+        ruleVersion: EXERCISE_PROGRESSION_RULE_VERSION,
+      },
+    },
+  };
+  const markup = renderForm(undefined, progressed);
+  assert.match(markup, /60kg × 9回/);
+  assert.doesNotMatch(markup, /Adaptive —/);
+  assert.doesNotMatch(markup, /value="60"/);
+});
+
+test('weight-up ready shows a user-configurable load step and the action is not a quest blocker', () => {
+  const ready = {
+    [plan.exerciseId]: {
+      exerciseId: plan.exerciseId,
+      sessionsCompleted: 2,
+      nextSuggestion: {
+        weightKg: 60,
+        targetReps: plan.repRange.max,
+        repRange: plan.repRange,
+        status: 'weight_up_ready',
+        ruleVersion: EXERCISE_PROGRESSION_RULE_VERSION,
+      },
+    },
+  };
+  const markup = renderForm(undefined, ready);
+  assert.match(markup, /WEIGHT UP READY/);
+  assert.match(markup, /重量UPのタイミングです/);
+  assert.match(markup, /この器具の重量刻み/);
+  assert.match(markup, /この刻みを使う/);
+  assert.match(markup, /class="quest-record-button" type="submit">記録する/);
+  assert.doesNotMatch(markup, /value="60"/);
+});
+
+test('bodyweight renders reps-only input, suggestion, and helper copy', () => {
+  const pushUpPlan = {
+    ...plan,
+    exerciseId: 'push_up',
+    repRange: { min: 8, max: 12 },
+  };
+  const markup = renderToStaticMarkup(createElement(
+    AdventureQuestProvider,
+    null,
+    createElement(WorkoutResultForm, {
+      plan: pushUpPlan,
+      exerciseName: 'プッシュアップ',
+    }),
+  ));
+  assert.match(markup, /今回の目安/);
+  assert.match(markup, />8回</);
+  assert.match(markup, /自重種目は回数を記録します。/);
+  assert.match(markup, /push_up-set-1-reps/);
+  assert.doesNotMatch(markup, /push_up-set-1-weight/);
+  assert.match(markup, /今回の負荷は？/);
+});
+
+test('weight convention helper is conservative and leaves ambiguous exercises unlabelled', () => {
+  assert.equal(weightEntryHint('barbell_bench_press'), 'バーを含む総重量');
+  assert.equal(weightEntryHint('dumbbell_curl'), 'ダンベル1個あたりの重量');
+  assert.equal(weightEntryHint('cable_chest_fly'), 'その機械で設定した表示重量');
+  assert.equal(weightEntryHint('standing_calf_raise'), undefined);
+  assert.equal(weightEntryHint('goblet_squat'), undefined);
 });
 
 test('editing an existing result restores exactly its selected feedback', () => {

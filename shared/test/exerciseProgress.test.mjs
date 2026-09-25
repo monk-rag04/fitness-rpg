@@ -136,16 +136,30 @@ test('existing baseline is not overwritten by a later Workout Result', () => {
   assert.deepEqual(next.dumbbell_lateral_raise.baseline, existing.baseline);
 });
 
-test('Workout Result baseline is attributed to performedExerciseId, not plannedExerciseId', () => {
+test('weighted Workout Result baseline is attributed to performedExerciseId, not plannedExerciseId', () => {
   const progress = captureFirstWorkoutExerciseBaseline(
     {},
-    workoutResult({ plannedExerciseId: 'dumbbell_bench_press', performedExerciseId: 'push_up' }),
+    workoutResult({ plannedExerciseId: 'dumbbell_lateral_raise', performedExerciseId: 'dumbbell_curl' }),
     1,
   );
 
-  assert.equal(progress.push_up.baseline.source, 'workout_result');
-  assert.equal(progress.push_up.baseline.weightKg, 8);
-  assert.equal(Object.hasOwn(progress, 'dumbbell_bench_press'), false);
+  assert.equal(progress.dumbbell_curl.baseline.source, 'workout_result');
+  assert.equal(progress.dumbbell_curl.baseline.weightKg, 8);
+  assert.equal(Object.hasOwn(progress, 'dumbbell_lateral_raise'), false);
+});
+
+test('reps-only bodyweight result does not invent a kg baseline', () => {
+  const input = {
+    plannedExerciseId: 'push_up',
+    performedExerciseId: 'push_up',
+    role: 'accessory',
+    plannedSets: 3,
+    plannedRepRange: { min: 8, max: 12 },
+    completedSets: [{ setNumber: 1, reps: 8 }],
+    performedAt: '2026-09-24T10:00:00.000Z',
+  };
+  const progress = captureFirstWorkoutExerciseBaseline({}, input, 1);
+  assert.deepEqual(progress, {});
 });
 
 test('ineligible Workout Result sets still establish a baseline from the first working set', () => {

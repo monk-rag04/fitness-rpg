@@ -1,5 +1,5 @@
 import { getExerciseById } from './exerciseCatalog.js';
-import type { ExerciseId } from './exercise.js';
+import { isBodyweightExerciseId, type ExerciseId } from './exercise.js';
 import {
   calculateWorkoutE1rm,
   type WorkoutE1rmResult,
@@ -13,7 +13,7 @@ import type {
 /** One actually completed set. It is intentionally separate from the planned set count. */
 export interface CompletedSetRecord {
   readonly setNumber: number;
-  readonly weightKg: number;
+  readonly weightKg?: number;
   readonly reps: number;
 }
 
@@ -49,6 +49,7 @@ export type WorkoutResultValidationErrorCode =
   | 'INVALID_SET_NUMBER'
   | 'DUPLICATE_SET_NUMBER'
   | 'INVALID_WEIGHT_KG'
+  | 'WEIGHT_NOT_ALLOWED_FOR_BODYWEIGHT'
   | 'INVALID_REPS'
   | 'INVALID_DIFFICULTY_FEEDBACK'
   | 'INVALID_PERFORMED_AT';
@@ -193,6 +194,8 @@ export function validateExerciseWorkoutResult(
   }
 
   const validatedSets: CompletedSetRecord[] = [];
+  const bodyweightResult = isExerciseId(performedExerciseId) &&
+    isBodyweightExerciseId(performedExerciseId);
   if (!Array.isArray(completedSets)) {
     errors.push({ code: 'INVALID_COMPLETED_SETS', path: 'completedSets' });
   } else if (completedSets.length === 0) {
@@ -208,6 +211,7 @@ export function validateExerciseWorkoutResult(
 
       addUnexpectedFieldErrors(value, ['setNumber', 'weightKg', 'reps'], path, errors);
       const { setNumber, weightKg, reps } = value;
+      const hasWeight = Object.hasOwn(value, 'weightKg');
       if (!isPositiveInteger(setNumber)) {
         errors.push({ code: 'INVALID_SET_NUMBER', path: `${path}.setNumber` });
       } else if (seenSetNumbers.has(setNumber)) {
@@ -215,14 +219,21 @@ export function validateExerciseWorkoutResult(
       } else {
         seenSetNumbers.add(setNumber);
       }
-      if (!isPositiveFiniteNumber(weightKg)) {
+      if (bodyweightResult && hasWeight) {
+        errors.push({ code: 'WEIGHT_NOT_ALLOWED_FOR_BODYWEIGHT', path: `${path}.weightKg` });
+      } else if (!bodyweightResult && !isPositiveFiniteNumber(weightKg)) {
         errors.push({ code: 'INVALID_WEIGHT_KG', path: `${path}.weightKg` });
       }
       if (!isPositiveInteger(reps)) {
         errors.push({ code: 'INVALID_REPS', path: `${path}.reps` });
       }
-      if (isPositiveInteger(setNumber) && isPositiveFiniteNumber(weightKg) && isPositiveInteger(reps)) {
-        validatedSets.push({ setNumber, weightKg, reps });
+      if (isPositiveInteger(setNumber) && isPositiveInteger(reps) &&
+          (bodyweightResult ? !hasWeight : isPositiveFiniteNumber(weightKg))) {
+        validatedSets.push({
+          setNumber,
+          ...(bodyweightResult ? {} : { weightKg: weightKg as number }),
+          reps,
+        });
       }
     }
   }
@@ -289,6 +300,10 @@ export function calculateWorkoutResultE1rm(
   return calculateWorkoutE1rm(
     result.performedExerciseId,
     new Date(result.performedAt),
-    result.completedSets.map(({ weightKg, reps }) => ({ weightKg, reps })),
+    isBodyweightExerciseId(result.performedExerciseId)
+      ? []
+      : result.completedSets.flatMap(({ weightKg, reps }) => (
+        weightKg === undefined ? [] : [{ weightKg, reps }]
+      )),
   );
 }

@@ -175,17 +175,21 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 **決定済み（D-024）**:
 
 - MVPではTraining Planが`exerciseId`、role、sets、rep rangeを提示し、AIやSystemがTraining Weightを自動決定しない。
-- Main / Accessoryを問わず、ユーザーが実施した各Setの`weightKg`と`reps`を記録する。Strength HistoryがないExerciseへ根拠のない初期重量を生成しない。
+- Weighted Exerciseでは各Setに正の有限`weightKg`と正の整数`reps`を記録する。`push_up` / `pull_up` / `glute_bridge`だけはreps-onlyであり、重量Fieldを受け付けない。Strength Historyがない種目へ根拠のない初期重量を生成しない。
 - D-035 4Eでは、ExerciseごとのStage開始時BaselineをSession内で保持する。Main StrengthはOnboardingの実記録を使い、その他の種目は任意の自己申告または最初の有効Workout Resultから取得する。架空の初期重量は作らない。
 - Workout Resultは予定Exercise IDと実施Exercise IDを別に保持する。代替Exerciseの実績は実施したExerciseの履歴・e1RM根拠となり、元Exerciseのe1RMや重量履歴を自動移管しない。
 - rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
-- Workout Resultの有効SetはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。
+- Weighted ExerciseのWorkout ResultはD-023に従ってe1RM計算の根拠になり得る。11回以上のSetも記録できるが、e1RM対象外である。Bodyweight v1はe1RMを計算せず、Baselineにも重量を作らない。
 - D-036 Task 4Fでは、Exercise単位のWorkout Resultへ`difficultyFeedback`（`too_hard` / `just_right` / `easy`）を任意で含められる。Set単位ではなくResultと一緒に保存し、編集時はResult全体を置換する。未選択でも記録・Quest Clearできる。
 - Baselineは初回固定し、以後のWorkout Resultで更新しない。Exerciseの完了Session数は、そのExerciseを実施したTraining QuestのClear成功時だけ1増やす。Baseline登録やResult保存ではEXP・Rewardを付けない。
-- Difficulty Feedbackは現在は記録するだけで、Baseline、Quest Clear条件、EXP / Reward、Suggested Weight / Reps、Progressionを変更しない。将来のD-036 Task 4GでProgressionへの入力として利用する予定である。
-- `push_up` / `pull_up` / `glute_bridge`はMVPの重量自己申告Baseline対象外とし、kg入力を求めない。e1RM eligibilityはD-023の既存Ruleに従い、計算対象外でもSet記録からBaselineを取得できる。
+- Difficulty FeedbackはWorkout Resultと一緒に保存する。D-036 Task 4Gでは`too_hard`だけがProgressionを拒否するVetoであり、未選択は中立、`just_right` / `easy`もActual Set条件を満たさない限り単独では進行させない。
+- `exercise-progression-v1`はBaselineまたは保守的な実測重量を初期基準に、現在Planのrep range内でrepsを一回ずつ進める。全planned Set達成後のProgressionは明示的Training Quest Clear成功時だけ、Map / Growth / Reward / `sessionsCompleted`と同じSession transitionに適用する。Result保存・編集、Recovery Clear、Rescheduleでは更新しない。
+- Suggested Weight / Repsは画面上の目安であり、actual入力へ自動入力しない。Weight Upは全planned Setがsuggested weight以上かつrep maxを達成した場合だけ候補となる。器具刻み`loadStepKg`はユーザーがExerciseごとに任意設定し、未設定なら`weight_up_ready`で止める。固定刻み、automatic Weight Down、失敗連続数は導入しない。
+- `push_up` / `pull_up` / `glute_bridge`はreps-onlyで、追加重量、kg Suggestion、load step、e1RM、kg Baselineを持たない。repsだけを+1し、rep maxで維持する。
+- 重量記録はBarbellがバーを含む総重量、Dumbbellが1個あたり、Machine / Cableが機械の表示重量。同じExerciseでは同じ基準で記録する。分類が曖昧な種目には説明を表示しない。
+- Suggested Weight / Reps、Feedback、loadStep、Progressionは既存Adventure Session内だけに置き、DB / localStorage等へ永続化しない。Progression計算にAIを使わない。
 
-**未決定**: previous weight prefill、Load Prescription、Double Progression、重量増分、RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの永続化方法、Baseline修正Policy。
+**未決定**: RPE / RIR、Workout Result / Quest Clearの保存・取消・複数Session集約Policy、自己申告Onboarding Recordの永続化方法、Baseline修正Policy。
 
 ## Exercise substitution
 

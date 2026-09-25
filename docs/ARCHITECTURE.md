@@ -244,7 +244,11 @@ D-035 4Eの`ExerciseProgressState`はExercise ID keyedのSession内Mapとして`
 
 Baseline登録はResult保存・Quest Clear / EXPと独立する。Training Quest Clearが成功した場合だけ、同じ`completeAdventureQuest()`結果のDomain transitionで、Clearに含まれるunique `performedExerciseId`の`sessionsCompleted`を各1加算する。Recovery Clear、単なるResult保存、Baseline登録、rescheduleでは加算しない。Main Strength Baseline Panelを避ける判定にはOnboardingのBoss Main IDを使い、Session `role: 'main'`とは同一視しない。Persistence / localStorage / DBは追加しない。
 
-D-036 Task 4Fでは、Sharedの`ExerciseWorkoutResult`が任意のExercise単位`difficultyFeedback`を保持し、既存のResult validatorが`too_hard` / `just_right` / `easy`のみを受け入れる。Workout Result formはSet入力とFeedbackを同じSubmitで送り、既存Resultの編集時はSet値・`performedExerciseId`・Feedbackを復元してResult全体を置換する。Feedbackは独立Stateに保存せず、未選択でもResult保存と既存Quest Clearを許可する。Baseline、`sessionsCompleted`、EXP / Reward、Clear条件、Progressionへの影響はなく、Adventure Session内だけで保持する。次のTask 4GまでSuggested Weight / RepsやProgressionへ接続しない。
+D-036 Task 4Fでは、Sharedの`ExerciseWorkoutResult`が任意のExercise単位`difficultyFeedback`を保持し、既存のResult validatorが`too_hard` / `just_right` / `easy`のみを受け入れる。Workout Result formはSet入力とFeedbackを同じSubmitで送り、既存Resultの編集時はSet値・`performedExerciseId`・Feedbackを復元してResult全体を置換する。Feedbackは独立Stateに保存せず、未選択でもResult保存と既存Quest Clearを許可する。Task 4F単体ではBaseline、`sessionsCompleted`、EXP / Reward、Clear条件、Progressionへの影響はなかった。D-036 Task 4Gが追加された現在は、Feedbackがsuccessful Training Clear時のSuggested Weight / Reps評価でのみ使われる。
+
+D-036 Task 4GではShared `exerciseProgression.ts`のpure functionが`exercise-progression-v1`に従い、current Plan rangeへclampしたhintとClear後の次Suggestionを決定する。全planned Setの実績を先に評価し、数値Suggestionがある場合は各Setの実重量がそれ以上であることを要求する。`too_hard`はVeto、未選択は中立で、`easy`単独では進めない。数値SuggestionがないWeighted種目の初回完遂時はplanned Set内の最小実重量を保守的基準として使い、Baselineは変更しない。Progressionはsuccessful Training Clear後だけ`completeAdventureQuest()`内で計算され、Stage Progress、Character Growth、Quest Reward、unique performed Exerciseの`sessionsCompleted`と同じDomain result / reducer transitionで返る。Result save/edit、Recovery、failed / replayed clearでは更新しない。
+
+`ExerciseProgressState`にはoptional `nextSuggestion`とuser-configurable `loadStepKg`だけを追加し、前回Suggestion / Feedback / Performanceのduplicate stateは持たない。Weight Up Readyはweight付きrep max suggestionとして表現し、load step確定時にload step保存と次の一段を同じimmutable state transitionで適用する。有限正数以外を拒否し、適用済みSuggestionでは二重加算しない。Bodyweight3種はreps-onlyに限定され、重量Field / kg Suggestion / loadStep / e1RMを持たない。これらの機能はAdventure Session memory内に限り、DB / localStorage / AI callを追加しない。
 
 ### Future API / persistence workflow
 

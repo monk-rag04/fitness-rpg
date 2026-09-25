@@ -1,4 +1,9 @@
-import type { ExerciseId } from './exercise.js';
+import {
+  BODYWEIGHT_EXERCISE_IDS,
+  isBodyweightExerciseId,
+  type ExerciseId,
+} from './exercise.js';
+import type { ExerciseSuggestion } from './exerciseProgression.js';
 import { getExerciseById } from './exerciseCatalog.js';
 import { E1RM_RULE, calculateSetE1rm } from './e1rm.js';
 import {
@@ -22,20 +27,19 @@ export interface ExerciseProgressState {
   readonly exerciseId: ExerciseId;
   readonly baseline?: ExerciseBaseline;
   readonly sessionsCompleted: number;
+  readonly nextSuggestion?: ExerciseSuggestion;
+  readonly loadStepKg?: number;
 }
 
 export type ExerciseProgressById = Readonly<Partial<Record<ExerciseId, ExerciseProgressState>>>;
 
 /** Catalog-backed MVP boundary: these bodyweight exercises do not request kg self-reports. */
 export const SELF_REPORT_BASELINE_UNSUPPORTED_EXERCISE_IDS = [
-  'push_up',
-  'pull_up',
-  'glute_bridge',
-] as const satisfies readonly ExerciseId[];
+  ...BODYWEIGHT_EXERCISE_IDS,
+] as const;
 
 export function canSelfReportExerciseBaseline(exerciseId: string): boolean {
-  return getExerciseById(exerciseId) !== undefined &&
-    !SELF_REPORT_BASELINE_UNSUPPORTED_EXERCISE_IDS.some((id) => id === exerciseId);
+  return getExerciseById(exerciseId) !== undefined && !isBodyweightExerciseId(exerciseId);
 }
 
 export function createInitialExerciseProgressState(exerciseId: ExerciseId): ExerciseProgressState {
@@ -178,6 +182,7 @@ export function captureFirstWorkoutExerciseBaseline(
 
   const result = validation.value;
   const exerciseId = result.performedExerciseId;
+  if (isBodyweightExerciseId(exerciseId)) return exerciseProgressById;
   const current = exerciseProgressById[exerciseId];
   if (current?.baseline !== undefined) return exerciseProgressById;
 
@@ -193,9 +198,14 @@ export function captureFirstWorkoutExerciseBaseline(
     return exerciseProgressById;
   }
   sourceSet ??= [...result.completedSets].sort((left, right) => left.setNumber - right.setNumber)[0];
-  if (sourceSet === undefined) return exerciseProgressById;
+  if (sourceSet === undefined || sourceSet.weightKg === undefined) return exerciseProgressById;
 
-  const baseline = createBaseline(sourceSet, 'workout_result', capturedDayIndex, estimatedE1rmKg);
+  const baseline = createBaseline(
+    { weightKg: sourceSet.weightKg, reps: sourceSet.reps },
+    'workout_result',
+    capturedDayIndex,
+    estimatedE1rmKg,
+  );
   const progress = current ?? createInitialExerciseProgressState(exerciseId);
   return {
     ...exerciseProgressById,

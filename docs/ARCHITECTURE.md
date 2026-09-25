@@ -2,7 +2,7 @@
 
 ## Status
 
-この文書はProduction Architectureの方針と現行実装を記録する。Frontend / Backend / sharedのFoundation、Onboarding、Adventure Map / Quest、Stage-wide Training Program生成とSession cache、Quest進行、Production servingを実装済み。OpenAIはBackend経由でのみ呼び出す。D-034ではCurrent Questの日付変更をshared date-only DomainからReact Adventure Sessionへ接続する。Database、Authentication、Schedule永続化は未実装。
+この文書はProduction Architectureの方針と現行実装を記録する。Frontend / Backend / sharedのFoundation、Onboarding、Adventure Map / Quest、Stage-wide Training Program生成とSession cache、Quest進行、Character Screen v1 / Hub Navigation、Production servingを実装済み。OpenAIはBackend経由でのみ呼び出す。D-034ではCurrent Questの日付変更をshared date-only DomainからReact Adventure Sessionへ接続する。Database、Authentication、Schedule永続化は未実装。
 
 区分：
 
@@ -135,6 +135,8 @@ Frontendが担当するもの：
 - Loading、Error、Retry、Optimistic UIの制御
 - AccessibilityとResponsive layout
 - Serverから返されたGame State / View Modelの表示
+
+D-038 Character ScreenはReact Adventure Session内の既存Roadmap、StageProgress、CharacterGrowth、Baseline、Workout ResultをPresentation helperで読む。OnboardingのFinal Goalは既存Sessionへ引き継ぐ。画面表示用の派生値以外の新しいGrowth / Quest判定や永続化は持たず、Hub Navigationは既存のClient screen stateで切り替える。
 
 Frontendが担当しないもの：
 

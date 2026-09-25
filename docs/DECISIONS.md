@@ -456,6 +456,7 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - 2026-09-22: D-031として1 Stage = 1 Training Program、Equipment確定後のStage-wide生成、全Training Day exact coverage、Atomic `planByDay` cache、Stage Program全体の明示Retryを採用。D-030のper-day生成 timing / generation retryだけをsupersedeし、Equipment・guardrail・fallback禁止・Session-only保持は維持。
 - 2026-09-24: D-034としてCurrent Quest Slotの日付延期、Current以降とBossの同日数shift、day-index identity、canonical delay validator、Training / Recovery QuestのMobile sheetを採用。D-026のProduction Schedule swapを置き換え、Progress / cache / Workout Result / Equipment stateは維持し、永続化は追加しない。
 - 2026-09-24: D-035としてExerciseごとの5種Training EXP Category、eligible planned setあたり5 EXP、Recovery Clearの10 EXP、dayIndex基準のAtomic Progress / Growth / Reward Summary更新を採用。Character GrowthはSession内の累積EXPのみとし、LevelとPersistenceは追加しない。
+- 2026-09-25: D-038として既存SessionのMain Strength / EXP / Stage進行を表示するCharacter Screen v1、MAP / CHARACTER / PROGRESS Hub Navigation、Progress Placeholderを採用。未実装RPG stats、Stage ordinal、Persistenceは追加しない。
 
 ### D-032: Stage Training Program Balance and Boss Main Exposure
 
@@ -530,3 +531,16 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Decision**: Quest Clear applies Suggestion changes in the same in-memory domain transition as existing Stage Progress, Character Growth, Reward Summary, and unique performed-Exercise `sessionsCompleted`. Only `performedExerciseId` receives progression. Result save/edit, Recovery Clear, failed Clear, replay, and reschedule do not update suggestions. Baseline, EXP / Reward values, Clear criteria, and Quest identity are unchanged. No database, localStorage, other persistence, dependency, or OpenAI call is introduced.
 - **Consequence**: Shared owns pure resolver, progression evaluator, bodyweight Result validation, and load-step transition. Client renders the hint, Weight Up Ready action, and reps-only Bodyweight form; actual inputs stay blank unless editing a saved Result. Session refresh remains the existing reset behavior.
 - **Date**: 2026-09-24
+
+### D-038: Character Screen v1 and Hub Navigation
+
+- **Status**: Accepted (MVP)
+- **Context**: D-035 defines Session-only cumulative Training / Recovery EXP, and D-036 defines Main Exercise Baseline and actual Workout Result progression. The Character screen needs to present those existing facts without implying unimplemented RPG stats or treating a suggestion as actual performance.
+- **Decision**: Add a Character Screen with the Figma-confirmed Dark Fantasy hierarchy: Character Hero, Main Strength, five Training EXP cards plus Recovery EXP, and Stage progress. Use existing Adventure Session data only. Do not show Level, HP, MP, Attack, Defense, Rank, Equipment, Skill, Badge, or Achievement values.
+- **Decision**: Main Strength START uses the existing Main Exercise Baseline; CURRENT uses an actual result from the latest Clear済み Training Quest whose `performedExerciseId` is the Main Exercise; TARGET uses the Onboarding-confirmed Final Goal, not the current Stage Target. For a result with multiple valid sets, the representative set is the valid completed Set with greatest `setNumber`; no best-record or e1RM summary is calculated. Suggestions are never used as CURRENT.
+- **Decision**: Display the five existing `CharacterGrowth.trainingExp` categories and `recoveryExp` as-is, including zero. Completed Quest count is `StageProgress.currentDayIndex`; total Quest count is `roadmap.days.length` (Daily Quest slots, excluding the Boss Anchor); Boss remaining is `max(0, total - completed)`. Do not infer or display a Stage ordinal because the current Roadmap does not store one.
+- **Decision**: Add the three-tab MAP / CHARACTER / PROGRESS bottom navigation to Adventure hub screens only. MAP returns to the existing Adventure Map, CHARACTER opens this screen, and PROGRESS opens a restrained “進行記録は準備中です” placeholder. Hide the navigation during Quest and other focused flows. The active tab is exposed with `aria-current` as well as visual styling.
+- **Decision**: A missing Session is rendered as a safe empty Character state by the Presentation boundary; the App's normal flow continues to keep hub navigation behind completed Onboarding. No fake Session or persistence is added.
+- **Consequence**: No EXP, Quest, Baseline, progression, Roadmap, Reward, Boss, AI, or persistence behavior changes. The final Onboarding goal is retained in the existing in-memory Adventure Session so the Presentation can distinguish it from the Stage Target.
+- **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, Client Character presentation, hub navigation, and regression tests.
+- **Date**: 2026-09-25

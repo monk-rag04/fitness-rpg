@@ -46,6 +46,8 @@ export interface AdventureQuestSession {
   readonly equipmentProfile?: GymEquipmentProfile;
   readonly stageTrainingProgramContext?: StageTrainingProgramSessionContext;
   readonly exerciseProgressById?: ExerciseProgressById;
+  /** The onboarding-confirmed final goal, distinct from this Roadmap's Stage target. */
+  readonly mainStrengthGoalE1rmKg?: number;
 }
 
 export interface OnboardingMainExerciseBaseline {
@@ -64,6 +66,7 @@ export interface AdventureQuestDomainState {
   readonly exerciseProgressById: ExerciseProgressById;
   readonly workoutResultsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>>;
   readonly characterGrowth: CharacterGrowth;
+  readonly mainStrengthGoalE1rmKg?: number;
 }
 
 export type AdventureQuestTransitionStatus =
@@ -103,6 +106,9 @@ export function createAdventureQuestDomainState(
     exerciseProgressById: session.exerciseProgressById ?? {},
     workoutResultsByDay: {},
     characterGrowth: createInitialCharacterGrowth(),
+    ...(session.mainStrengthGoalE1rmKg === undefined
+      ? {}
+      : { mainStrengthGoalE1rmKg: session.mainStrengthGoalE1rmKg }),
   };
 }
 
@@ -460,7 +466,7 @@ export function setStageEquipmentProfile<TTarget extends StageEquipmentProfileTa
 
 /** An onboarding result starts with no generated plan and no Demo fixture. */
 export function createOnboardingAdventureSession(
-  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress' | 'stageTrainingProgramContext'> & {
+  result: Pick<AdventureQuestSession, 'roadmap' | 'initialProgress' | 'stageTrainingProgramContext' | 'mainStrengthGoalE1rmKg'> & {
     readonly onboardingBaseline?: OnboardingMainExerciseBaseline;
   },
 ): AdventureQuestSession {
@@ -482,6 +488,9 @@ export function createOnboardingAdventureSession(
     ...(result.stageTrainingProgramContext === undefined
       ? {}
       : { stageTrainingProgramContext: result.stageTrainingProgramContext }),
+    ...(result.mainStrengthGoalE1rmKg === undefined
+      ? {}
+      : { mainStrengthGoalE1rmKg: result.mainStrengthGoalE1rmKg }),
     ...(mainProgress === null
       ? {}
       : { exerciseProgressById: { [mainProgress.exerciseId]: mainProgress } }),

@@ -27,12 +27,12 @@ Prototype Snapshot確認日: 2026-09-21。
 
 ## ProductionのInformation Architecture
 
-Onboarding完了後の主要Navigationは次の4領域とする方向で進める。領域構成は有力方針であり、Bottom Navigationの正式なTab構成は未決定。
+Onboarding完了後のProduct領域はMAP、QUEST、CHARACTER、PROGRESSとする。D-038でMVP Bottom Navigationの3 TabをMAP / CHARACTER / PROGRESSとして決定した。QUESTはMapから開く集中Flowであり、Bottom NavigationのTabにはしない。
 
 1. **MAP**: Adventure Map、現在地、Stage、Bossへの道のり。
 2. **QUEST**: 当日のTraining / Recovery、Nutritionを含むBonus Quest。
-3. **CHARACTER**: Level、EXP、HP、Play Style、Strength / Support Stats、Body Status。
-4. **PROGRESS**: Strength・Body Weight・Boss・継続の履歴。
+3. **CHARACTER**: v1では既存SessionのMain Strength実績・Goal、Body Growth EXP、Stage進行を表示する。Level / HP / Play Style等は未実装のため表示しない。
+4. **PROGRESS**: 将来のStrength・Body Weight・Boss・継続の履歴。v1は準備中Placeholder。
 
 Bossは基本候補のBottom Navigationへ常設せず、MapのBoss Nodeから遷移する方向とする。NutritionとRecoveryは独立した主Navigationにせず、QuestまたはCharacterから到達できる構成とする。
 
@@ -69,7 +69,8 @@ Bossは基本候補のBottom Navigationへ常設せず、MapのBoss Nodeから�
 
 ### Production要件
 
-- Mobile App的なNavigationを前提とし、Smartphone Portraitで現在地・次の主要Action・戻り先を分かりやすくする。Bottom Navigationは基本候補であり、Prototypeの4 Tabを正式仕様として固定しない。
+- D-038 MVP Bottom NavigationはMAP / CHARACTER / PROGRESSの3 Tab。Map / Character / Progressの主要Hubで表示し、OnboardingおよびTraining / Recovery Quest、生成・Clear等の集中Flowでは表示しない。
+- MAPは既存Adventure Mapへ、CHARACTERはCharacter Screen v1へ、PROGRESSはProgress Placeholderへ遷移する。現在Tabは色だけでなく明示的なActive stateと`aria-current`で示す。
 - 当日Questへ直接アクセスするNavigationは許容するが、「どの日付・どの計画NodeのQuestか」を常に一意にする。
 - BossはMap上のBoss Nodeから遷移させる。
 - Overlay表示中は背面操作を防ぎ、完了Actionの多重実行を防ぐ。
@@ -278,6 +279,16 @@ Recovery has no MVP checklist. The user explicitly clears the current Recovery n
 - OverlayはDomain結果を表示するだけにし、表示の有無でDomain Stateを決めない。
 
 ## Character / Play Style / Support Stats
+
+### D-038 Production Character Screen v1
+
+- FigmaのDark Fantasy構成に沿ってCharacter Hero、Main Strength、2列のBody Growth EXP、Current Stage Progress、下部Navigationを表示する。
+- Main Strength STARTはMain ExerciseのSession Baseline、CURRENTは最新Clear済みTraining Quest内のMain Exerciseの実記録、TARGETはOnboardingのFinal Goalを使う。CURRENTにProgression SuggestionやStage Targetを使わない。
+- 1 Quest内の代表Setは`setNumber`が最大の有効なcompleted setとする。最新Clear済み結果をroadmap day indexの降順で探す。
+- EXPは既存CharacterGrowthの5 Training CategoryとRecovery EXPをそのまま使い、0でも全Cardを表示する。
+- Stageの完了数は既存`StageProgress.currentDayIndex`、totalは`roadmap.days.length`（Daily Quest Slot数。Boss Anchorは含めない）を使う。Boss remainingはtotalからcompletedを引き、0未満にしない。
+- 現行RoadmapにはStage ordinalがないため画面にStage番号を捏造しない。Progressは「進行記録は準備中です」のPlaceholder。
+- Sessionがない場合はCharacter presentation helperが空状態（START `—`、CURRENT `記録なし`、EXP 0、進行0）を返す。AppのOnboarding flowではSession作成前にHub Navigationを表示しない。
 
 ### Prototype確認
 

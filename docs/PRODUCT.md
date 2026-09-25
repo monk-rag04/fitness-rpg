@@ -249,6 +249,8 @@ D-027 Recovery is also explicit: the user clears the current Recovery node witho
 - Progress、Character Growth、実際に適用したReward Summaryは、1つのQuest completion state transitionで同時に確定する。Workout Result保存・編集だけではEXPを付与しない。
 - D-035 MVPのCharacter Growthは累積EXPのみで、Level化しない。値は現在のReact Adventure Session内に限り、永続化しない。
 
+**D-038 Character Screen v1で決定済み**: Character画面は既存Adventure SessionのMain Strength Baseline、Clear済みTraining Questの実Workout Result、Onboardingで確定したMain Strength Final Goal、5つのTraining EXP、Recovery EXP、RoadmapのQuest進行を表示する。CURRENTはSuggestionではなく実績値である。Level / HP等の未実装Statusは表示しない。主要NavigationはMAP / CHARACTER / PROGRESSとし、Progress本体は「進行記録は準備中です」のPlaceholderに留める。
+
 **有力方針**: Character AppearanceをLevel / EXP等に応じて自動成長させる。ただし、連動指標、段階、遷移条件は未決定。
 
 **候補となる表示項目**: Level、Total EXP、Training EXP、Nutrition EXP、Recovery EXP、HP、Status、Play Style / Title、Appearance、Equipment。

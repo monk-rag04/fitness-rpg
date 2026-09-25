@@ -50,7 +50,8 @@ import {
 
 export { type AdventureQuestSession, createOnboardingAdventureSession } from './adventureSession';
 
-export type AppScreen = 'map' | 'quest';
+export type AdventureHubScreen = 'map' | 'character' | 'progress';
+export type AppScreen = AdventureHubScreen | 'quest';
 export type CurrentQuestRescheduleStatus = 'rescheduled' | 'unchanged' | 'invalid';
 
 interface EphemeralUiState {
@@ -69,6 +70,7 @@ interface AdventureQuestState {
 type Action =
   | { readonly type: 'openCurrentQuest' }
   | { readonly type: 'returnToMap' }
+  | { readonly type: 'navigateToHub'; readonly screen: AdventureHubScreen }
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'setStageEquipmentProfile'; readonly domain: AdventureQuestDomainState }
@@ -113,6 +115,11 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
       return {
         ...state,
         ui: { ...state.ui, screen: 'map', validationMessage: null },
+      };
+    case 'navigateToHub':
+      return {
+        ...state,
+        ui: { ...state.ui, screen: action.screen, validationMessage: null },
       };
     case 'cacheTrainingPlanForDay': {
       const cacheResult = cacheTrainingPlanForRoadmapDay(
@@ -225,6 +232,8 @@ interface AdventureQuestContextValue {
   readonly isClearFeedbackVisible: boolean;
   readonly questRewardSummary: QuestRewardSummary | null;
   readonly characterGrowth: AdventureQuestDomainState['characterGrowth'];
+  readonly workoutResultsByDay: AdventureQuestDomainState['workoutResultsByDay'];
+  readonly mainStrengthGoalE1rmKg: number | undefined;
   readonly validationMessage: string | null;
   openCurrentQuest: () => void;
   returnToMap: () => void;
@@ -238,6 +247,7 @@ interface AdventureQuestContextValue {
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
+  navigateToHub: (screen: AdventureHubScreen) => void;
 }
 
 const AdventureQuestContext = createContext<AdventureQuestContextValue | null>(null);
@@ -288,6 +298,8 @@ export function AdventureQuestProvider({
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
     questRewardSummary: state.ui.questRewardSummary,
     characterGrowth: state.domain.characterGrowth,
+    workoutResultsByDay: state.domain.workoutResultsByDay,
+    mainStrengthGoalE1rmKg: state.domain.mainStrengthGoalE1rmKg,
     validationMessage: state.ui.validationMessage,
     openCurrentQuest: () => {
       if (progressView.currentDailyNode !== null) {
@@ -411,6 +423,7 @@ export function AdventureQuestProvider({
       return completion;
     },
     continueAdventure: () => dispatch({ type: 'continueAdventure' }),
+    navigateToHub: (screen) => dispatch({ type: 'navigateToHub', screen }),
   }), [progressView, state, trainingEvaluation, workoutResults]);
 
   return (
@@ -426,4 +439,9 @@ export function useAdventureQuest(): AdventureQuestContextValue {
     throw new Error('useAdventureQuest must be used within AdventureQuestProvider.');
   }
   return context;
+}
+
+/** A nullable reader for standalone safe/empty screens outside a Session provider. */
+export function useOptionalAdventureQuest(): AdventureQuestContextValue | null {
+  return useContext(AdventureQuestContext);
 }

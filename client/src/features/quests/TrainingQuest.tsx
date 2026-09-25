@@ -49,7 +49,9 @@ export function TrainingQuest() {
             const baselineMode = baselineModeById[plan.exerciseId] ??
               (selfReportSupported ? 'choose' : 'first_time');
             const setSummary = existingResult?.completedSets
-              .map((set) => `${set.weightKg}kg × ${set.reps} reps`)
+              .map((set) => set.weightKg === undefined
+                ? `${set.reps}回`
+                : `${set.weightKg}kg × ${set.reps}回`)
               .join(' · ');
 
             return (

@@ -5,10 +5,14 @@ import {
   createInitialCharacterGrowth,
   captureFirstWorkoutExerciseBaseline,
   createOnboardingExerciseProgressState,
+  createInitialExerciseProgressState,
+  applyExerciseLoadStep,
+  evaluateExerciseProgression,
   incrementExerciseSessionsCompleted,
   registerSelfReportedExerciseBaseline,
   type CharacterGrowth,
   type ExerciseProgressById,
+  type ExerciseLoadStepStatus,
   type ExerciseWorkoutResult,
   type QuestRewardSummary,
 } from '@fitness-rpg/shared';
@@ -71,6 +75,10 @@ export type AdventureQuestTransitionStatus =
   | 'invalid_reward_state'
   | 'invalid_exercise_progress_state'
   | 'invalid_day_index';
+
+export type ExerciseLoadStepSessionStatus = ExerciseLoadStepStatus |
+  'not_current_training_day' |
+  'exercise_not_in_plan';
 
 export type AdventureQuestRewardTransition =
   | {
@@ -138,12 +146,15 @@ export function completeAdventureQuest(
 
   const day = domain.roadmap.days[requestedDayIndex];
   const results = Object.values(domain.workoutResultsByDay[requestedDayIndex] ?? {});
+  const trainingPlan = day.type === 'training'
+    ? getTrainingPlanForDay(domain.roadmap, domain.planByDay, requestedDayIndex) ?? undefined
+    : undefined;
   const completion = day.type === 'training'
     ? completeTrainingQuestWithReward(
       domain.roadmap,
       domain.progress,
       requestedDayIndex,
-      getTrainingPlanForDay(domain.roadmap, domain.planByDay, requestedDayIndex) ?? undefined,
+      trainingPlan,
       results,
       domain.equipmentProfile,
       domain.characterGrowth,
@@ -161,6 +172,33 @@ export function completeAdventureQuest(
     const sessions = incrementExerciseSessionsCompleted(exerciseProgressById, results);
     if (!sessions.valid) return { status: 'invalid_exercise_progress_state', domain };
     exerciseProgressById = sessions.exerciseProgressById;
+
+    if (trainingPlan !== undefined) {
+      const resultsByPlanId = new Map(results.map((result) => [result.plannedExerciseId, result]));
+      const progressionByPerformedId = new Map<string, number>();
+      for (const result of results) {
+        progressionByPerformedId.set(
+          result.performedExerciseId,
+          (progressionByPerformedId.get(result.performedExerciseId) ?? 0) + 1,
+        );
+      }
+      for (const plannedExercise of trainingPlan.exercises) {
+        const result = resultsByPlanId.get(plannedExercise.exerciseId);
+        if (result === undefined || progressionByPerformedId.get(result.performedExerciseId) !== 1) continue;
+        const current = exerciseProgressById[result.performedExerciseId] ??
+          createInitialExerciseProgressState(result.performedExerciseId);
+        const nextSuggestion = evaluateExerciseProgression({
+          exerciseProgress: current,
+          plannedExercise,
+          workoutResult: result,
+          currentDayIndex: requestedDayIndex,
+        });
+        exerciseProgressById = {
+          ...exerciseProgressById,
+          [result.performedExerciseId]: { ...current, nextSuggestion },
+        };
+      }
+    }
   }
   return {
     status: 'completed',
@@ -171,6 +209,40 @@ export function completeAdventureQuest(
       exerciseProgressById,
     },
     rewardSummary: completion.rewardSummary,
+  };
+}
+
+export function setExerciseLoadStepForCurrentDay(
+  domain: AdventureQuestDomainState,
+  input: { readonly plannedExerciseId: string; readonly loadStepKg: unknown },
+): { readonly status: ExerciseLoadStepSessionStatus; readonly domain: AdventureQuestDomainState } {
+  const dayIndex = domain.progress.currentDayIndex;
+  if (domain.roadmap.days[dayIndex]?.type !== 'training') {
+    return { status: 'not_current_training_day', domain };
+  }
+  const plan = getTrainingPlanForDay(domain.roadmap, domain.planByDay, dayIndex);
+  const plannedExercise = plan?.exercises.find((exercise) => exercise.exerciseId === input.plannedExerciseId);
+  if (plannedExercise === undefined) return { status: 'exercise_not_in_plan', domain };
+
+  const savedResult = domain.workoutResultsByDay[dayIndex]?.[plannedExercise.exerciseId];
+  const effectiveExerciseId = savedResult?.performedExerciseId ?? plannedExercise.exerciseId;
+  const result = applyExerciseLoadStep({
+    exerciseProgress: domain.exerciseProgressById[effectiveExerciseId],
+    exerciseId: effectiveExerciseId,
+    loadStepKg: input.loadStepKg,
+    repRange: plannedExercise.repRange,
+  });
+  if (!result.valid) return { status: result.status, domain };
+
+  return {
+    status: 'applied',
+    domain: {
+      ...domain,
+      exerciseProgressById: {
+        ...domain.exerciseProgressById,
+        [effectiveExerciseId]: result.exerciseProgress,
+      },
+    },
   };
 }
 

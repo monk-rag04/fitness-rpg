@@ -276,11 +276,11 @@ Stage Program RequestのRoadmap validationは、各Daily Slotのcanonical `start
 
 Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps、sets、完了、substitution理由。
 
-**MVP時点の決定済みDomain境界（D-024 / D-036 Task 4F）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、任意のExercise単位`difficultyFeedback`、`performedAt`を持つ。`difficultyFeedback`は`too_hard` / `just_right` / `easy`のいずれかであり、Set単位ではない。各Setは`weightKg`と`reps`を持ち、Exercise全体へ一つの重量を固定しない。これは正式なTable / 保存Schemaではない。
+**MVP時点の決定済みDomain境界（D-024 / D-036 Task 4G）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、任意のExercise単位`difficultyFeedback`、`performedAt`を持つ。`difficultyFeedback`は`too_hard` / `just_right` / `easy`のいずれかであり、Set単位ではない。Weighted Exerciseの各Setは正の有限`weightKg`と正の整数`reps`を持つ。`push_up` / `pull_up` / `glute_bridge`は例外としてrepsだけを持ち、重量Fieldを拒否する。Exercise全体へ一つの重量は固定しない。これは正式なTable / 保存Schemaではない。
 
-`validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、正の有限重量、正の整数rep、任意のExercise単位`difficultyFeedback`、timestamp、未知Fieldを検査する。Feedbackの許可値は`too_hard`、`just_right`、`easy`であり、未指定なら有効、未知値は拒否する。FeedbackはResultと一緒に保存・編集される。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
+`validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、Exercise IDに応じた重量有無、正の整数rep、任意のExercise単位`difficultyFeedback`、timestamp、未知Fieldを検査する。Weighted種目には各Setの正の有限重量を必須とし、Bodyweight3種には重量を許さない。Feedbackの許可値は`too_hard`、`just_right`、`easy`であり、未指定なら有効、未知値は拒否する。FeedbackはResultと一緒に保存・編集される。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
 
-`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`と完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡すAdapterであり、代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。D-036 Task 4FのFeedbackは記録専用で、Baseline、Clear条件、EXP / Reward、Progressionに影響しない。Suggested Weight / Reps、Load / Progression、RPE / RIR、重量増分、Persistenceは未決定である。
+`validateWorkoutResultAgainstPlan()`は保存済みPlan Snapshotとの予定Exercise、role、予定Set数、rep rangeだけを照合し、実重量・実repを判定しない。`calculateWorkoutResultE1rm()`は`performedExerciseId`とWeighted種目の完了Setを既存D-023の`calculateWorkoutE1rm()`へ渡し、Bodyweightではe1RMを返さない。代替Exerciseの実績を元Exerciseへ自動移管しない。D-027はこの既存検証をTraining Quest Clearの前提に利用する。Task 4FのFeedbackはResult単位で保存され、Task 4Gの`exercise-progression-v1`では`too_hard`のみが進行Veto、未選択は中立となる。SuggestionとProgressionは成功Training Clearまで更新しない。
 
 ### ExerciseProgressState（D-035 4E Session内）
 
@@ -296,18 +296,30 @@ type ExerciseBaseline = {
   capturedDayIndex: number;
 };
 
+type ExerciseSuggestionStatus = 'active' | 'weight_up_ready';
+type ExerciseSuggestion = {
+  weightKg?: number;
+  targetReps: number;
+  repRange: RepRange;
+  status: ExerciseSuggestionStatus;
+  ruleVersion: 'exercise-progression-v1';
+};
 type ExerciseProgressState = {
   exerciseId: ExerciseId;
   baseline?: ExerciseBaseline;
   sessionsCompleted: number;
+  nextSuggestion?: ExerciseSuggestion;
+  loadStepKg?: number;
 };
 ```
 
 `AdventureQuestDomainState.exerciseProgressById`はExercise ID keyedのin-memory map。Main StrengthだけはOnboardingの実測重量 / repsを`source: 'onboarding'`、初期day index、`sessionsCompleted: 0`で持つ。その他のExerciseは任意の`source: 'self_report'`、またはそのExerciseの初回有効Workout Resultから`source: 'workout_result'`でBaselineを得る。自己申告repsは正の整数で、重量は正の有限値。D-023でe1RM計算可能なら未丸め値とRule Versionを保持し、適格外でもBaselineは残す。
 
-Workout Result由来Baselineは`performedExerciseId`へ帰属する。D-023適格Setがある場合はWorkout内最大e1RMを選び、その根拠Setの重量 / repsを保存する。全Setがe1RM対象外なら、最小setNumberの有効SetをBaselineにしてe1RMを省略する。Baselineは一度設定した後、通常Resultで上書きしない。`push_up` / `pull_up` / `glute_bridge`はMVPのkg自己申告対象外である。
+Workout Result由来Baselineは`performedExerciseId`へ帰属する。D-023適格Weighted Setがある場合はWorkout内最大e1RMを選び、その根拠Setの重量 / repsを保存する。全Setがe1RM対象外なら、最小setNumberの有効Weighted SetをBaselineにしてe1RMを省略する。Baselineは一度設定した後、通常Resultで上書きしない。`push_up` / `pull_up` / `glute_bridge`はkg自己申告・Workout Result由来kg Baselineの対象外であり、架空の重量を作らない。
 
-`sessionsCompleted`は、成功したTraining Quest Clearに限り、実際に行った各unique Exerciseにつき一度だけ加算する。Result保存、Baseline登録、同一Questでの複数Result、Recovery Clear、失敗・二重Clearでは加算しない。Exercise Progressは現在のAdventure Session内だけにあり、Refresh後の保持、永続化、現在値・Progression値、推奨重量はこのTaskに含まれない。
+`sessionsCompleted`は、成功したTraining Quest Clearに限り、実際に行った各unique Exerciseにつき一度だけ加算する。Result保存、Baseline登録、同一Questでの複数Result、Recovery Clear、失敗・二重Clearでは加算しない。
+
+`nextSuggestion`は`exercise-progression-v1`のsession内hintで、`targetReps`はcurrent Plan rangeへclampする。初期値はrange.min、Baseline repsがrange内ならそのBaseline重量を使い、それ以外は重量未設定とする。Result入力へprefillしない。successful Training Clearで全planned Set、target reps、必要ならsuggested weightを検査し、最大rep達成時はユーザー設定`loadStepKg`で一段だけ進める。刻み未設定なら`weight_up_ready`と現在重量を保持する。`too_hard`、Partial、目標未達、suggestion未満重量ではSuggestion維持。Baselineは不変であり、前回Feedback / Performanceのduplicate stateを持たない。Bodyweightには重量Suggestionやload stepを持たせず、全planned Setでrepsのみを段階化しmaxで維持する。Result保存・編集ではProgressionを更新せず、successful Clearの既存Progress / Growth / Reward / Session count transitionと同時に確定する。Exercise Progressは現在のAdventure Session内だけにあり、Refresh後の保持や永続化はしない。
 
 ### Quest（保存候補。D-027 MVPのidentityではない）
 

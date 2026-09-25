@@ -1097,10 +1097,28 @@ button.map-node:active {
 .exercise-baseline-setup input:focus-visible { outline: 2px solid var(--color-arcane); outline-offset: 2px; }
 
 .workout-result-form { margin-top: 0.85rem; }
+.exercise-suggestion { display: grid; min-width: 0; gap: 0.3rem; margin: 0 0 0.7rem 1.85rem; padding: 0.65rem 0.75rem; border-left: 2px solid rgba(233, 200, 118, 0.68); background: rgba(233, 200, 118, 0.055); }
+.exercise-suggestion.is-weight-up-ready { border: 1px solid rgba(233, 200, 118, 0.48); border-radius: 0.35rem; }
+.exercise-suggestion__heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0.4rem; color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; }
+.exercise-suggestion__tag { flex: 0 0 auto; color: var(--color-gold-bright); font-size: 0.5rem; letter-spacing: 0.04em; }
+.exercise-suggestion__tag--progressed { color: var(--color-arcane); }
+.exercise-suggestion > strong { color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 0.82rem; line-height: 1.4; overflow-wrap: anywhere; }
+.exercise-suggestion > p { margin: 0; color: var(--color-muted); font-size: 0.62rem; line-height: 1.45; }
+.exercise-load-step { display: grid; min-width: 0; gap: 0.45rem; margin: 0 0 0.75rem 1.85rem; padding: 0.65rem; border: 1px solid rgba(233, 200, 118, 0.4); border-radius: 0.38rem; background: rgba(233, 200, 118, 0.045); }
+.exercise-load-step > strong { color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; }
+.exercise-load-step > p { margin: 0; color: var(--color-text); font-size: 0.72rem; }
+.exercise-load-step label { display: grid; min-width: 0; gap: 0.25rem; color: var(--color-muted); font-size: 0.65rem; }
+.exercise-load-step label > span { display: flex; min-width: 0; align-items: center; gap: 0.35rem; }
+.exercise-load-step input { width: min(100%, 6rem); min-width: 0; min-height: 2.75rem; padding: 0.4rem; border: 1px solid rgba(236, 227, 207, 0.22); border-radius: 0.32rem; background: var(--color-bg); color: var(--color-text); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.75rem; }
+.exercise-load-step em { color: var(--color-arcane); font-size: 0.65rem; font-style: normal; }
+.exercise-load-step button { min-height: 2.75rem; padding: 0.45rem 0.6rem; border: 1px solid rgba(74, 168, 255, 0.55); border-radius: 0.32rem; background: rgba(74, 168, 255, 0.12); color: var(--color-arcane); font-size: 0.65rem; font-weight: 700; }
+.exercise-load-step__message { margin: 0; color: var(--color-danger-bright); font-size: 0.65rem; line-height: 1.4; }
+.weight-entry-hint { margin: -0.25rem 0 0.55rem; color: var(--color-arcane); font-size: 0.65rem; line-height: 1.4; }
 .workout-result-form legend { color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 0.73rem; letter-spacing: 0.07em; }
 .form-help { margin: 0.35rem 0 0.65rem; color: var(--color-faint); font-size: 0.73rem; line-height: 1.4; }
 .set-input-list { display: grid; gap: 0.5rem; }
 .set-input-row { grid-template-columns: 2.1rem minmax(0, 1fr) minmax(0, 1fr); gap: 0.45rem; padding: 0.5rem; border-color: rgba(236, 227, 207, 0.13); border-radius: 0.42rem; background: rgba(15, 19, 28, 0.75); }
+.set-input-row--bodyweight { grid-template-columns: 2.1rem minmax(0, 1fr); }
 .set-label { padding-bottom: 0.55rem; color: var(--color-gold-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; }
 .set-input-row label { gap: 0.2rem; color: var(--color-muted); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.55rem; }
 .set-input-row input { min-width: 0; min-height: 2.75rem; border-color: rgba(236, 227, 207, 0.22); border-radius: 0.32rem; background: var(--color-bg); color: var(--color-text); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.72rem; }
@@ -1495,6 +1513,10 @@ button.map-node:active {
 .completed-exercise-summary { min-width: 0; }
 .exercise-edit-button { min-height: 2.75rem; }
 .set-input-row label { min-width: 0; }
+.exercise-suggestion,
+.exercise-load-step { overflow-wrap: anywhere; }
+.exercise-load-step input:focus-visible,
+.exercise-load-step button:focus-visible { outline: 2px solid var(--color-arcane); outline-offset: 2px; }
 
 .map-node-caption { max-width: 8.5rem; }
 .map-node-name { text-align: center; line-height: 1.15; }

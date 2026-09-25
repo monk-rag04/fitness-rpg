@@ -80,6 +80,17 @@ export const EXERCISE_IDS = [
 
 export type ExerciseId = (typeof EXERCISE_IDS)[number];
 
+/** MVP bodyweight exercises use reps only; weighted variants are out of scope. */
+export const BODYWEIGHT_EXERCISE_IDS = [
+  'push_up',
+  'pull_up',
+  'glute_bridge',
+] as const satisfies readonly ExerciseId[];
+
+export function isBodyweightExerciseId(exerciseId: string): boolean {
+  return BODYWEIGHT_EXERCISE_IDS.some((id) => id === exerciseId);
+}
+
 export type RequiredEquipmentOption = readonly EquipmentId[];
 
 export interface ExerciseDefinition {

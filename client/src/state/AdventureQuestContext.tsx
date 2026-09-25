@@ -37,9 +37,11 @@ import {
   getTrainingPlanForDay,
   saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
+  setExerciseLoadStepForCurrentDay as setExerciseLoadStepForSession,
   registerExerciseBaselineForCurrentDay as registerExerciseBaselineForSession,
   type AdventureQuestDomainState,
   type ExerciseBaselineRegistrationStatus,
+  type ExerciseLoadStepSessionStatus,
   type StageEquipmentProfileStatus,
   type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
@@ -71,6 +73,7 @@ type Action =
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'setStageEquipmentProfile'; readonly domain: AdventureQuestDomainState }
   | { readonly type: 'registerExerciseBaseline'; readonly domain: AdventureQuestDomainState }
+  | { readonly type: 'setExerciseLoadStep'; readonly domain: AdventureQuestDomainState }
   | { readonly type: 'confirmExerciseBaselineSetup'; readonly exerciseId: ExerciseId }
   | { readonly type: 'rescheduleCurrentQuest'; readonly roadmap: StageRoadmap }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
@@ -138,6 +141,8 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         domain: action.domain,
       };
     case 'registerExerciseBaseline':
+      return { ...state, domain: action.domain };
+    case 'setExerciseLoadStep':
       return { ...state, domain: action.domain };
     case 'confirmExerciseBaselineSetup':
       return {
@@ -227,6 +232,7 @@ interface AdventureQuestContextValue {
   cacheStageTrainingProgram: (program: ValidatedStageTrainingProgram) => StageTrainingProgramCacheStatus;
   setStageEquipmentProfile: (equipmentIds: readonly EquipmentId[]) => StageEquipmentProfileStatus;
   registerExerciseBaseline: (input: { readonly exerciseId: string; readonly weightKg: unknown; readonly reps: unknown }) => ExerciseBaselineRegistrationStatus;
+  setExerciseLoadStep: (plannedExerciseId: string, loadStepKg: unknown) => ExerciseLoadStepSessionStatus;
   confirmExerciseBaselineSetup: (exerciseId: ExerciseId) => void;
   rescheduleCurrentQuest: (newDate: string, today: string) => CurrentQuestRescheduleStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
@@ -319,6 +325,13 @@ export function AdventureQuestProvider({
       const transition = registerExerciseBaselineForSession(state.domain, input);
       if (transition.status === 'registered') {
         dispatch({ type: 'registerExerciseBaseline', domain: transition.domain });
+      }
+      return transition.status;
+    },
+    setExerciseLoadStep: (plannedExerciseId, loadStepKg) => {
+      const transition = setExerciseLoadStepForSession(state.domain, { plannedExerciseId, loadStepKg });
+      if (transition.status === 'applied') {
+        dispatch({ type: 'setExerciseLoadStep', domain: transition.domain });
       }
       return transition.status;
     },

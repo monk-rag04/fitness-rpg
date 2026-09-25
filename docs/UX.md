@@ -192,7 +192,20 @@ For Training, all planned main and accessory exercises show completion only as d
 - 未選択でも記録とQUEST CLEARが可能であることを短く示す。Feedbackだけを先に確定せず、「記録する」とSet実績を一緒に保存する。
 - 既存Resultを編集するときはFeedbackを復元し、選択を変更または解除できる。選択中は`aria-pressed`とborder / inset stateで明確にし、色だけに依存しない。
 - 375〜430pxのMobile幅で3択とRecord CTAをカード内に収める。FeedbackはResult単位であり、Setごとの欄にはしない。
-- 現時点では記録専用で、Baseline、Quest Clear条件、EXP / Reward、Suggested Weight / Reps、Progressionに影響させない。Session内だけで保持し、Persistenceは追加しない。
+- Feedback自体は記録専用で、Baseline、Quest Clear条件、EXP / Rewardを変えない。D-036 Task 4Gでは成功Clear時のSuggested Weight / Reps判定にのみ利用する。Session内だけで保持し、Persistenceは追加しない。
+
+### D-036 Task 4G: Suggested Weight / Reps and deterministic progression
+
+- Exercise Cardに「今回の目安」を表示する。Baseline repsが現在Planのrange内ならそのBaseline重量とrange.minを提示し、Baselineなし・range不整合時は重量未設定とrange.minだけを示す。実重量・reps入力へ自動入力しない。
+- `targetReps`は単一値で、Plan rangeが変わった場合は新rangeへclampする。実績入力は空欄のまま開始し、ユーザーが目安と異なる値を自由に記録できる。
+- 画面はNo Suggestion、Suggestion、Reps Progressed、Weight Up Ready、Load Step適用後を同じProduction画面上で表現する。Figma専用のPreview selectorは追加しない。
+- Weighted種目はResultの全planned Setが目標reps以上かつ数値Weight Suggestion以上の場合に限り、一回のClearでrepsを+1する。すべてrep max以上なら、設定済みload stepで一段だけ上げてrange.minへ戻す。刻み未設定なら`WEIGHT UP READY`を表示するが、Result入力・保存・Quest Clearは妨げない。
+- Weight Up Ready Panelから有限の正数をExercise単位`loadStepKg`として登録する。確定時に刻みを保存して一段だけ適用し、同じActionの再実行では二重加算しない。初期値・Equipment別推奨刻みは設けない。
+- `too_hard`、予定Set不足、target reps不足、どれか一Setでもsuggested weight未満ならSuggestionを維持する。Feedback単独では進行せず、Weight DownやFailure streakは表示・実装しない。
+- 数値SuggestionがまだないWeighted種目は、Feedbackが`too_hard`でなく全planned Setがある場合に限り、そのSet群の最小実重量を保守的な基準として次回Suggestionへ利用する。Baselineは変更しない。
+- `push_up` / `pull_up` / `glute_bridge`はreps-onlyで、重量欄・kg目安・Weight Up Panelを表示しない。全planned Set達成時のみrepsを+1し、rep maxで維持する。通常のDifficulty Feedbackは維持する。
+- 重量の記録基準はBarbell=バー込み総重量、Dumbbell=1個あたり、Machine / Cable=機械の表示重量。同一種目で基準を統一する。Catalog上曖昧な種目には補助説明を出さない。
+- Result save/editではSuggestionを更新しない。最終保存Resultのみを成功したTraining Quest Clearで評価し、Progress / Character Growth / Reward / `sessionsCompleted`と同じin-memory Session transitionで更新する。Baselineは初回固定、RescheduleはStateを維持する。
 
 ## Recovery Quest UX
 

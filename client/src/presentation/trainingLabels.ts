@@ -72,6 +72,43 @@ const muscleLabels: Record<MuscleGroup, string> = {
   calves: "ふくらはぎ",
 };
 
+const barbellExerciseIds = new Set<ExerciseId>([
+  "barbell_bench_press",
+  "barbell_bent_over_row",
+  "barbell_deadlift",
+  "barbell_overhead_press",
+  "barbell_curl",
+  "close_grip_bench_press",
+  "barbell_back_squat",
+  "barbell_hip_thrust",
+]);
+
+const dumbbellExerciseIds = new Set<ExerciseId>([
+  "dumbbell_bench_press",
+  "incline_dumbbell_press",
+  "dumbbell_chest_fly",
+  "one_arm_dumbbell_row",
+  "dumbbell_shoulder_press",
+  "dumbbell_lateral_raise",
+  "dumbbell_curl",
+  "dumbbell_overhead_triceps_extension",
+]);
+
+const machineOrCableExerciseIds = new Set<ExerciseId>([
+  "chest_press_machine",
+  "cable_chest_fly",
+  "seated_row_machine",
+  "lat_pulldown",
+  "shoulder_press_machine",
+  "cable_lateral_raise",
+  "cable_curl",
+  "cable_triceps_pushdown",
+  "smith_machine_squat",
+  "leg_press",
+  "leg_extension",
+  "seated_leg_curl",
+]);
+
 export function equipmentLabel(id: string): string {
   return equipmentLabels[id as EquipmentId] ?? id;
 }
@@ -82,6 +119,14 @@ export function exerciseLabel(id: string): string {
 
 export function muscleLabel(id: string): string {
   return muscleLabels[id as MuscleGroup] ?? id;
+}
+
+/** Only explicitly unambiguous Catalog exercises receive a weight convention hint. */
+export function weightEntryHint(exerciseId: string): string | undefined {
+  if (barbellExerciseIds.has(exerciseId as ExerciseId)) return "バーを含む総重量";
+  if (dumbbellExerciseIds.has(exerciseId as ExerciseId)) return "ダンベル1個あたりの重量";
+  if (machineOrCableExerciseIds.has(exerciseId as ExerciseId)) return "その機械で設定した表示重量";
+  return undefined;
 }
 
 const workoutResultErrorMessages: Record<string, string> = {
@@ -97,6 +142,7 @@ const workoutResultErrorMessages: Record<string, string> = {
   INVALID_SET_NUMBER: "セット番号を確認してください。",
   DUPLICATE_SET_NUMBER: "同じセット番号が重複しています。",
   INVALID_WEIGHT_KG: "重量は0より大きい数値で入力してください。",
+  WEIGHT_NOT_ALLOWED_FOR_BODYWEIGHT: "自重種目では重量を記録せず、回数を入力してください。",
   INVALID_REPS: "回数は1以上の整数で入力してください。",
   INVALID_PERFORMED_AT: "記録日時を確認してください。",
 };

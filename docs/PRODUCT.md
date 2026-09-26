@@ -97,7 +97,7 @@ Onboarding
 
 Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calculateSetE1rm()`で未丸めe1RMを算出し、`onboarding_self_reported`としてWorkout History由来の`currentE1rm`と区別する。重量が分からなければ`baseline_required`とし、体重倍率・Historical PB・0kg・AI推定で埋めずRoadmapを生成しない。初心者のStrength Assessmentは将来機能である。Final GoalはBaseline e1RMより大きい値をユーザーが直接入力し、MVPでは推奨値を表示しない。食事制約・アレルギー入力はMVP Onboardingから外す。
 
-開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。42日超は`stage_replanning_required`を明示し、42日へclamp・TargetやGoalの自動変更・Demo値fallbackをしない。EquipmentはOnboarding後、最初のTraining Nodeを開いた時点でStage共通Profileとして収集する。Equipment確定後にStage全体のTraining Programを1回の生成操作で編成し、Roadmap上のTraining DayだけへPlanを割り当てる。Recovery DayとBossにはPlanを作らない。生成済みSessionは`planByDay[dayIndex]`へ一括保存し、部分保存しない。Demo Bench Planを実ユーザーRoadmapへ流用しない。
+開始操作時にClient/ApplicationがBrowser local calendar dateを`YYYY-MM-DD`として一度取得する。Backend経由のAchievement Duration Estimate、Domainのceiling選択、Roadmap生成と初期Progressへ接続する。D-043によりOnboardingが作るStage 1は14 / 21 / 28日のQuick Start ruleを使い、最初のestimateが28日を超える場合は+2.5kg Targetで一度だけ再Estimateする。Stage 2以降の42日超は従来どおり`stage_replanning_required`とし、clamp・TargetやGoalの自動変更・Demo値fallbackをしない。EquipmentはOnboarding後、最初のTraining Nodeを開いた時点でStage共通Profileとして収集する。Equipment確定後にStage全体のTraining Programを1回の生成操作で編成し、Roadmap上のTraining DayだけへPlanを割り当てる。Recovery DayとBossにはPlanを作らない。生成済みSessionは`planByDay[dayIndex]`へ一括保存し、部分保存しない。Demo Bench Planを実ユーザーRoadmapへ流用しない。
 
 **D-031 Stage-wide Training Program**: 1 Stageを一貫したTraining Programとして扱う。Program生成はOnboarding完了直後ではなく、Equipment Profile確定後の最初のTraining Nodeで行う。AIへはStage Target、Main Exercise、current e1RM、Training経験月数、週頻度、Stage duration、Training Day一覧、各DayのSession Focus、Stage共通Equipmentを文脈として渡すが、AIはWeight、Roadmap配置、Quest Clear、EXP、Boss Stateを決めない。全Training Dayを過不足なく編成し、全SessionのDomain Validationが成功した場合だけAtomicに`planByDay`へ保存する。
 
@@ -129,7 +129,7 @@ Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calc
 - Training Sessionは1回のWorkout、StageはFinal Strength Goalまでの中間的な進行単位として分離する。Stage TargetはそのStageのBoss Requirementとなる。
 - 現在StrengthからFinal Goalまでを複数Stageへ分ける。
 - 各Stageの最後にBossを配置する。
-- Stage TargetはAIでなく決定論的Domainで計算する。MVPでは`min(finalGoalE1rmKg, currentE1rmKg + 5)`により次のTargetを作り、最後のStageはFinal Goalでcapする（`stage-target-fixed-5kg-v1`）。
+- Stage TargetはAIでなく決定論的Domainで計算する。D-025の初期候補は`min(finalGoalE1rmKg, currentE1rmKg + 5)`（`stage-target-fixed-5kg-v1`）。ただし最初のStageでestimateが28日を超え、Final Goalより小さいTargetを作れる場合はD-043により`min(finalGoalE1rmKg, currentE1rmKg + 2.5)`へ一度だけ縮小して再Estimateする。
 - `currentE1rmKg`がない場合はHistorical PBや0kgへfallbackせず、baseline requiredとしてStageとDurationのPlanningを開始しない。`currentE1rmKg === finalGoalE1rmKg`はgoal reached、`currentE1rmKg > finalGoalE1rmKg`はgoal reached / goal update requiredであり、Final Goalを自動変更・Stage Targetを引き下げない。
 - Boss Requirementのe1RMはStage Target e1RMと同値である。Boss State / Defeated / Shieldは別Domainだが、Roadmapの終端に到達しても`currentE1rm < stageTarget`なら将来Boss Shieldを表示する前提を置く。
 
@@ -146,7 +146,7 @@ Baseline Setは正の有限な重量と1〜10回のrepsから既存D-023の`calc
 - ユーザーが毎日TrainingかRecoveryかを都度選ぶ設計にはしない。
 - Onboarding情報をもとに、SystemまたはAIがTraining / Recoveryを計画する。
 - Mapは単なるカレンダー表示にせず、現在地・次の行動・Bossまでの進行が理解できるUIにする。
-- Roadmap DurationはStage Targetへの挑戦期間であり、Boss撃破保証ではない。MVPの候補は`14 / 21 / 28 / 35 / 42`日である。AIの`estimatedAchievementDays`以上となる最小候補を選び、14日以下は14日、42日超はclampせずstage replanning requiredとする（`roadmap-duration-ceiling-v1`）。
+- Roadmap DurationはStage TargetへのChallenge Windowであり、Boss撃破や期間内成長の保証ではない。D-043のStage 1候補は`14 / 21 / 28`日、Stage 2以降は`14 / 21 / 28 / 35 / 42`日。AI estimate以上の最小候補を選ぶceiling ruleを使う。Stage 1の縮小Target estimateも28日を超えた場合は、Targetを維持したまま最大28日のChallenge Windowで開始する。Stage 2以降は42日超をclampせずstage replanning requiredとする。
 - AIはStage Target、Duration候補、Boss date、Training / Recovery Node、Quest Clear、EXP、Boss Defeatedを決めない。頻度はDuration推定と将来Scheduleの入力だが、AIが曜日やNodeを選択しない。
 - D-026では、D-025で選択済みのDuration、`startDate`、`trainingFrequencyPerWeek`、`mainExerciseId`、Stage Targetから、Duration日数ぶんのTraining / Recovery Calendar Dayと1件のBoss Anchorを決定論的に生成する。DurationはBoss Challengeまでのelapsed calendar daysであり、Boss Anchorは`startDate + durationDays`である。
 - D-034の延期後も`startDate`はStageの当初開始日、`durationDays`はAIが当初選んだ基本期間とDaily Quest Slot数を示す。実際のBoss予定日は`roadmap.boss.date`、各Daily Slotの日付は`roadmap.days[].date`を参照する。
@@ -375,7 +375,7 @@ Main Strength入力は「分かる」と「分からない」に分岐する。�
 
 暫定Baselineは`estimated_profile`として実測値と区別する。Main Strengthの最初の有効なTraining Quest Clear時だけ、保存済み実Workout Result由来Baselineへ置換し、その後は既存の初回固定Ruleを適用する。Character / ProgressのSTARTは置換前だけ推定表示とし、CURRENT / 最新記録には使用しない。
 
-既知重量の42日超はD-025どおり`stage_replanning_required`を維持する。分からないFlowだけは通常ユーザーを停止させず、Provider retryやGoal再生成をせず、既存Duration候補の最大42日でRoadmapを作る。AIの元見積もり日数は結果に保持する。
+D-043はunknown Flowだけの42日fallbackを置き換える。Stage 1ではknown / `estimated_profile`を同じQuick Start planningに通し、最初のestimateが28日を超えた場合はFinal Goal cap付きの+2.5kg Targetを最大1回だけ再Estimateする。再Estimateも28日超なら28日Challenge Windowで開始する。Stage 2以降は既存42日候補と42日超時の`stage_replanning_required`を維持する。
 
 Equipment Checkは16 Equipmentを基本8件と追加8件へ分ける。CTA条件は基本器具2件以上かつMain Exerciseの必要器具を満たすこと。追加器具は0件でよく、自重は選択項目ではなく常時候補となる。`pull_up`はBodyweightだが`pullup_bar`必須であり、No Equipmentとは区別する。器具なしfallback用にClose-grip Push-up、Reverse Snow Angel、Pike Push-up、Bodyweight Squat、Reverse Lunge、Bodyweight Calf RaiseをCatalogへ加え、既存Push-up / Glute Bridgeと共にreps-onlyで扱う。
 

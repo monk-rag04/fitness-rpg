@@ -61,16 +61,25 @@ test('unknown baseline and invalid input never call the endpoint', async () => {
   assert.equal(calls, 0);
 });
 
-test('43-day response never creates a roadmap or substitutes the demo duration', async () => {
+test('an estimate over 28 makes one reduced-target request and caps Stage 1 at 28 days', async () => {
+  let calls = 0;
   const result = await startOnboardingRoadmap(draft, {
     now,
-    request: async () => Response.json({ estimatedAchievementDays: 43 }),
+    request: async (_url, init) => {
+      calls++;
+      const input = JSON.parse(init.body);
+      assert.equal(input.stageTargetE1rmKg, calls === 1 ? 75 : 72.5);
+      return Response.json({ estimatedAchievementDays: 43 });
+    },
   });
-  assert.deepEqual(result, { status: 'stage_replanning_required', estimatedAchievementDays: 43 });
-  assert.equal('roadmap' in result, false);
+  assert.equal(calls, 2);
+  assert.equal(result.status, 'roadmap_created');
+  assert.equal(result.estimatedAchievementDays, 43);
+  assert.equal(result.selectedRoadmapDurationDays, 28);
+  assert.equal(result.roadmap.stageTargetE1rmKg, 72.5);
 });
 
-test('unknown strength makes one provider request and uses the established 42-day fallback', async () => {
+test('unknown strength shares the Stage 1 reduced-target rule and remains within 28 days', async () => {
   let calls = 0;
   const result = await startOnboardingRoadmap({
     bodyWeightKg: 60,
@@ -86,13 +95,45 @@ test('unknown strength makes one provider request and uses the established 42-da
       assert.equal(input.exerciseId, 'barbell_bench_press');
       assert.ok(input.currentE1rmKg > 0);
       assert.ok(input.stageTargetE1rmKg > input.currentE1rmKg);
-      return Response.json({ estimatedAchievementDays: 60 });
+      if (calls === 1) return Response.json({ estimatedAchievementDays: 45 });
+      assert.equal(input.stageTargetE1rmKg, input.currentE1rmKg + 2.5);
+      return Response.json({ estimatedAchievementDays: 19 });
     },
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   assert.equal(result.status, 'roadmap_created');
-  assert.equal(result.selectedRoadmapDurationDays, 42);
+  assert.equal(result.selectedRoadmapDurationDays, 21);
+  assert.equal(result.quickStart.quickStartAdjusted, true);
   assert.equal(result.baseline.source, 'estimated_profile');
+});
+
+test('second estimate failure is retryable and does not create a replacement roadmap', async () => {
+  let calls = 0;
+  const result = await startOnboardingRoadmap(draft, {
+    now,
+    request: async () => {
+      calls++;
+      return calls === 1
+        ? Response.json({ estimatedAchievementDays: 35 })
+        : Response.json({ error: { code: 'PROVIDER_FAILURE' } }, { status: 502 });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(result, { status: 'duration_request_failed', code: 'provider_failure' });
+});
+
+test('a final-goal-capped target avoids a redundant second estimate', async () => {
+  const result = await startOnboardingRoadmap({
+    ...draft,
+    finalGoalE1rmKg: 72.5,
+  }, {
+    now,
+    request: async () => Response.json({ estimatedAchievementDays: 35 }),
+  });
+  assert.equal(result.status, 'roadmap_created');
+  assert.equal(result.quickStart.originalPlannedStageTargetE1rmKg, 72.5);
+  assert.equal(result.quickStart.selectedStageTargetE1rmKg, 72.5);
+  assert.equal(result.selectedRoadmapDurationDays, 28);
 });
 
 test('provider and malformed output failures remain explicit without leaking details', async () => {

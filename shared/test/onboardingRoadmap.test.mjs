@@ -163,18 +163,29 @@ test('valid duration creates roadmap and initial progress without a Training Pla
   assert.equal('trainingPlan' in result, false);
 });
 
-test('42+ estimate is explicit replanning and cannot generate a roadmap', () => {
+test('known Stage 1 first estimate over 28 requests one reduced-target estimate', () => {
   const prepared = prepareOnboardingRoadmap(validInput);
   assert.equal(prepared.status, 'ready_for_duration_estimate');
   const result = completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 43 });
-  assert.deepEqual(result, { status: 'stage_replanning_required', estimatedAchievementDays: 43 });
+  assert.equal(result.status, 'reduced_target_estimate_required');
+  assert.equal(result.originalPlannedStageTargetE1rmKg, 75);
+  assert.equal(result.reducedStageTargetE1rmKg, 72.5);
+  assert.equal(result.firstEstimatedAchievementDays, 43);
   assert.equal('roadmap' in result, false);
-  assert.deepEqual(completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 0 }), {
-    status: 'invalid_duration_estimate',
-  });
+  const completed = completeOnboardingRoadmap(
+    prepared,
+    { estimatedAchievementDays: 43 },
+    { estimatedAchievementDays: 18 },
+  );
+  assert.equal(completed.status, 'roadmap_created');
+  assert.equal(completed.roadmap.stageTargetE1rmKg, 72.5);
+  assert.equal(completed.stage.stageTargetE1rmKg, 72.5);
+  assert.equal(completed.selectedRoadmapDurationDays, 21);
+  assert.equal(completed.quickStart.quickStartAdjusted, true);
+  assert.equal(completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 0 }).status, 'invalid_duration_estimate');
 });
 
-test('42+ estimate uses the established 42-day ceiling only for provisional unknown strength', () => {
+test('estimated_profile uses the same reduced-target Stage 1 rule and never creates a 35/42-day roadmap', () => {
   const prepared = prepareOnboardingRoadmap({
     bodyWeightKg: 60,
     trainingExperienceMonths: 1,
@@ -184,9 +195,18 @@ test('42+ estimate uses the established 42-day ceiling only for provisional unkn
     startDate: '2026-09-22',
   });
   assert.equal(prepared.status, 'ready_for_duration_estimate');
-  const result = completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 60 });
+  const result = completeOnboardingRoadmap(
+    prepared,
+    { estimatedAchievementDays: 60 },
+    { estimatedAchievementDays: 35 },
+  );
   assert.equal(result.status, 'roadmap_created');
-  assert.equal(result.estimatedAchievementDays, 60);
-  assert.equal(result.selectedRoadmapDurationDays, 42);
-  assert.equal(result.roadmap.days.length, 42);
+  assert.equal(result.estimatedAchievementDays, 35);
+  assert.equal(result.selectedRoadmapDurationDays, 28);
+  assert.equal(result.roadmap.days.length, 28);
+  assert.equal(result.baseline.source, 'estimated_profile');
+  assert.equal(result.quickStart.quickStartAdjusted, true);
+  assert.equal(result.quickStart.firstEstimatedAchievementDays, 60);
+  assert.equal(result.quickStart.selectedStageTargetE1rmKg,
+    Math.min(result.baseline.baselineE1rmKg + 2.5, result.input.finalGoalE1rmKg));
 });

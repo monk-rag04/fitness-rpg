@@ -11,6 +11,7 @@ export * from './trainingSessionPlannerInput.js';
 export * from './e1rm.js';
 export * from './workoutResult.js';
 export * from './stagePlanning.js';
+export * from './stageOneQuickStart.js';
 export * from './mainStrengthEstimate.js';
 export * from './exerciseInitialSuggestion.js';
 export * from './exerciseSkip.js';

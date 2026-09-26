@@ -1,7 +1,7 @@
 import type { ExerciseId } from './exercise.js';
 import {
   planNextStage,
-  selectRoadmapDuration,
+  selectRoadmapDurationForStage,
   validateAchievementDurationEstimate,
   validateAchievementDurationEstimatorInput,
   type AchievementDurationEstimatorInput,
@@ -20,6 +20,8 @@ export interface NextStageRoadmapInput {
   readonly mainExerciseId: ExerciseId;
   readonly trainingExperienceMonths: number;
   readonly trainingFrequencyPerWeek: number;
+  /** Current Session Stage number; the generated roadmap is for the following Stage. */
+  readonly currentStageNumber: number;
   readonly startDate: LocalDate;
 }
 
@@ -29,6 +31,7 @@ export type NextStageRoadmapPreparation =
   | {
     readonly status: 'ready_for_duration_estimate';
     readonly input: NextStageRoadmapInput;
+    readonly nextStageNumber: number;
     readonly stageTargetE1rmKg: number;
     readonly durationInput: AchievementDurationEstimatorInput;
   };
@@ -36,7 +39,7 @@ export type NextStageRoadmapPreparation =
 /** Prepare a subsequent roadmap using the existing D-025 stage and duration rules. */
 export function prepareNextStageRoadmap(input: unknown): NextStageRoadmapPreparation {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return { status: 'invalid_input' };
-  const allowedFields = ['currentE1rmKg', 'finalGoalE1rmKg', 'mainExerciseId', 'trainingExperienceMonths', 'trainingFrequencyPerWeek', 'startDate'];
+  const allowedFields = ['currentE1rmKg', 'finalGoalE1rmKg', 'mainExerciseId', 'trainingExperienceMonths', 'trainingFrequencyPerWeek', 'currentStageNumber', 'startDate'];
   if (Object.keys(input).some((field) => !allowedFields.includes(field))) return { status: 'invalid_input' };
   const value = input as Partial<NextStageRoadmapInput>;
   if (typeof value.currentE1rmKg !== 'number' || !Number.isFinite(value.currentE1rmKg) || value.currentE1rmKg <= 0 ||
@@ -44,6 +47,7 @@ export function prepareNextStageRoadmap(input: unknown): NextStageRoadmapPrepara
       typeof value.mainExerciseId !== 'string' ||
       typeof value.trainingExperienceMonths !== 'number' || !Number.isSafeInteger(value.trainingExperienceMonths) || value.trainingExperienceMonths < 0 ||
       typeof value.trainingFrequencyPerWeek !== 'number' || !Number.isSafeInteger(value.trainingFrequencyPerWeek) || value.trainingFrequencyPerWeek < 1 || value.trainingFrequencyPerWeek > 7 ||
+      typeof value.currentStageNumber !== 'number' || !Number.isSafeInteger(value.currentStageNumber) || value.currentStageNumber < 1 || value.currentStageNumber >= Number.MAX_SAFE_INTEGER ||
       !isValidLocalDate(value.startDate)) return { status: 'invalid_input' };
 
   const inputValue = value as NextStageRoadmapInput;
@@ -63,6 +67,7 @@ export function prepareNextStageRoadmap(input: unknown): NextStageRoadmapPrepara
   return {
     status: 'ready_for_duration_estimate',
     input: inputValue,
+    nextStageNumber: inputValue.currentStageNumber + 1,
     stageTargetE1rmKg: stage.stageTargetE1rmKg,
     durationInput: durationInput.value,
   };
@@ -85,7 +90,10 @@ export function completeNextStageRoadmap(
 ): NextStageRoadmapCompletion {
   const estimate = validateAchievementDurationEstimate(durationResponse);
   if (!estimate.valid) return { status: 'invalid_duration_estimate' };
-  const selection = selectRoadmapDuration(estimate.value.estimatedAchievementDays);
+  const selection = selectRoadmapDurationForStage(
+    prepared.nextStageNumber,
+    estimate.value.estimatedAchievementDays,
+  );
   if (selection.status === 'stage_replanning_required') {
     return { status: 'stage_replanning_required', estimatedAchievementDays: selection.estimatedAchievementDays };
   }

@@ -206,7 +206,7 @@ Status:
 - Decision: current e1RMがない場合はHistorical PB / 0kg / AI推定へfallbackせずbaseline requiredとしてStage PlanningおよびDuration Estimateを開始しない。Onboardingのmain exercise、current weight、repsからbaselineを作る将来導線は保存設計とは別にOpenとする。
 - Decision: Achievement Duration EstimatorはTraining Planとは別Use Caseである。Inputは`exerciseId`、`currentE1rmKg`、`stageTargetE1rmKg`、`trainingExperienceMonths`、`trainingFrequencyPerWeek`のみ。未知Field、Catalog外ID、正で有限でないcurrent、current以下または非有限Target、負または非整数の経験月数、正でないまたは非整数の頻度をshared Domainで拒否する。頻度のProduct上限は定めない。
 - Decision: AIはStrict Structured Outputで`{ estimatedAchievementDays: integer >= 1 }`だけを返す。confidence、reasoning、textを含めず、出力をshared Domainで再検証する。既存のbackend-only OpenAI client、Responses API、SDK Error sanitizationは再利用するが、Prompt / Schema VersionはTraining Planから別管理する。AIはStage Target、Roadmap Duration候補、Boss Requirement / date、Training / Recovery Node、曜日、Quest Clear、EXP、Boss Defeatedを選ばない。
-- Decision: Roadmap Duration候補はsharedに一箇所だけ`[14, 21, 28, 35, 42]`として置く。selectionはnearestではなくestimate以上の最小候補を選ぶceiling ruleとし、`<= 14`は14、`> 42`はclamp・自動Target変更・自動Stage分割をせず`stage_replanning_required`を返す。Rule Versionは`roadmap-duration-ceiling-v1`とする。
+- Decision (Stage 2+; initial Stage 1 superseded by D-043): Standard Roadmap Duration候補はsharedに一箇所だけ`[14, 21, 28, 35, 42]`として置く。selectionはnearestではなくestimate以上の最小候補を選ぶceiling ruleとし、`<= 14`は14、`> 42`はclamp・自動Target変更・自動Stage分割をせず`stage_replanning_required`を返す。Rule Versionは`roadmap-duration-ceiling-v1`とする。
 - Decision: Boss Requirement e1RMはStage Target e1RMと同値とする。DurationはBossを倒せる保証ではない。Boss State / Defeated / Shieldは今回実装しないが、Roadmap終端到達時に`currentE1rm < stageTarget`なら将来Boss Shieldを表示する前提を置く。
 - Consequence: `shared/`に`planNextStage()`、`validateAchievementDurationEstimatorInput()`、`validateAchievementDurationEstimate()`、`selectRoadmapDuration()`とRegression Testを置く。serverには独立したDuration EstimatorのPrompt / Strict Schema / adapterとnetwork-free testを置く。Schedule / Roadmap Node、API endpoint、Database、Frontend、Onboarding persistence、Boss State、Quest / EXP / Map、Load / Progression、実API Smokeは今回含めない。
 - Alternatives: FigmaのSession数とnearest duration、AIによるStage TargetやDuration候補選択、42日へのclamp、Historical PB fallback、0kg baseline、Training Plan Inputとの混用は採用しない。
@@ -552,7 +552,7 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Context**: D-029は自己申告できないMain Strengthを`baseline_required`で停止し、D-031は空EquipmentもProfileとして許可していた。通常の新規ユーザーがRoadmapまたはStage Program前で詰まらない補完Flowが必要。
 - **Decision**: Onboardingをknown / unknownへ分岐する。knownは既存自己申告SetとFinal Goalを維持する。unknownは体重、経験月数、Main Exerciseから`main-strength-estimate-v1`で暫定e1RMと5-rep working setを作り、経験別growth factor、最低+2.5kg、84日horizonでFinal Goalを自動設定する。計算はSharedのpure functionとし、0.5kg単位へnormalizeする。
 - **Decision**: unknownのBaseline sourceは`estimated_profile`。実測値としてCURRENT / latestへ使わず、Main Strengthの最初の有効なClear済みWorkout Resultで`workout_result`へ一度だけ置換する。Result保存、失敗Clear、Recovery、後続Resultでは置換しない。
-- **Decision**: D-025の42日超`stage_replanning_required`はknown Flowで維持する。unknown Flowに限り、1回のProvider estimateが42日を超えた場合も再試行せず、既存最大候補42日のRoadmapを生成する。Stage Target、Final Goal、Providerの元見積もり値は改変しない。
+- **Decision (superseded for initial Stage 1 by D-043)**: D-025の42日超`stage_replanning_required`はknown Flowで維持し、unknown Flowだけは42日を上限としていた。D-043がStage 1のknown / unknown双方に共通する2〜4週間Quick Start ruleへ置き換える。Stage 2以降はD-025の42日超 behaviorを維持する。
 - **Decision**: Equipment UIを基本8件 / 追加8件 / 常時利用可能な自重Infoへ分ける。生成条件は基本2件以上かつMain required equipment充足。追加器具は任意。Main Exerciseは代替しない。
 - **Decision**: `BODYWEIGHT_EXERCISE_IDS`と`NO_EQUIPMENT_EXERCISE_IDS`を分離する。Pull-upはreps-onlyだがbar必須。6種のNo Equipment ExerciseをCatalog、EXP、Presentation、Result validation、Progressionへ追加し、Chest / Back / Shoulders / Arms / Legsのfallback候補を確保する。Rich Equipmentでは従来のweighted候補も維持する。
 - **Consequence**: UIがProvider前にEquipment不足を止め、Serverは従来どおりCatalog / Equipmentから候補を再構築する。API contract、Stage split、Quest Clear、EXP、Reward、Persistence、dependenciesは変更しない。
@@ -589,4 +589,17 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Decision**: Stage Clear is the Boss victory state; no fictional reward is added. A winning attempt that reaches Final Goal ends Stage generation. Otherwise Next Stage planning uses the greater of best cleared actual Main e1RM and the winning attempt, then existing D-025 planning / duration rules. A duration planning failure preserves the cleared Stage and allows a user-initiated retry.
 - **Decision**: Next Stage increments Stage number and resets only its roadmap progress, Boss, plan cache, current results and skips. The session retains Equipment Profile, profile/program context, Character Growth, exercise baselines/progression and actual prior Stage results in a compact completed-Stage summary. Stage 2 explicitly generates a new Stage Program with the retained Equipment Profile, without reopening Equipment Check.
 - **Consequence**: Boss Challenge and Stage Clear are focused screens without Bottom Navigation. The existing achievement-duration and Stage Training Program endpoints are invoked only from explicit CTAs. No new provider, reward, persistence, dependency, or combat-stat rule is introduced.
+- **Date**: 2026-09-26
+
+### D-043: Stage 1 Quick Start / Fast Progression
+
+- **Status**: Accepted (MVP)
+- **Context**: Stage 1を35〜42日のChallenge Windowにすると、初回ユーザーの最初の成功体験が遅くなる。短縮した期間へ同じ大きなTargetを無条件で押し込むのではなく、初回StageのTargetも必要時だけ縮小する。
+- **Decision**: Onboardingが生成する最初のStageをDomain上のStage 1として扱う。Stage 1 Duration候補はSharedの`[14, 21, 28]`、Stage 2以降は従来どおり`[14, 21, 28, 35, 42]`。両方ともestimate以上の最小候補を選ぶceiling ruleとし、既存`roadmap-duration-ceiling-v1`はStage 2以降で維持する。
+- **Decision**: Stage 1 first targetはD-025の`min(finalGoal, current + 5kg)`。Estimateが28日以内ならTargetを変えず、Stage 1候補でDurationを選ぶ。Estimateが28日を超え、`min(finalGoal, current + 2.5kg)`がfirst targetより小さい場合だけ、同じEstimatorを一度だけ再利用する。再Estimateが28日以内ならそのTarget / estimateから候補を選び、28日を超えてもTargetを維持した28日Challenge Windowで開始する。これは到達保証ではない。
+- **Decision**: `+2.5kg` fallbackはFinal Goalを超えず、Currentより低いTargetを作らない。Final Goal capにより縮小できない場合は無意味な再Estimateを行わず、元Targetの28日Challenge Windowとする。CurrentがFinal Goal以上なら既存のgoal reached ruleを維持し、新Stageを作らない。
+- **Decision**: known BaselineとD-041 `estimated_profile`は同じStage 1 ruleを使う。Onboarding内の1回のユーザー操作で通常は1回、first estimateが28日超かつTarget縮小可能な場合だけ最大2回、既存`/api/achievement-duration`を順次呼ぶ。AI Input / Schema、Server endpoint、Provider safetyを変えず、どちらかのrequestが失敗した場合にRoadmapを作らず既存のretry可能なErrorを返す。二重submit防止を維持する。
+- **Decision**: Stage 2以降はD-025 Target、duration候補、42日超`stage_replanning_required` behaviorを維持し、Stage 1の+2.5kg / 28日fallbackを適用しない。Next Stage planningはSessionの`stageNumber`を明示的に受け、次に作るStage番号からcandidate setをDomainで選ぶ。
+- **Decision**: Stage 1 quick-start metadataは計算結果に`originalPlannedStageTargetE1rmKg`、`selectedStageTargetE1rmKg`、両estimate、selected duration、`quickStartAdjusted`相当の判別値、`stage-one-quick-start-v1`として返す。Session persistenceや新しいProfile schemaは追加しない。Existing Onboarding success UIのDuration / Stage targetを使い、新画面・偽の成長保証は追加しない。
+- **Consequence**: Stage 1は最大28日のRoadmapで常に開始可能（Estimator / validation自体の失敗時を除く）。Stage 2+の既存progressionとBoss ruleは変わらない。No new dependency, API contract, AI schema, persistence, or Figma work.
 - **Date**: 2026-09-26

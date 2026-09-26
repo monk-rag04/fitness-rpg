@@ -4,11 +4,15 @@ import test from 'node:test';
 import {
   ROADMAP_DURATION_CANDIDATES,
   ROADMAP_DURATION_SELECTION_RULE,
+  STAGE_ONE_QUICK_START_RULE,
+  STAGE_ONE_ROADMAP_DURATION_CANDIDATES,
   STAGE_PLANNING_RULE,
   RoadmapDurationSelectionError,
   StagePlanningError,
   planNextStage,
+  getRoadmapDurationCandidatesForStage,
   selectRoadmapDuration,
+  selectRoadmapDurationForStage,
   validateAchievementDurationEstimate,
   validateAchievementDurationEstimatorInput,
 } from '../dist/index.js';
@@ -182,5 +186,32 @@ test('rejects invalid duration estimates', () => {
 
 test('duration candidates and selection rule are defined once and versioned', () => {
   assert.deepEqual(ROADMAP_DURATION_CANDIDATES, [14, 21, 28, 35, 42]);
+  assert.deepEqual(STAGE_ONE_ROADMAP_DURATION_CANDIDATES, [14, 21, 28]);
   assert.deepEqual(ROADMAP_DURATION_SELECTION_RULE, { version: 'roadmap-duration-ceiling-v1' });
+  assert.deepEqual(STAGE_ONE_QUICK_START_RULE, {
+    version: 'stage-one-quick-start-v1', reducedTargetStepKg: 2.5, maxDurationDays: 28,
+  });
+  assert.deepEqual(getRoadmapDurationCandidatesForStage(1), [14, 21, 28]);
+  assert.deepEqual(getRoadmapDurationCandidatesForStage(2), [14, 21, 28, 35, 42]);
+});
+
+for (const [estimate, duration] of [
+  [10, 14], [14, 14], [15, 21], [21, 21], [22, 28], [28, 28],
+]) {
+  test(`Stage 1 selects ${duration} days for estimate ${estimate}`, () => {
+    const result = selectRoadmapDurationForStage(1, estimate);
+    assert.equal(result.status, 'roadmap_duration_selected');
+    assert.equal(result.selectedRoadmapDurationDays, duration);
+    assert.equal(result.ruleVersion, STAGE_ONE_QUICK_START_RULE.version);
+  });
+}
+
+test('Stage 1 does not expose standard 35/42-day duration candidates', () => {
+  assert.deepEqual(selectRoadmapDurationForStage(1, 35), {
+    status: 'stage_replanning_required',
+    estimatedAchievementDays: 35,
+    ruleVersion: STAGE_ONE_QUICK_START_RULE.version,
+  });
+  assert.equal(selectRoadmapDurationForStage(2, 35).selectedRoadmapDurationDays, 35);
+  assert.equal(selectRoadmapDurationForStage(2, 42).selectedRoadmapDurationDays, 42);
 });

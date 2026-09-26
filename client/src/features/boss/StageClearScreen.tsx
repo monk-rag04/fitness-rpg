@@ -45,6 +45,7 @@ export function StageClearScreen() {
       mainExerciseId: roadmap.mainExerciseId,
       trainingExperienceMonths: stageTrainingProgramContext.trainingExperienceMonths,
       trainingFrequencyPerWeek: stageTrainingProgramContext.trainingFrequencyPerWeek,
+      currentStageNumber: stageNumber,
     });
     if (!mounted.current) return;
     inFlight.current = false;

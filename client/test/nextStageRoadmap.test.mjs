@@ -14,6 +14,7 @@ test('explicit Next Stage request reuses the achievement-duration endpoint once 
     mainExerciseId: 'barbell_bench_press',
     trainingExperienceMonths: 8,
     trainingFrequencyPerWeek: 3,
+    currentStageNumber: 1,
   }, {
     now: new Date(2026, 9, 1),
     request: async (url, init) => {
@@ -38,7 +39,7 @@ test('Final Goal reached avoids a duration request', async () => {
   let calls = 0;
   const result = await requestNextStageRoadmap({
     currentE1rmKg: 90, finalGoalE1rmKg: 90, mainExerciseId: 'barbell_bench_press',
-    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3,
+    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3, currentStageNumber: 1,
   }, { request: async () => { calls += 1; throw new Error('should not request'); } });
   assert.equal(result.status, 'goal_reached');
   assert.equal(calls, 0);
@@ -47,8 +48,25 @@ test('Final Goal reached avoids a duration request', async () => {
 test('duration over 42 days is recoverable and does not create a replacement Roadmap', async () => {
   const result = await requestNextStageRoadmap({
     currentE1rmKg: 70, finalGoalE1rmKg: 90, mainExerciseId: 'barbell_bench_press',
-    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3,
+    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3, currentStageNumber: 1,
   }, { request: async () => ({ ok: true, json: async () => ({ estimatedAchievementDays: 60 }) }) });
   assert.equal(result.status, 'stage_replanning_required');
   assert.equal(result.estimatedAchievementDays, 60);
+});
+
+test('Stage 2 continues to allow 35- and 42-day roadmap durations', async () => {
+  for (const estimatedAchievementDays of [35, 42]) {
+    const result = await requestNextStageRoadmap({
+      currentE1rmKg: 70,
+      finalGoalE1rmKg: 90,
+      mainExerciseId: 'barbell_bench_press',
+      trainingExperienceMonths: 8,
+      trainingFrequencyPerWeek: 3,
+      currentStageNumber: 1,
+    }, {
+      request: async () => ({ ok: true, json: async () => ({ estimatedAchievementDays }) }),
+    });
+    assert.equal(result.status, 'roadmap_created');
+    assert.equal(result.roadmap.durationDays, estimatedAchievementDays);
+  }
 });

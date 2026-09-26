@@ -70,6 +70,31 @@ test('43-day response never creates a roadmap or substitutes the demo duration',
   assert.equal('roadmap' in result, false);
 });
 
+test('unknown strength makes one provider request and uses the established 42-day fallback', async () => {
+  let calls = 0;
+  const result = await startOnboardingRoadmap({
+    bodyWeightKg: 60,
+    trainingExperienceMonths: 1,
+    trainingFrequencyPerWeek: 3,
+    mainExerciseId: 'barbell_bench_press',
+    strengthKnowledge: 'unknown',
+  }, {
+    now,
+    request: async (_url, init) => {
+      calls++;
+      const input = JSON.parse(init.body);
+      assert.equal(input.exerciseId, 'barbell_bench_press');
+      assert.ok(input.currentE1rmKg > 0);
+      assert.ok(input.stageTargetE1rmKg > input.currentE1rmKg);
+      return Response.json({ estimatedAchievementDays: 60 });
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.status, 'roadmap_created');
+  assert.equal(result.selectedRoadmapDurationDays, 42);
+  assert.equal(result.baseline.source, 'estimated_profile');
+});
+
 test('provider and malformed output failures remain explicit without leaking details', async () => {
   const provider = await startOnboardingRoadmap(draft, {
     now,

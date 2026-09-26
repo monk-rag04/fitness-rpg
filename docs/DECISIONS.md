@@ -546,6 +546,31 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, Client Character presentation, hub navigation, and regression tests.
 - **Date**: 2026-09-25
 
+### D-041: Onboarding and Equipment resilience
+
+- **Status**: Accepted (MVP)
+- **Context**: D-029は自己申告できないMain Strengthを`baseline_required`で停止し、D-031は空EquipmentもProfileとして許可していた。通常の新規ユーザーがRoadmapまたはStage Program前で詰まらない補完Flowが必要。
+- **Decision**: Onboardingをknown / unknownへ分岐する。knownは既存自己申告SetとFinal Goalを維持する。unknownは体重、経験月数、Main Exerciseから`main-strength-estimate-v1`で暫定e1RMと5-rep working setを作り、経験別growth factor、最低+2.5kg、84日horizonでFinal Goalを自動設定する。計算はSharedのpure functionとし、0.5kg単位へnormalizeする。
+- **Decision**: unknownのBaseline sourceは`estimated_profile`。実測値としてCURRENT / latestへ使わず、Main Strengthの最初の有効なClear済みWorkout Resultで`workout_result`へ一度だけ置換する。Result保存、失敗Clear、Recovery、後続Resultでは置換しない。
+- **Decision**: D-025の42日超`stage_replanning_required`はknown Flowで維持する。unknown Flowに限り、1回のProvider estimateが42日を超えた場合も再試行せず、既存最大候補42日のRoadmapを生成する。Stage Target、Final Goal、Providerの元見積もり値は改変しない。
+- **Decision**: Equipment UIを基本8件 / 追加8件 / 常時利用可能な自重Infoへ分ける。生成条件は基本2件以上かつMain required equipment充足。追加器具は任意。Main Exerciseは代替しない。
+- **Decision**: `BODYWEIGHT_EXERCISE_IDS`と`NO_EQUIPMENT_EXERCISE_IDS`を分離する。Pull-upはreps-onlyだがbar必須。6種のNo Equipment ExerciseをCatalog、EXP、Presentation、Result validation、Progressionへ追加し、Chest / Back / Shoulders / Arms / Legsのfallback候補を確保する。Rich Equipmentでは従来のweighted候補も維持する。
+- **Consequence**: UIがProvider前にEquipment不足を止め、Serverは従来どおりCatalog / Equipmentから候補を再構築する。API contract、Stage split、Quest Clear、EXP、Reward、Persistence、dependenciesは変更しない。
+- **Date**: 2026-09-26
+
+### D-041追加: 初回Exercise Recommendationと理由付きSkip
+
+- **Status**: Accepted (MVP)
+- **Decision**: Main Strengthの初回表示では、stored D-036 `nextSuggestion`がなければ、Onboarding / `estimated_profile` BaselineのSetをD-023でe1RM化し、planned `repRange.min`へEpley式を逆算して0.5kg単位の表示hintを作る。既存の4G progression suggestionがあれば常に優先する。Final Goal / Stage Target / Boss Targetは計算に使わず、hint自体はBaseline・Result・Progressionとして保存しない。Accessoryの`first_time`初回Recommendation ruleは変更しない。
+- **Context**: D-041 unknown Onboardingでも現実的なGym / Training Questを開始できるようにし、Exercise一部未実施でRoadmap全体が停止しないようにする。Recommendationが実績に見えたり、Skipが架空ResultとしてEXPやGrowthへ混ざることは避ける。
+- **Decision**: 初回hint ruleを`exercise-initial-suggestion-v1`としてShared pure functionに置く。入力はCatalog `exerciseId`、`bodyWeightKg`、`trainingExperienceMonths`、planned `repRange`。suggested repsはrange min。Main Strength Estimateと同じTraining history bucketを参照するが、strength multiplierは最大1.05へcapし、開始hintへの経験補正を軽くする。Weighted valuesは0.5kg刻みで丸め、最小表示重量を0.5kgとする。Bodyweightはweightを持たない。これは保守的なv1 heuristicで、保証・医学的安全判定・実測値ではない。
+- **Decision**: Per-bodyweight ratioはCatalog ID単位で固定し、Dumbbell値は1個あたりとする。Barbell(total): Bench .30, Bent-over Row .25, Deadlift .45, OHP .18, Curl .08, Close-grip Bench .25, Back Squat .40, Romanian Deadlift .30, Hip Thrust .35。Dumbbell(per hand): Bench .075, Incline Press .06, Chest Fly .035, One-arm Row .075, Shoulder Press .05, Lateral Raise .025, Curl .04, Overhead Triceps Extension .035, Goblet Squat .15, Standing Calf Raise .10。Machine: Chest Press .20, Seated Row .20, Lat Pulldown .20, Shoulder Press .15, Smith Squat .30, Leg Press .40, Leg Extension .15, Seated Leg Curl .15。Cable: Chest Fly .035, Lateral Raise .025, Curl .04, Triceps Pushdown .04. Ratios are multiplied by bodyweight and the capped history factor; Catalog coverage test fails if any weighted Exercise is unmapped. Machine / Cable displays a machine-setting caveat. Unknown ID / invalid input has no hint.
+- **Decision**: Accessory bodyweight-ratio Recommendation is displayed only after explicit `first_time` confirmation and while no Baseline / stored D-036 `nextSuggestion` exists. Stored progression has precedence; the existing Accessory resolver behavior is unchanged. The hint is not saved into `ExerciseProgressState`, no Baseline is created from it, and SET actual-input fields remain blank. An actual result establishes a first Baseline only after successful Quest Clear, alongside existing clear-scoped growth/progression. Initial suggestion can appear again after a skipped first attempt.
+- **Decision**: Add an in-memory `ExerciseSkipRecord` separate from Workout Result, containing planned `exerciseId`, one reason (`equipment_unavailable`, `time_constraint`, `condition`, `other`), and accepted pledge. Clear requires every plan item to have exactly one valid actual Result or valid Skip, with at least one valid performed Result. Thus Main may be skipped, multiple items may be skipped, and all-skip cannot advance.
+- **Decision**: Skip has zero EXP and no Baseline / latest actual / feedback / progression / session-count update. Only performed Results reach existing Reward and progression helpers. Before Clear, a Result can be replaced by Skip and a Skip can be undone; successful Clear remains under the existing no-replay rule. No Retry, persistence, API, dependency, or provider behavior is added.
+- **Consequence**: Shared validates the skip record and owns completion eligibility; Session stores skip state separately by day; Client exposes four Japanese reasons, explicit pledge, SKIPPED reason, and undo. Skipping a just-saved un-cleared Result removes that Result; Undo returns to an empty editable Result form.
+- **Date**: 2026-09-26
+
 ### D-039: Progress Screen v1 Training Log
 
 - **Status**: Accepted (MVP)

@@ -103,9 +103,13 @@ export function CurrentQuest() {
   const sessionFocus = isTraining
     ? currentNode.sessionFocus.targetMuscles.map(muscleLabel).join(' · ')
     : null;
-  const helperText = isTraining && !trainingEvaluation.readyToClear
-    ? 'すべての必須種目を記録するとQUESTを達成できます'
-    : '完了するとQUEST CLEAR後にAdventure Mapへ戻ります';
+  const allExercisesSkipped = trainingEvaluation.exercises.length > 0 &&
+    trainingEvaluation.exercises.every((exercise) => exercise.status === 'skipped');
+  const helperText = isTraining && allExercisesSkipped
+    ? '最低1種目は実施してください。'
+    : isTraining && !trainingEvaluation.readyToClear
+      ? '各種目を実施するか、理由を選んでスキップしてください。1種目以上の実施が必要です。'
+      : '完了するとQUEST CLEAR後にAdventure Mapへ戻ります';
   const minimumRescheduleDate = rescheduleToday > currentQuestDate
     ? rescheduleToday
     : currentQuestDate;

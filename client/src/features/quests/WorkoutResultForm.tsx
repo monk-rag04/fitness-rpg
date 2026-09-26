@@ -11,7 +11,13 @@ import type {
   ExerciseWorkoutResult,
   ValidatedPlannedExercise,
 } from '@fitness-rpg/shared';
-import { isBodyweightExerciseId, resolveExerciseSuggestion } from '@fitness-rpg/shared';
+import {
+  isBodyweightExerciseId,
+  isMachineOrCableExercise,
+  recommendInitialMainStrengthSuggestion,
+  recommendInitialExerciseSuggestion,
+  resolveExerciseSuggestion,
+} from '@fitness-rpg/shared';
 import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import { weightEntryHint, workoutResultErrorMessage } from '../../presentation/trainingLabels';
 
@@ -56,7 +62,7 @@ export function createWorkoutResultInput(
 }
 
 export function formatExerciseSuggestion(
-  suggestion: ExerciseSuggestion,
+  suggestion: Pick<ExerciseSuggestion, 'weightKg' | 'targetReps'>,
   bodyweight: boolean,
 ): string {
   if (bodyweight) return `${suggestion.targetReps}回`;
@@ -86,6 +92,7 @@ interface WorkoutResultFormProps {
   readonly plan: ValidatedPlannedExercise;
   readonly exerciseName: string;
   readonly existingResult?: ExerciseWorkoutResult;
+  readonly showInitialSuggestion?: boolean;
   readonly onValidRecord?: () => void;
 }
 
@@ -93,6 +100,7 @@ export function WorkoutResultForm({
   plan,
   exerciseName,
   existingResult,
+  showInitialSuggestion = false,
   onValidRecord,
 }: WorkoutResultFormProps) {
   const {
@@ -100,18 +108,40 @@ export function WorkoutResultForm({
     exerciseProgressById,
     progress,
     setExerciseLoadStep,
+    stageTrainingProgramContext,
   } = useAdventureQuest();
   const effectiveExerciseId = (existingResult?.performedExerciseId ?? plan.exerciseId) as ExerciseId;
   const bodyweight = isBodyweightExerciseId(effectiveExerciseId);
-  const suggestion = resolveExerciseSuggestion(
-    exerciseProgressById[effectiveExerciseId],
+  const currentProgress = exerciseProgressById[effectiveExerciseId];
+  const progressionSuggestion = resolveExerciseSuggestion(
+    currentProgress,
     effectiveExerciseId,
     plan.repRange,
     progress.currentDayIndex,
   );
-  const storedSuggestion = exerciseProgressById[effectiveExerciseId]?.nextSuggestion;
-  const showRepsProgressed = !bodyweight && storedSuggestion?.status === 'active' &&
-    storedSuggestion.ruleVersion === suggestion.ruleVersion &&
+  const isMainStrengthExercise = stageTrainingProgramContext?.mainExerciseId === effectiveExerciseId;
+  const mainInitialSuggestion = isMainStrengthExercise && currentProgress?.nextSuggestion === undefined
+    ? recommendInitialMainStrengthSuggestion({
+      exerciseId: effectiveExerciseId,
+      baseline: currentProgress?.baseline,
+      repRange: plan.repRange,
+    })
+    : null;
+  const accessoryInitialSuggestion = !isMainStrengthExercise && showInitialSuggestion && currentProgress?.baseline === undefined &&
+    currentProgress?.nextSuggestion === undefined && stageTrainingProgramContext?.bodyWeightKg !== undefined
+    ? recommendInitialExerciseSuggestion({
+      exerciseId: effectiveExerciseId,
+      bodyWeightKg: stageTrainingProgramContext.bodyWeightKg,
+      trainingExperienceMonths: stageTrainingProgramContext.trainingExperienceMonths,
+      repRange: plan.repRange,
+    })
+    : null;
+  const initialSuggestion = mainInitialSuggestion ?? accessoryInitialSuggestion;
+  const suggestion = initialSuggestion ?? progressionSuggestion;
+  const isInitialSuggestion = initialSuggestion !== null;
+  const storedSuggestion = currentProgress?.nextSuggestion;
+  const showRepsProgressed = !isInitialSuggestion && !bodyweight && storedSuggestion?.status === 'active' &&
+    storedSuggestion.ruleVersion === progressionSuggestion.ruleVersion &&
     storedSuggestion.repRange.min === plan.repRange.min &&
     storedSuggestion.repRange.max === plan.repRange.max &&
     suggestion.targetReps > plan.repRange.min;
@@ -206,23 +236,30 @@ export function WorkoutResultForm({
 
   return (
     <form className="workout-result-form" onSubmit={submit} noValidate>
-      <section className={`exercise-suggestion ${suggestion.status === 'weight_up_ready' ? 'is-weight-up-ready' : ''}`} aria-label="今回の目安">
+      <section className={`exercise-suggestion ${progressionSuggestion.status === 'weight_up_ready' ? 'is-weight-up-ready' : ''}`} aria-label="今回の目安">
         <div className="exercise-suggestion__heading">
           <span>今回の目安</span>
+          {isInitialSuggestion && <span className="exercise-suggestion__tag exercise-suggestion__tag--initial">初回おすすめ</span>}
           {showRepsProgressed && <span className="exercise-suggestion__tag exercise-suggestion__tag--progressed">DOUBLE PROGRESSION</span>}
-          {suggestion.status === 'weight_up_ready' && <span className="exercise-suggestion__tag">WEIGHT UP READY</span>}
+          {progressionSuggestion.status === 'weight_up_ready' && <span className="exercise-suggestion__tag">WEIGHT UP READY</span>}
         </div>
         <strong>{formatExerciseSuggestion(suggestion, bodyweight)}</strong>
-        {bodyweight ? (
+        {isInitialSuggestion ? (
+          <p>
+            開始時の目安です。実際の状態に合わせて調整してください。
+            {!bodyweight && isMachineOrCableExercise(effectiveExerciseId) && <>マシンの重量表記は機種によって異なります。</>}
+            {!bodyweight && entryHint === 'ダンベル1個あたりの重量' && <>ダンベルは片手1個あたりの目安です。</>}
+          </p>
+        ) : bodyweight ? (
           <p>自重種目は回数を記録します。</p>
         ) : suggestion.weightKg === undefined ? (
           <p>初回は無理のない重量から始めてください。</p>
         ) : null}
       </section>
-      {suggestion.status === 'weight_up_ready' && suggestion.weightKg !== undefined && !bodyweight && (
+      {progressionSuggestion.status === 'weight_up_ready' && progressionSuggestion.weightKg !== undefined && !bodyweight && (
         <section className="exercise-load-step" aria-label="重量刻みの設定">
           <strong>重量UPのタイミングです</strong>
-          <p>現在 {suggestion.weightKg}kg</p>
+          <p>現在 {progressionSuggestion.weightKg}kg</p>
           <label htmlFor={`${plan.exerciseId}-load-step`}>
             この器具の重量刻み
             <span>

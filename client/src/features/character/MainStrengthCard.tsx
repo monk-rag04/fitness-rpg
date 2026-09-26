@@ -17,7 +17,7 @@ export function MainStrengthCard({
       </p>
       <div className="character-strength-metrics" aria-label="Main Strengthの記録と目標">
         <div className="character-strength-metric">
-          <span>START</span>
+          <span>{mainStrength.startEstimated ? 'START（推定）' : 'START'}</span>
           <strong>{strengthRecordText(mainStrength.start)}</strong>
         </div>
         <div className="character-strength-metric character-strength-metric--current">

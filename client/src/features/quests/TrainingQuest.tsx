@@ -5,6 +5,7 @@ import { useAdventureQuest } from '../../state/AdventureQuestContext';
 import { exerciseLabel } from '../../presentation/trainingLabels';
 import { ExerciseBaselineSetup, type ExerciseBaselineSetupMode } from './ExerciseBaselineSetup';
 import { WorkoutResultForm } from './WorkoutResultForm';
+import { ExerciseSkipControl } from './ExerciseSkipControl';
 
 export function TrainingQuest() {
   const {
@@ -16,6 +17,7 @@ export function TrainingQuest() {
     baselineSetupConfirmedById,
     registerExerciseBaseline,
     confirmExerciseBaselineSetup,
+    exerciseSkips,
   } = useAdventureQuest();
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [baselineModeById, setBaselineModeById] = useState<Readonly<Record<string, ExerciseBaselineSetupMode>>>({});
@@ -37,6 +39,8 @@ export function TrainingQuest() {
             const existingResult = workoutResults.find(
               (result) => result.plannedExerciseId === plan.exerciseId,
             );
+            const skipRecord = exerciseSkips.find((record) => record.exerciseId === plan.exerciseId);
+            const isSkipped = completion?.status === 'skipped';
             const isCompleted = completion?.completed ?? false;
             const isEditing = editingExerciseId === plan.exerciseId;
             const hasBaseline = exerciseProgressById[plan.exerciseId]?.baseline !== undefined;
@@ -56,19 +60,22 @@ export function TrainingQuest() {
 
             return (
               <article
-                className={`figma-exercise-card ${isCompleted ? 'is-completed' : ''} ${isCompleted && !isEditing ? 'is-compact' : ''}`}
+                className={`figma-exercise-card ${isCompleted ? 'is-completed' : ''} ${isSkipped ? 'is-skipped' : ''} ${isCompleted && !isEditing ? 'is-compact' : ''}`}
                 key={plan.exerciseId}
               >
                 <header className="figma-exercise-card__heading">
                   <div className="figma-exercise-card__identity">
-                    <span className={`exercise-completion-box ${isCompleted ? 'is-completed' : ''}`} aria-label={isCompleted ? '記録済み' : '未記録'}>
-                      {isCompleted ? '✓' : ''}
+                    <span
+                      className={`exercise-completion-box ${isCompleted && !isSkipped ? 'is-completed' : ''} ${isSkipped ? 'is-skipped' : ''}`}
+                      aria-label={isSkipped ? 'スキップ済み' : isCompleted ? '記録済み' : '未記録'}
+                    >
+                      {isSkipped ? '−' : isCompleted ? '✓' : ''}
                     </span>
                     <h3>{displayName}</h3>
                   </div>
                   <QuestTypeTag>{plan.role}</QuestTypeTag>
                 </header>
-                {!isCompleted || isEditing ? (
+                {isSkipped ? null : !isCompleted || isEditing ? (
                   <>
                     <p className="figma-exercise-card__plan">{plan.sets} SETS · {plan.repRange.min}–{plan.repRange.max} REPS</p>
                     {showBaselineSetup && (
@@ -92,6 +99,7 @@ export function TrainingQuest() {
                       plan={plan}
                       exerciseName={displayName}
                       existingResult={existingResult}
+                      showInitialSuggestion={baselineSetupConfirmedById[plan.exerciseId] === true && !hasBaseline}
                       onValidRecord={() => setEditingExerciseId(null)}
                     />
                     {isEditing && (
@@ -116,6 +124,7 @@ export function TrainingQuest() {
                     </button>
                   </div>
                 )}
+                <ExerciseSkipControl exerciseId={plan.exerciseId} skipped={skipRecord} />
               </article>
             );
           })}

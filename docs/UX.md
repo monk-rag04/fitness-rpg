@@ -1,8 +1,8 @@
-# UX Specification and Figma Prototype Audit
+# UX Specification and Historical Prototype Audit
 
 ## 文書の位置づけ
 
-この文書は、Productionで目指すInformation Architecture・画面遷移・Interaction要件と、`figma-reference/`から確認できたFigma Make Prototypeの現状を記録する。
+この文書は、Productionで目指すInformation Architecture・画面遷移・Interaction要件と、過去の`figma-reference/`監査結果を記録する。今後のUI / UX Source of Truthは現在のProduction実装と本書であり、新規作業でFigmaを前提にしない。
 
 - **Production要件**はProduct仕様として実装対象になる。
 - **Prototype確認**は現状把握のための証拠であり、Production仕様を確定しない。
@@ -21,7 +21,7 @@ Prototype Snapshot確認日: 2026-09-21。
 
 **UX確認の目安（固定仕様ではない）**: 375〜430px程度の一般的なスマートフォン幅を重点確認し、Portrait、Touch、主要Actionの到達性をPreviewで検証する。Desktop Previewだけで完了としない。
 
-**Figma → Production**: Smartphone viewportを基準に、Figma Makeの画面構造・Visual・UXを高い忠実度で移植する。Dummy State / LogicはProduction Domainへ置き換え、固定寸法やHover装飾はTouch / Responsive / Accessibility要件を満たすよう調整する。別のFrontendデザインを独自に作らない。
+**Production継承**: Smartphone viewportを基準に、既存ProductionのDark Fantasy Visual、Japanese-first copy、Card / Grid構成、spacing、border、typographyを継承する。新UIは既存Domainの実データだけで成立させ、Touch / Responsive / Accessibility要件を満たす。
 
 **Prototype確認**: `figma-reference/src/App.tsx`には最大430pxのPhone ColumnとBottom Navigationがある。これはMobile-firstのUI意図と整合するが、Productionの固定幅・Navigation実装の確定根拠ではない。
 
@@ -204,7 +204,7 @@ For Training, all planned main and accessory exercises show completion only as d
 - Weight Up Ready Panelから有限の正数をExercise単位`loadStepKg`として登録する。確定時に刻みを保存して一段だけ適用し、同じActionの再実行では二重加算しない。初期値・Equipment別推奨刻みは設けない。
 - `too_hard`、予定Set不足、target reps不足、どれか一Setでもsuggested weight未満ならSuggestionを維持する。Feedback単独では進行せず、Weight DownやFailure streakは表示・実装しない。
 - 数値SuggestionがまだないWeighted種目は、Feedbackが`too_hard`でなく全planned Setがある場合に限り、そのSet群の最小実重量を保守的な基準として次回Suggestionへ利用する。Baselineは変更しない。
-- `push_up` / `pull_up` / `glute_bridge`はreps-onlyで、重量欄・kg目安・Weight Up Panelを表示しない。全planned Set達成時のみrepsを+1し、rep maxで維持する。通常のDifficulty Feedbackは維持する。
+- `BODYWEIGHT_EXERCISE_IDS`の種目はreps-onlyで、重量欄・kg目安・Weight Up Panelを表示しない。全planned Set達成時のみrepsを+1し、rep maxで維持する。通常のDifficulty Feedbackは維持する。
 - 重量の記録基準はBarbell=バー込み総重量、Dumbbell=1個あたり、Machine / Cable=機械の表示重量。同一種目で基準を統一する。Catalog上曖昧な種目には補助説明を出さない。
 - Result save/editではSuggestionを更新しない。最終保存Resultのみを成功したTraining Quest Clearで評価し、Progress / Character Growth / Reward / `sessionsCompleted`と同じin-memory Session transitionで更新する。Baselineは初回固定、RescheduleはStateを維持する。
 
@@ -391,3 +391,19 @@ Prototypeは約430px幅のPhone Column、Cinzel / Cinzel Decorative / Spectral /
 - Boss Strengthは実RecordではなくDemo Toggle。
 
 これらの差分をProductionへそのまま持ち込まず、未決定事項を解決したうえで受け入れ条件を定義する。
+
+## D-041 Onboarding / Equipment resilience UX
+
+- Main Strengthには「現在の重量は分かりますか？」を表示する。分かる場合は既存重量・reps・Final Goal form、分からない場合は体重・経験・Main Exerciseから得た「開始時の目安（推定）」と「約3か月後の目標（自動）」を表示する。日本人平均等の断定をせず、最初の実記録で更新される暫定値だと説明する。
+- Character / Progressは`estimated_profile`のSTARTだけを「推定」と表示する。CURRENT / 最新記録はClear済み実Resultだけを使い、置換後は通常の開始時表示へ戻す。
+- Equipment Checkは基本器具、追加器具（任意）、自重トレーニングInfoの順に表示する。基本選択数を`n / 2`で示し、Main requiredへBadgeを付け、不足中は日本語説明とdisabled CTAを表示する。
+- 自重ExerciseはEquipmentとして選択させない。Pull-upは例外的にbarが必要であることを案内する。375 / 390 / 430pxで長い器具名、Badge、count、CTAが重ならないことをHuman Smokeする。
+
+### D-041追加UX：初回RecommendationとExercise Skip
+
+- Main Strength初回WorkoutでPlan rangeとOnboarding Baselineのrepsが外れる場合も、実測 / `estimated_profile`のBaselineをD-023で換算した数値目安を「今回の目安」に表示する。SET欄は空のまま。stored 4G suggestionがある場合はそちらを表示する。Final GoalやStage Targetは目安に使わない。
+- 「初めて」を確定したBaseline未設定Exerciseには「初回おすすめ」を表示する。表示は「開始時の目安です。実際の状態に合わせて調整してください。」のような説明を添え、Baselineや実績と混同させない。Machine / Cableには機種ごとに重量表記が異なる注意書き、Dumbbellには片手1個あたりの表記を添える。
+- SuggestionはActual SET入力へ反映せず、初期値は空欄のまま。Bodyweightは重量欄を出さずrep range最小回数のみを示す。Accessory向け体重比RecommendationはBaseline / stored `nextSuggestion`があるExerciseでは表示せず、既存4Gの目安を優先する。Main StrengthのBaseline由来初回hintは上記のMain専用Ruleに従い、stored `nextSuggestion`があればそちらを優先する。
+- 各Exercise Cardに控えめな「この種目をスキップ」を置く。選択後は日本語理由4択と誓約チェックを表示し、理由と誓約の両方が揃うまで確認CTAを無効にする。成立後は`SKIPPED`、日本語理由、「スキップを取り消す」を示す。
+- Skipは記録・実施と視覚的に区別する。Undo後は通常のResult入力へ戻す。全種目SkipではClear CTAを無効にし、「最低1種目は実施してください。」と案内する。Skipのために数値やWorkout Resultを捏造しない。
+- 初回Recommendation、Skip理由選択、誓約、Undo、Main Skip、all-skip blockedを375 / 390 / 430pxでHuman Smokeし、Secondary Actionが主要なWorkout保存・Clear操作を押しのけないことを確認する。

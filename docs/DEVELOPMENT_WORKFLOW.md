@@ -192,3 +192,9 @@ merge
 - MCP接続が改善しても、Product DecisionとPrototype観察を分離する原則は変わらない。
 - Snapshotを更新した場合は、取得日、対象Figma、主要差分、docsへの反映状況を記録する。
 
+## Remaining development UI source of truth (2026-09-26)
+
+今後のFitness RPG残作業ではFigma Make、Figma Screenshot、Figma Prototypeを使わない。画面構造・見た目・操作のSource of Truthは現在のGitHub Production実装とし、既存のAdventure Map、Training / Recovery Quest、Quest Clear、Character、Progress、Bottom NavigationのDesign Languageを継承する。既存Production UIを監査し、同じMobile-first dark-fantasy / Japanese-first基準で最小のUI Stateを設計する。
+
+この方針は本節より上のFigma同期手順とUI Source of Truth表の記述に優先する。Product Ruleは`docs/PRODUCT.md`とDecision、実際の挙動はProduction codeとtestを参照し、Fake Dataを加えない。未決定のBusiness / Game / AI Ruleが必要なら、実装に混ぜずProduct Decisionとして記録・確認する。
+

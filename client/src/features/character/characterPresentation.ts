@@ -46,6 +46,7 @@ export interface CharacterScreenModel {
   readonly mainStrength: {
     readonly exerciseName: string | null;
     readonly start: StrengthRecordDisplay | null;
+    readonly startEstimated: boolean;
     readonly current: StrengthRecordDisplay | null;
     readonly targetE1rmKg: number | null;
   };
@@ -194,6 +195,7 @@ export function deriveCharacterScreenModel(
     mainStrength: {
       exerciseName: mainExerciseId === undefined ? null : exerciseLabel(mainExerciseId),
       start,
+      startEstimated: baseline?.source === 'estimated_profile',
       current,
       targetE1rmKg,
     },

@@ -7,6 +7,7 @@ import {
   createInitialExerciseProgressState,
   createOnboardingExerciseProgressState,
   incrementExerciseSessionsCompleted,
+  replaceEstimatedMainBaselineAfterClear,
   registerSelfReportedExerciseBaseline,
 } from '../dist/index.js';
 
@@ -136,6 +137,35 @@ test('existing baseline is not overwritten by a later Workout Result', () => {
   assert.deepEqual(next.dumbbell_lateral_raise.baseline, existing.baseline);
 });
 
+test('only estimated Main baseline is replaced by its first cleared actual result', () => {
+  const initial = createOnboardingExerciseProgressState({
+    exerciseId: 'barbell_bench_press', weightKg: 30, reps: 5,
+    capturedDayIndex: 0, source: 'estimated_profile',
+  });
+  assert.equal(initial.baseline.source, 'estimated_profile');
+  assert.equal(initial.baseline.estimateRuleVersion, 'main-strength-estimate-v1');
+  const before = { barbell_bench_press: initial };
+  const firstResult = {
+    plannedExerciseId: 'barbell_bench_press', performedExerciseId: 'barbell_bench_press',
+    role: 'main', plannedSets: 3, plannedRepRange: { min: 5, max: 8 },
+    completedSets: [{ setNumber: 1, weightKg: 42.5, reps: 5 }],
+    performedAt: '2026-09-24T10:00:00.000Z',
+  };
+  const replaced = replaceEstimatedMainBaselineAfterClear(before, 'barbell_bench_press', firstResult, 2);
+  assert.equal(replaced.barbell_bench_press.baseline.source, 'workout_result');
+  assert.equal(replaced.barbell_bench_press.baseline.weightKg, 42.5);
+  assert.equal(replaced.barbell_bench_press.baseline.capturedDayIndex, 2);
+  assert.equal(replaced.barbell_bench_press.baseline.estimateRuleVersion, undefined);
+  assert.equal(replaceEstimatedMainBaselineAfterClear(replaced, 'barbell_bench_press', {
+    ...firstResult, completedSets: [{ setNumber: 1, weightKg: 50, reps: 5 }],
+  }, 4), replaced);
+  const realOnboarding = createOnboardingExerciseProgressState({
+    exerciseId: 'barbell_bench_press', weightKg: 40, reps: 5, capturedDayIndex: 0,
+  });
+  const realBefore = { barbell_bench_press: realOnboarding };
+  assert.equal(replaceEstimatedMainBaselineAfterClear(realBefore, 'barbell_bench_press', firstResult, 2), realBefore);
+});
+
 test('weighted Workout Result baseline is attributed to performedExerciseId, not plannedExerciseId', () => {
   const progress = captureFirstWorkoutExerciseBaseline(
     {},
@@ -177,7 +207,11 @@ test('ineligible Workout Result sets still establish a baseline from the first w
 });
 
 test('bodyweight Catalog exercises do not offer kg self-report', () => {
-  assert.deepEqual(SELF_REPORT_BASELINE_UNSUPPORTED_EXERCISE_IDS, ['push_up', 'pull_up', 'glute_bridge']);
+  assert.deepEqual(SELF_REPORT_BASELINE_UNSUPPORTED_EXERCISE_IDS, [
+    'push_up', 'close_grip_push_up', 'pull_up', 'reverse_snow_angel',
+    'pike_push_up', 'bodyweight_squat', 'reverse_lunge',
+    'bodyweight_calf_raise', 'glute_bridge',
+  ]);
   for (const exerciseId of SELF_REPORT_BASELINE_UNSUPPORTED_EXERCISE_IDS) {
     assert.equal(canSelfReportExerciseBaseline(exerciseId), false);
     assert.equal(registerSelfReportedExerciseBaseline({}, {

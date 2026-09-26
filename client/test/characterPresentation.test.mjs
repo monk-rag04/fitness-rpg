@@ -83,6 +83,21 @@ test('START comes from the Main Exercise Baseline', () => {
     },
   }));
   assert.deepEqual(model.mainStrength.start, { weightKg: 40, reps: 3 });
+  assert.equal(model.mainStrength.startEstimated, false);
+});
+
+test('estimated profile marks START as provisional without creating CURRENT', () => {
+  const model = deriveCharacterScreenModel(makeSource({
+    exerciseProgressById: {
+      barbell_bench_press: {
+        exerciseId: 'barbell_bench_press', sessionsCompleted: 0,
+        baseline: { weightKg: 35, reps: 5, source: 'estimated_profile', capturedDayIndex: 0 },
+      },
+    },
+  }));
+  assert.deepEqual(model.mainStrength.start, { weightKg: 35, reps: 5 });
+  assert.equal(model.mainStrength.startEstimated, true);
+  assert.equal(model.mainStrength.current, null);
 });
 
 test('CURRENT comes from an actual result on a cleared Training Quest', () => {

@@ -10,6 +10,8 @@ import {
   getTrainingPlanForDay,
   registerExerciseBaselineForCurrentDay,
   saveWorkoutResultForCurrentDay,
+  skipExerciseForCurrentDay,
+  undoExerciseSkipForCurrentDay,
   setExerciseLoadStepForCurrentDay,
   setStageEquipmentProfile,
 } from '../src/state/adventureSession.ts';
@@ -123,6 +125,40 @@ test('onboarding initializes the Main Strength exercise baseline from the accept
   });
 });
 
+test('estimated Main baseline remains provisional on save and becomes actual only after Quest Clear', () => {
+  const roadmap = createRoadmap();
+  const plan = { exercises: [{
+    exerciseId: 'barbell_bench_press', role: 'main', sets: 3, repRange: { min: 5, max: 8 },
+  }] };
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: createInitialStageProgress(roadmap),
+    planByDay: { 0: plan },
+    equipmentProfile: { id: 'baseline-test', displayName: 'Bench', availableEquipmentIds: ['barbell', 'flat_bench'] },
+    stageTrainingProgramContext: {
+      mainExerciseId: 'barbell_bench_press', currentE1rmKg: 35,
+      trainingExperienceMonths: 1, trainingFrequencyPerWeek: 3,
+    },
+    onboardingBaseline: {
+      exerciseId: 'barbell_bench_press', weightKg: 30, reps: 5, source: 'estimated_profile',
+    },
+  });
+  const initial = { ...createAdventureQuestDomainState(session), planByDay: { 0: plan } };
+  assert.equal(initial.exerciseProgressById.barbell_bench_press.baseline.source, 'estimated_profile');
+  const saved = saveWorkoutResultForCurrentDay(initial, {
+    plannedExerciseId: 'barbell_bench_press', performedExerciseId: 'barbell_bench_press',
+    role: 'main', plannedSets: 3, plannedRepRange: { min: 5, max: 8 },
+    completedSets: [1, 2, 3].map((setNumber) => ({ setNumber, weightKg: 40, reps: 5 })),
+    performedAt: '2026-09-24T10:00:00.000Z',
+  });
+  assert.equal(saved.exerciseProgressById.barbell_bench_press.baseline.source, 'estimated_profile');
+  const cleared = completeAdventureQuest(saved, 0);
+  assert.equal(cleared.status, 'completed');
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.source, 'workout_result');
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.weightKg, 40);
+  assert.equal(initial.exerciseProgressById.barbell_bench_press.baseline.source, 'estimated_profile');
+});
+
 test('onboarding ignores a baseline that does not match the selected Main Strength', () => {
   const roadmap = createRoadmap();
   const session = createOnboardingAdventureSession({
@@ -224,7 +260,7 @@ test('difficulty feedback is saved and edited with its Workout Result, and clear
   assert.equal(firstValidation.valid, true);
   const first = saveWorkoutResultForCurrentDay(initial, firstValidation.value);
   const firstStored = first.workoutResultsByDay[0].barbell_bench_press;
-  const firstBaseline = first.exerciseProgressById.dumbbell_bench_press.baseline;
+  const firstBaseline = first.exerciseProgressById.dumbbell_bench_press?.baseline;
   assert.equal(firstStored.difficultyFeedback, 'just_right');
   assert.equal(firstStored.performedExerciseId, 'dumbbell_bench_press');
 
@@ -247,7 +283,8 @@ test('difficulty feedback is saved and edited with its Workout Result, and clear
   assert.equal(clearedValidation.valid, true);
   const cleared = saveWorkoutResultForCurrentDay(edited, clearedValidation.value);
   assert.equal(Object.hasOwn(cleared.workoutResultsByDay[0].barbell_bench_press, 'difficultyFeedback'), false);
-  assert.deepEqual(cleared.exerciseProgressById.dumbbell_bench_press.baseline, firstBaseline);
+  assert.equal(firstBaseline, undefined);
+  assert.equal(cleared.exerciseProgressById.dumbbell_bench_press?.baseline, undefined);
   assert.deepEqual(initial.workoutResultsByDay, {});
   assert.equal(cleared.characterGrowth, initial.characterGrowth);
 });
@@ -276,27 +313,86 @@ test('difficulty feedback can veto progression without changing Quest Clear or E
   assert.equal(withFeedbackClear.domain.workoutResultsByDay[0].barbell_bench_press.difficultyFeedback, 'too_hard');
 });
 
-test('first weighted Workout Result captures a baseline from the performed exercise and later results keep it fixed', () => {
-  const initial = createRewardTestDomain();
-  const result = {
-    plannedExerciseId: 'dumbbell_lateral_raise',
-    performedExerciseId: 'dumbbell_bench_press',
-    role: 'accessory',
-    plannedSets: 3,
-    plannedRepRange: { min: 10, max: 15 },
-    completedSets: [{ setNumber: 1, weightKg: 20, reps: 5 }],
+test('a saved first Result creates no Baseline until Clear, and skipping it keeps the exercise untouched', () => {
+  const plan = { exercises: [{
+    exerciseId: 'barbell_bench_press', role: 'main', sets: 1, repRange: { min: 5, max: 8 },
+  }] };
+  const initial = { ...createRewardTestDomain(), planByDay: { 0: plan } };
+  const input = {
+    plannedExerciseId: 'barbell_bench_press',
+    performedExerciseId: 'barbell_bench_press',
+    role: 'main', plannedSets: 1, plannedRepRange: { min: 5, max: 8 },
+    completedSets: [{ setNumber: 1, weightKg: 30, reps: 5 }],
     performedAt: '2026-09-24T10:00:00.000Z',
   };
-  const first = saveWorkoutResultForCurrentDay(initial, result);
-  const second = saveWorkoutResultForCurrentDay(first, {
-    ...result,
-    completedSets: [{ setNumber: 1, weightKg: 30, reps: 3 }],
-  });
+  const validation = validateExerciseWorkoutResult(input);
+  assert.equal(validation.valid, true);
+  const saved = saveWorkoutResultForCurrentDay(initial, validation.value);
+  assert.equal(saved.exerciseProgressById.barbell_bench_press, undefined);
 
-  assert.equal(first.exerciseProgressById.dumbbell_bench_press.baseline.source, 'workout_result');
-  assert.equal(first.exerciseProgressById.dumbbell_lateral_raise, undefined);
-  assert.deepEqual(second.exerciseProgressById.dumbbell_bench_press.baseline, first.exerciseProgressById.dumbbell_bench_press.baseline);
-  assert.equal(second.exerciseProgressById.dumbbell_bench_press.sessionsCompleted, 0);
+  const skipped = skipExerciseForCurrentDay(saved, {
+    exerciseId: 'barbell_bench_press', reason: 'time_constraint', pledgeAccepted: true,
+  });
+  assert.equal(skipped.status, 'skipped');
+  assert.equal(skipped.domain.workoutResultsByDay[0].barbell_bench_press, undefined);
+  assert.deepEqual(skipped.domain.exerciseProgressById, initial.exerciseProgressById);
+  assert.equal(completeAdventureQuest(skipped.domain, 0).status, 'not_ready_to_clear');
+
+  const unskipped = undoExerciseSkipForCurrentDay(skipped.domain, 'barbell_bench_press');
+  assert.equal(unskipped.status, 'undone');
+  const performed = saveWorkoutResultForCurrentDay(unskipped.domain, validation.value);
+  const cleared = completeAdventureQuest(performed, 0);
+  assert.equal(cleared.status, 'completed');
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.source, 'workout_result');
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.weightKg, 30);
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.sessionsCompleted, 1);
+});
+
+test('Main and multiple Accessories can be skipped while only performed Results earn growth and sessions', () => {
+  const initial = {
+    ...createRewardTestDomain(),
+    exerciseProgressById: {
+      barbell_bench_press: {
+        exerciseId: 'barbell_bench_press', sessionsCompleted: 2,
+        baseline: { weightKg: 50, reps: 5, source: 'self_report', capturedDayIndex: 0 },
+      },
+      cable_chest_fly: {
+        exerciseId: 'cable_chest_fly', sessionsCompleted: 1,
+        baseline: { weightKg: 10, reps: 10, source: 'workout_result', capturedDayIndex: 0 },
+      },
+    },
+  };
+  const oldMainProgress = initial.exerciseProgressById.barbell_bench_press;
+  const oldCableProgress = initial.exerciseProgressById.cable_chest_fly;
+  const afterMainSkip = skipExerciseForCurrentDay(initial, {
+    exerciseId: 'barbell_bench_press', reason: 'condition', pledgeAccepted: true,
+  });
+  const afterCableSkip = skipExerciseForCurrentDay(afterMainSkip.domain, {
+    exerciseId: 'cable_chest_fly', reason: 'equipment_unavailable', pledgeAccepted: true,
+  });
+  const performedPlan = DEMO_TRAINING_PLAN.exercises.find((exercise) => exercise.exerciseId === 'dumbbell_bench_press');
+  const performed = saveWorkoutResultForCurrentDay(afterCableSkip.domain, {
+    plannedExerciseId: performedPlan.exerciseId,
+    performedExerciseId: performedPlan.exerciseId,
+    role: performedPlan.role,
+    plannedSets: performedPlan.sets,
+    plannedRepRange: performedPlan.repRange,
+    completedSets: Array.from({ length: performedPlan.sets }, (_, index) => ({
+      setNumber: index + 1, weightKg: 12, reps: performedPlan.repRange.min,
+    })),
+    performedAt: '2026-09-24T10:10:00.000Z',
+  });
+  assert.deepEqual(Object.keys(performed.workoutResultsByDay[0]), ['dumbbell_bench_press']);
+  assert.equal(Object.keys(performed.exerciseSkipsByDay[0]).length, 2);
+
+  const cleared = completeAdventureQuest(performed, 0);
+  assert.equal(cleared.status, 'completed');
+  assert.deepEqual(cleared.rewardSummary.trainingExpGained, { chest: 15 });
+  assert.deepEqual(cleared.domain.exerciseProgressById.barbell_bench_press, oldMainProgress);
+  assert.deepEqual(cleared.domain.exerciseProgressById.cable_chest_fly, oldCableProgress);
+  assert.equal(cleared.domain.exerciseProgressById.dumbbell_bench_press.sessionsCompleted, 1);
+  assert.equal(cleared.domain.workoutResultsByDay[0].barbell_bench_press, undefined);
+  assert.equal(cleared.domain.workoutResultsByDay[0].cable_chest_fly, undefined);
 });
 
 test('Training Quest completion applies progress, growth, and summary in one transition', () => {
@@ -394,12 +490,12 @@ test('editing a saved result changes only the suggestion produced by the final r
     completedSets: previous.completedSets.map((set) => ({ ...set, weightKg: 25 })),
     performedAt: '2026-09-24T10:05:00.000Z',
   });
-  assert.equal(edited.exerciseProgressById.barbell_bench_press.nextSuggestion, undefined);
+  assert.equal(edited.exerciseProgressById.barbell_bench_press?.nextSuggestion, undefined);
   const cleared = completeAdventureQuest(edited, 0);
   const suggestion = cleared.domain.exerciseProgressById.barbell_bench_press.nextSuggestion;
   assert.equal(suggestion.weightKg, 25);
   assert.equal(suggestion.targetReps, previous.plannedRepRange.min + 1);
-  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.weightKg, 30);
+  assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.baseline.weightKg, 25);
   assert.equal(cleared.domain.exerciseProgressById.barbell_bench_press.sessionsCompleted, 1);
 });
 

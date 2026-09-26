@@ -77,6 +77,49 @@ test('requires both baseline fields or neither; missing baseline does not genera
   assert.equal('durationInput' in result, false);
 });
 
+test('unknown strength derives a provisional baseline and a valid automatic goal before provider use', () => {
+  const unknownInput = {
+    bodyWeightKg: 60,
+    trainingExperienceMonths: 1,
+    trainingFrequencyPerWeek: 3,
+    mainExerciseId: 'barbell_bench_press',
+    strengthKnowledge: 'unknown',
+    startDate: '2026-09-22',
+  };
+  const prepared = prepareOnboardingRoadmap(unknownInput);
+  assert.equal(prepared.status, 'ready_for_duration_estimate');
+  assert.equal(prepared.baseline.source, 'estimated_profile');
+  assert.equal(prepared.baseline.estimateRuleVersion, 'main-strength-estimate-v1');
+  assert.equal(prepared.baseline.reps, 5);
+  assert.ok(prepared.input.finalGoalE1rmKg > prepared.baseline.baselineE1rmKg);
+  assert.equal(prepared.durationInput.currentE1rmKg, prepared.baseline.baselineE1rmKg);
+  assert.ok(prepared.stage.stageTargetE1rmKg <= prepared.input.finalGoalE1rmKg);
+  const completed = completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 28 });
+  assert.equal(completed.status, 'roadmap_created');
+  assert.equal(completed.roadmap.days.length, 28);
+  assert.equal(completed.roadmap.mainExerciseId, unknownInput.mainExerciseId);
+  assert.deepEqual(unknownInput, {
+    bodyWeightKg: 60,
+    trainingExperienceMonths: 1,
+    trainingFrequencyPerWeek: 3,
+    mainExerciseId: 'barbell_bench_press',
+    strengthKnowledge: 'unknown',
+    startDate: '2026-09-22',
+  });
+});
+
+test('unknown strength rejects manual strength fields and invalid profile before duration request', () => {
+  const unknown = {
+    bodyWeightKg: 60, trainingExperienceMonths: 1,
+    trainingFrequencyPerWeek: 3, mainExerciseId: 'barbell_bench_press',
+    startDate: '2026-09-22', strengthKnowledge: 'unknown',
+  };
+  assert.equal(prepareOnboardingRoadmap({ ...unknown, bodyWeightKg: 0 }).status, 'invalid_input');
+  assert.equal(prepareOnboardingRoadmap({ ...unknown, baselineWeightKg: 40 }).status, 'invalid_input');
+  assert.equal(prepareOnboardingRoadmap({ ...unknown, finalGoalE1rmKg: 60 }).status, 'invalid_input');
+  assert.equal(prepareOnboardingRoadmap({ ...unknown, mainExerciseId: 'push_up' }).status, 'invalid_input');
+});
+
 test('1-rep baseline is actual weight, not the Epley multiplier', () => {
   const result = validateOnboardingRoadmapInput({ ...validInput, baselineReps: 1 });
   assert.equal(result.valid, true);
@@ -129,4 +172,21 @@ test('42+ estimate is explicit replanning and cannot generate a roadmap', () => 
   assert.deepEqual(completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 0 }), {
     status: 'invalid_duration_estimate',
   });
+});
+
+test('42+ estimate uses the established 42-day ceiling only for provisional unknown strength', () => {
+  const prepared = prepareOnboardingRoadmap({
+    bodyWeightKg: 60,
+    trainingExperienceMonths: 1,
+    trainingFrequencyPerWeek: 3,
+    mainExerciseId: 'barbell_bench_press',
+    strengthKnowledge: 'unknown',
+    startDate: '2026-09-22',
+  });
+  assert.equal(prepared.status, 'ready_for_duration_estimate');
+  const result = completeOnboardingRoadmap(prepared, { estimatedAchievementDays: 60 });
+  assert.equal(result.status, 'roadmap_created');
+  assert.equal(result.estimatedAchievementDays, 60);
+  assert.equal(result.selectedRoadmapDurationDays, 42);
+  assert.equal(result.roadmap.days.length, 42);
 });

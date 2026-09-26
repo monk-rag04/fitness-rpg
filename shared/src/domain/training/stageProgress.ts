@@ -12,6 +12,7 @@ import {
   validateWorkoutResultAgainstPlan,
   type ExerciseWorkoutResult,
 } from './workoutResult.js';
+import { validateExerciseSkipRecord, type ExerciseSkipRecord } from './exerciseSkip.js';
 
 /** D-027 MVP rule. Persist with progress once a persistence boundary exists. */
 export const STAGE_PROGRESS_RULE = {
@@ -78,6 +79,12 @@ export type TrainingQuestCompletionErrorCode =
   | 'INVALID_WORKOUT_RESULT'
   | 'WORKOUT_RESULT_PLAN_MISMATCH'
   | 'DUPLICATE_WORKOUT_RESULT'
+  | 'INVALID_EXERCISE_SKIPS'
+  | 'INVALID_EXERCISE_SKIP'
+  | 'EXERCISE_SKIP_PLAN_MISMATCH'
+  | 'DUPLICATE_EXERCISE_SKIP'
+  | 'EXERCISE_BOTH_PERFORMED_AND_SKIPPED'
+  | 'AT_LEAST_ONE_EXERCISE_MUST_BE_PERFORMED'
   | 'MISSING_REQUIRED_EXERCISE_RESULT'
   | 'MISSING_EQUIPMENT_PROFILE'
   | 'INVALID_EQUIPMENT_PROFILE'
@@ -92,7 +99,7 @@ export interface TrainingQuestExerciseView {
   readonly exerciseId: ExerciseId;
   readonly role: PlannedExerciseRole;
   readonly completed: boolean;
-  readonly status: 'completed' | 'incomplete';
+  readonly status: 'completed' | 'skipped' | 'incomplete';
 }
 
 /** Derived completion state only; it is not a checkbox persistence model. */
@@ -275,6 +282,7 @@ export function evaluateTrainingQuestCompletion(
   trainingPlan: ValidatedTrainingPlan | undefined,
   workoutResults: readonly unknown[],
   equipmentProfile?: GymEquipmentProfile,
+  exerciseSkips: readonly unknown[] = [],
 ): TrainingQuestCompletionEvaluation {
   const errors: TrainingQuestCompletionError[] = [];
   if (trainingPlan === undefined || trainingPlan === null) {
@@ -304,9 +312,22 @@ export function evaluateTrainingQuestCompletion(
       errors: [{ code: 'INVALID_WORKOUT_RESULTS', path: 'workoutResults' }],
     };
   }
+  if (!Array.isArray(exerciseSkips)) {
+    return {
+      readyToClear: false,
+      exercises: validatedPlan.plan.map((exercise) => ({
+        exerciseId: exercise.exerciseId,
+        role: exercise.role,
+        completed: false,
+        status: 'incomplete' as const,
+      })),
+      errors: [{ code: 'INVALID_EXERCISE_SKIPS', path: 'exerciseSkips' }],
+    };
+  }
 
   const validResultsByPlanExercise = new Map<ExerciseId, ExerciseWorkoutResult[]>();
   const invalidPlanExerciseIds = new Set<ExerciseId>();
+  const validSkipsByPlanExercise = new Map<ExerciseId, ExerciseSkipRecord>();
 
   for (const [index, input] of workoutResults.entries()) {
     const resultValidation = validateExerciseWorkoutResult(input);
@@ -346,9 +367,39 @@ export function evaluateTrainingQuestCompletion(
     }
   }
 
+  for (const [index, input] of exerciseSkips.entries()) {
+    const validation = validateExerciseSkipRecord(input);
+    if (!validation.valid) {
+      errors.push({ code: 'INVALID_EXERCISE_SKIP', path: `exerciseSkips[${index}]` });
+      continue;
+    }
+    const skip = validation.value;
+    const plannedExercise = validatedPlan.plan.find((exercise) => exercise.exerciseId === skip.exerciseId);
+    if (plannedExercise === undefined) {
+      errors.push({ code: 'EXERCISE_SKIP_PLAN_MISMATCH', path: `exerciseSkips[${index}].exerciseId` });
+      continue;
+    }
+    if (validSkipsByPlanExercise.has(skip.exerciseId)) {
+      errors.push({ code: 'DUPLICATE_EXERCISE_SKIP', path: `exerciseSkips.${skip.exerciseId}` });
+      validSkipsByPlanExercise.delete(skip.exerciseId);
+      invalidPlanExerciseIds.add(skip.exerciseId);
+      continue;
+    }
+    validSkipsByPlanExercise.set(skip.exerciseId, skip);
+  }
+
+  for (const exerciseId of validSkipsByPlanExercise.keys()) {
+    if (validResultsByPlanExercise.has(exerciseId)) {
+      errors.push({ code: 'EXERCISE_BOTH_PERFORMED_AND_SKIPPED', path: `exerciseSkips.${exerciseId}` });
+      validSkipsByPlanExercise.delete(exerciseId);
+      invalidPlanExerciseIds.add(exerciseId);
+    }
+  }
+
   const exercises = validatedPlan.plan.map((exercise): TrainingQuestExerciseView => {
     const matchingResults = validResultsByPlanExercise.get(exercise.exerciseId) ?? [];
-    const completed = matchingResults.length === 1 && !invalidPlanExerciseIds.has(exercise.exerciseId);
+    const skipped = validSkipsByPlanExercise.has(exercise.exerciseId) && !invalidPlanExerciseIds.has(exercise.exerciseId);
+    const completed = (matchingResults.length === 1 || skipped) && !invalidPlanExerciseIds.has(exercise.exerciseId);
     if (!completed) {
       errors.push({ code: 'MISSING_REQUIRED_EXERCISE_RESULT', path: `trainingPlan.exercises.${exercise.exerciseId}` });
     }
@@ -356,9 +407,13 @@ export function evaluateTrainingQuestCompletion(
       exerciseId: exercise.exerciseId,
       role: exercise.role,
       completed,
-      status: completed ? 'completed' : 'incomplete',
+      status: skipped ? 'skipped' : completed ? 'completed' : 'incomplete',
     };
   });
+
+  if (exercises.length > 0 && exercises.every((exercise) => exercise.status === 'skipped')) {
+    errors.push({ code: 'AT_LEAST_ONE_EXERCISE_MUST_BE_PERFORMED', path: 'workoutResults' });
+  }
 
   return { readyToClear: errors.length === 0, exercises, errors };
 }
@@ -400,13 +455,14 @@ export function completeTrainingQuest(
   trainingPlan: ValidatedTrainingPlan | undefined,
   workoutResults: readonly unknown[],
   equipmentProfile?: GymEquipmentProfile,
+  exerciseSkips: readonly unknown[] = [],
 ): QuestCompletionResult {
   const earlyResult = initialCompletionResult(roadmap, progress, requestedDayIndex);
   if (earlyResult !== null) return earlyResult;
   if (roadmap.days[requestedDayIndex].type !== 'training') {
     return { status: 'wrong_quest_type', progress };
   }
-  const evaluation = evaluateTrainingQuestCompletion(trainingPlan, workoutResults, equipmentProfile);
+  const evaluation = evaluateTrainingQuestCompletion(trainingPlan, workoutResults, equipmentProfile, exerciseSkips);
   if (!evaluation.readyToClear) {
     return { status: 'not_ready_to_clear', progress, evaluation };
   }

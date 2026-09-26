@@ -12,6 +12,7 @@ export function ProgressScreen() {
     progress: adventure.progress,
     exerciseProgressById: adventure.exerciseProgressById,
     workoutResultsByDay: adventure.workoutResultsByDay,
+    completedStages: adventure.completedStages,
     mainStrengthGoalE1rmKg: adventure.mainStrengthGoalE1rmKg,
   });
 

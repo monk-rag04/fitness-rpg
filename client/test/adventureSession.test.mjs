@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   completeAdventureQuest,
+  advanceAdventureToNextStage,
+  challengeAdventureBoss,
   cacheStageTrainingProgram,
   cacheTrainingPlanForDay,
   createAdventureQuestDomainState,
@@ -22,6 +24,7 @@ import {
   generateStageRoadmap,
   getCanonicalStageTrainingDays,
   rescheduleCurrentQuest,
+  planNextStage,
   validateExerciseWorkoutResult,
 } from '@fitness-rpg/shared';
 
@@ -81,6 +84,100 @@ test('onboarding session begins with an empty day-based Plan cache and no Demo f
   assert.deepEqual(session.planByDay, {});
   assert.equal(getTrainingPlanForDay(roadmap, session.planByDay, firstTrainingDay), null);
   assert.equal(session.equipmentProfile, undefined);
+});
+
+test('Boss challenge changes only Boss state and Stage 2 transition resets scoped state while archiving the completed Stage', () => {
+  const roadmap = createRoadmap();
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: { currentDayIndex: roadmap.days.length },
+    mainStrengthGoalE1rmKg: 120,
+    stageTrainingProgramContext: {
+      mainExerciseId: roadmap.mainExerciseId,
+      currentE1rmKg: 70,
+      trainingExperienceMonths: 8,
+      trainingFrequencyPerWeek: roadmap.trainingFrequencyPerWeek,
+    },
+  });
+  const result = validateExerciseWorkoutResult({
+    plannedExerciseId: 'barbell_bench_press', performedExerciseId: 'barbell_bench_press', role: 'main',
+    plannedSets: 3, plannedRepRange: { min: 5, max: 8 },
+    completedSets: [{ setNumber: 1, weightKg: 70, reps: 5 }], performedAt: '2026-09-26T09:00:00.000Z',
+  }).value;
+  const base = {
+    ...createAdventureQuestDomainState(session),
+    workoutResultsByDay: { 0: { barbell_bench_press: result } },
+    exerciseSkipsByDay: { 2: { push_up: { exerciseId: 'push_up', reason: 'not_available', pledgeAccepted: true } } },
+    bossBattle: {
+      ruleVersion: 'boss-target-v1', originalStageTargetE1rmKg: roadmap.stageTargetE1rmKg,
+      targetE1rmKg: 80, adapted: true, defeated: false,
+    },
+  };
+  const failed = challengeAdventureBoss(base, { weightKg: 40, reps: 5 });
+  assert.equal(failed.result.status, 'defeat');
+  assert.equal(failed.domain, base);
+  const victory = challengeAdventureBoss(base, { weightKg: 100, reps: 1 });
+  assert.equal(victory.result.status, 'victory');
+  assert.equal(victory.domain.progress, base.progress);
+  assert.equal(victory.domain.characterGrowth, base.characterGrowth);
+  assert.equal(victory.domain.exerciseProgressById, base.exerciseProgressById);
+  assert.equal(victory.domain.workoutResultsByDay, base.workoutResultsByDay);
+
+  const currentE1rm = victory.result.status === 'victory' ? victory.result.attempt.estimatedE1rmKg : 80;
+  const target = planNextStage({ currentE1rmKg: currentE1rm, finalGoalE1rmKg: 120 }).stageTargetE1rmKg;
+  const nextRoadmap = generateStageRoadmap({
+    startDate: '2026-10-01', durationDays: 14, trainingFrequencyPerWeek: roadmap.trainingFrequencyPerWeek,
+    mainExerciseId: roadmap.mainExerciseId, stageTargetE1rmKg: target,
+  });
+  const completed = {
+    ...victory.domain,
+    planByDay: { 0: DEMO_TRAINING_PLAN },
+    equipmentProfile: DEMO_EQUIPMENT_PROFILE,
+  };
+  const transition = advanceAdventureToNextStage(completed, nextRoadmap);
+  assert.equal(advanceAdventureToNextStage({ ...completed, mainStrengthGoalE1rmKg: 100 }, nextRoadmap).status, 'final_goal_cleared');
+  assert.equal(transition.status, 'started');
+  assert.equal(transition.domain.stageNumber, 2);
+  assert.equal(transition.domain.progress.currentDayIndex, 0);
+  assert.deepEqual(transition.domain.planByDay, {});
+  assert.deepEqual(transition.domain.workoutResultsByDay, {});
+  assert.deepEqual(transition.domain.exerciseSkipsByDay, {});
+  assert.equal(transition.domain.bossBattle, undefined);
+  assert.equal(transition.domain.equipmentProfile, DEMO_EQUIPMENT_PROFILE);
+  assert.equal(transition.domain.characterGrowth, completed.characterGrowth);
+  assert.equal(transition.domain.exerciseProgressById, completed.exerciseProgressById);
+  assert.equal(transition.domain.completedStages.length, 1);
+  assert.equal(transition.domain.completedStages[0].winningAttempt.estimatedE1rmKg, 100);
+  assert.equal(transition.domain.completedStages[0].workoutResultsByDay[0].barbell_bench_press, result);
+  assert.equal(transition.domain.stageTrainingProgramContext.currentE1rmKg, 100);
+});
+
+test('last Daily Quest Clear unlocks Boss and freezes the strongest cleared actual Main e1RM', () => {
+  const roadmap = createRoadmap();
+  const finalDayIndex = roadmap.days.length - 1;
+  assert.equal(roadmap.days[finalDayIndex].type, 'recovery');
+  const session = createOnboardingAdventureSession({
+    roadmap,
+    initialProgress: { currentDayIndex: finalDayIndex },
+    mainStrengthGoalE1rmKg: 100,
+  });
+  const result = validateExerciseWorkoutResult({
+    plannedExerciseId: 'barbell_bench_press', performedExerciseId: 'barbell_bench_press', role: 'main',
+    plannedSets: 3, plannedRepRange: { min: 5, max: 8 },
+    completedSets: [{ setNumber: 1, weightKg: 70, reps: 5 }], performedAt: '2026-09-26T09:00:00.000Z',
+  }).value;
+  const domain = {
+    ...createAdventureQuestDomainState(session),
+    workoutResultsByDay: { 0: { barbell_bench_press: result } },
+  };
+  const clear = completeAdventureQuest(domain, finalDayIndex);
+  assert.equal(clear.status, 'completed');
+  assert.equal(clear.domain.progress.currentDayIndex, roadmap.days.length);
+  assert.equal(clear.domain.bossBattle.originalStageTargetE1rmKg, roadmap.stageTargetE1rmKg);
+  assert.equal(clear.domain.bossBattle.adapted, true);
+  assert.equal(clear.domain.bossBattle.targetE1rmKg, 70 * (1 + 5 / 30) * 1.03);
+  assert.equal(clear.rewardSummary.questType, 'recovery');
+  assert.equal(clear.domain.exerciseProgressById.barbell_bench_press?.sessionsCompleted ?? 0, 0);
 });
 
 test('onboarding session retains the confirmed Main Strength final goal separately from the Stage target', () => {

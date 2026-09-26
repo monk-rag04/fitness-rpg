@@ -1851,3 +1851,58 @@ button.map-node:active {
 @media (min-width: 560px) {
   .bottom-navigation { bottom: var(--space-6); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 }
+
+.boss-screen,
+.stage-clear-screen { display: grid; min-height: 100dvh; align-content: center; gap: 1rem; padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+.boss-screen__header,
+.stage-clear-heading { display: grid; gap: 0.4rem; text-align: center; }
+.boss-screen__header h1,
+.stage-clear-heading h1 { color: var(--color-gold-bright); font-family: 'Cinzel', Georgia, serif; font-size: clamp(1.55rem, 8vw, 2rem); line-height: 1.15; letter-spacing: 0.06em; }
+.boss-screen__intro,
+.stage-clear-heading > p:last-child { margin: 0; color: var(--color-muted); font-size: 0.82rem; line-height: 1.5; }
+.boss-card,
+.stage-clear-card { min-width: 0; padding: 1rem; border: 1px solid rgba(233, 200, 118, 0.56); border-radius: 0.5rem; background: linear-gradient(155deg, rgba(26, 32, 48, 0.97), rgba(11, 13, 18, 0.98)); box-shadow: 0 0 28px rgba(201, 162, 75, 0.08); }
+.boss-card > h2,
+.stage-clear-card > h2 { margin: 0.55rem 0 0.8rem; color: var(--color-text); font-family: 'Cinzel', Georgia, serif; font-size: 1.05rem; line-height: 1.35; overflow-wrap: anywhere; }
+.boss-target { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin: 0.75rem 0; padding: 0.75rem; border: 1px solid rgba(232, 93, 77, 0.38); border-radius: 0.4rem; background: rgba(48, 22, 24, 0.34); }
+.boss-target > span,
+.boss-adapted > strong { color: var(--color-danger-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; }
+.boss-target > strong { color: var(--color-gold-bright); font-family: 'Spectral', Georgia, serif; font-size: 1.2rem; white-space: nowrap; }
+.boss-adapted { display: grid; gap: 0.28rem; margin: 0.75rem 0; padding: 0.7rem; border: 1px solid rgba(232, 93, 77, 0.35); border-radius: 0.35rem; background: rgba(48, 22, 24, 0.25); }
+.boss-adapted > span { color: var(--color-muted); font-size: 0.7rem; }
+.boss-form { display: grid; gap: 0.7rem; margin-top: 1rem; }
+.boss-form > label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.35rem 0.5rem; color: var(--color-text); font-size: 0.78rem; }
+.boss-form > label > span { color: var(--color-muted); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.6rem; }
+.boss-form input { grid-column: 1 / -1; width: 100%; min-width: 0; min-height: 2.8rem; padding: 0.55rem 0.7rem; border: 1px solid rgba(236, 227, 207, 0.25); border-radius: 0.35rem; background: rgba(9, 12, 18, 0.92); color: var(--color-text); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.boss-form .quest-gold-button,
+.stage-clear-actions .quest-gold-button { width: 100%; min-height: 2.9rem; }
+.boss-message { margin: 0; padding: 0.65rem 0.75rem; border: 1px solid rgba(232, 93, 77, 0.45); border-radius: 0.35rem; background: rgba(48, 22, 24, 0.3); color: #ffd0c8; font-size: 0.75rem; line-height: 1.45; }
+.boss-result { display: grid; gap: 0.7rem; margin-top: 1rem; padding: 0.85rem; border: 1px solid rgba(232, 93, 77, 0.48); border-radius: 0.4rem; background: rgba(48, 22, 24, 0.24); }
+.boss-result > h2 { color: var(--color-danger-bright); font-size: 1rem; }
+.boss-result > dl,
+.stage-clear-card > dl { display: grid; gap: 0.35rem; margin: 0; }
+.boss-result > dl > div,
+.stage-clear-card > dl > div { display: flex; min-width: 0; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(236, 227, 207, 0.1); }
+.boss-result dt,
+.stage-clear-card dt { color: var(--color-muted); font-size: 0.72rem; }
+.boss-result dd,
+.stage-clear-card dd { margin: 0; color: var(--color-text); font-family: 'Spectral', Georgia, serif; font-size: 0.8rem; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.boss-back-link,
+.stage-clear-secondary { min-height: 2.75rem; border: 1px solid rgba(74, 168, 255, 0.3); border-radius: 0.35rem; background: rgba(20, 35, 54, 0.24); color: var(--color-arcane); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.65rem; font-weight: 700; }
+.stage-clear-heading .eyebrow { color: var(--color-danger-bright); }
+.stage-clear-heading h1 { font-size: clamp(2rem, 10vw, 2.6rem); }
+.stage-clear-card > dl > div:last-child { border-bottom: 0; }
+.stage-clear-adapted,
+.stage-clear-final-goal { margin: 0.75rem 0 0; color: var(--color-danger-bright); font-family: 'Space Mono', ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.05em; }
+.stage-clear-final-goal { color: var(--color-gold-bright); font-size: 0.72rem; }
+.stage-clear-actions { display: grid; gap: 0.6rem; }
+.stage-clear-copy { margin: 0 0 0.25rem; color: var(--color-muted); font-size: 0.8rem; line-height: 1.5; text-align: center; }
+.equipment-program-start .equipment-flow-actions { width: 100%; margin-top: 1.5rem; }
+
+@media (max-width: 380px) {
+  .boss-screen,
+  .stage-clear-screen { padding-inline: 0.85rem; }
+  .boss-card,
+  .stage-clear-card { padding: 0.8rem; }
+  .boss-target > strong { font-size: 1.05rem; }
+}

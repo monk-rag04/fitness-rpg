@@ -5,23 +5,25 @@ type DailyProps = {
   readonly onOpen: () => void;
   readonly boss?: never;
   readonly bossAvailable?: never;
+  readonly bossDefeated?: never;
 };
 
 type BossProps = {
   readonly boss: StageRoadmap['boss'];
   readonly bossAvailable: boolean;
+  readonly bossDefeated: boolean;
+  readonly onOpen: () => void;
   readonly node?: never;
-  readonly onOpen?: never;
 };
 
 export function MapNode(props: DailyProps | BossProps) {
   const boss = props.boss !== undefined;
   const current = !boss && props.node.status === 'available';
-  const complete = !boss && props.node.status === 'completed';
+  const complete = boss ? props.bossDefeated : props.node.status === 'completed';
   const locked = boss ? !props.bossAvailable : props.node.status === 'locked';
   const type = boss ? 'boss' : props.node.type;
   const icon = complete ? '✓' : type === 'training' ? '⚔' : type === 'recovery' ? '☾' : '♛';
-  const label = boss ? 'STAGE BOSS' : type === 'training' ? 'TRAINING QUEST' : 'RECOVERY QUEST';
+  const label = boss ? (props.bossDefeated ? 'STAGE CLEAR' : 'STAGE BOSS') : type === 'training' ? 'TRAINING QUEST' : 'RECOVERY QUEST';
   const date = boss ? props.boss.date : props.node.date;
   const className = [
     'map-node',
@@ -30,6 +32,7 @@ export function MapNode(props: DailyProps | BossProps) {
     current && 'map-node--current',
     locked && 'map-node--locked',
     boss && props.bossAvailable && 'map-node--boss-available',
+    boss && props.bossDefeated && 'map-node--completed',
   ].filter(Boolean).join(' ');
   const content = (
     <>
@@ -46,7 +49,7 @@ export function MapNode(props: DailyProps | BossProps) {
     </>
   );
 
-  if (current) {
+  if (current || (boss && props.bossAvailable)) {
     return (
       <button className={className} type="button" onClick={props.onOpen} aria-current="step" aria-label={`${label} ${date}、本日のQuestを開く`}>
         {content}

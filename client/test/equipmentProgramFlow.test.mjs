@@ -132,6 +132,20 @@ test('a saved Equipment Profile pre-fills Equipment Check while legacy empty pro
   assert.deepEqual(equipmentDraftFromEquipmentIds([]), { kind: 'no_equipment' });
 });
 
+test('a later Stage reuses the saved Equipment Profile and presents an explicit program-generation action', () => {
+  const session = createSession();
+  const selected = setStageEquipmentProfile(session, ['flat_bench', 'barbell']);
+  const stageTwoSession = { ...selected.target, stageNumber: 2 };
+  const markup = renderToStaticMarkup(createElement(
+    AdventureQuestProvider,
+    { session: stageTwoSession },
+    createElement(CurrentQuest),
+  ));
+  assert.match(markup, /このStageのトレーニングメニューを作成/);
+  assert.doesNotMatch(markup, /EQUIPMENT CHECK/);
+  assert.equal((markup.match(/aria-pressed=/g) ?? []).length, 0);
+});
+
 test('a saved current-day Plan bypasses Equipment Check and Recovery remains unchanged', () => {
   const session = createSession();
   const cached = cacheTrainingPlanForDay(session.roadmap, {}, 0, DEMO_TRAINING_PLAN);

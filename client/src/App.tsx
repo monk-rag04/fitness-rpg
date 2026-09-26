@@ -6,6 +6,8 @@ import { Onboarding } from './features/onboarding/Onboarding';
 import { CurrentQuest } from './features/quests/CurrentQuest';
 import { CharacterScreen } from './features/character/CharacterScreen';
 import { ProgressScreen } from './features/progress/ProgressScreen';
+import { BossBattleScreen } from './features/boss/BossBattleScreen';
+import { StageClearScreen } from './features/boss/StageClearScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import {
   AdventureQuestProvider,
@@ -23,7 +25,9 @@ function AdventureQuestApp() {
       {screen === 'quest' && <CurrentQuest />}
       {screen === 'character' && <CharacterScreen />}
       {screen === 'progress' && <ProgressScreen />}
-      {screen !== 'quest' && (
+      {screen === 'boss' && <BossBattleScreen />}
+      {screen === 'stage-clear' && <StageClearScreen />}
+      {screen !== 'quest' && screen !== 'boss' && screen !== 'stage-clear' && (
         <BottomNavigation activeScreen={screen} onNavigate={navigateToHub} />
       )}
       <QuestClearFeedback />

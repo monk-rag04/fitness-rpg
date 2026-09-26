@@ -44,7 +44,7 @@ function MapGauge({ completed, total }: { readonly completed: number; readonly t
 }
 
 export function AdventureMap() {
-  const { roadmap, progressView, openCurrentQuest } = useAdventureQuest();
+  const { roadmap, progressView, openCurrentQuest, openBossBattle, openStageClear, bossBattle, stageNumber } = useAdventureQuest();
   const dailyNodes: readonly StageProgressDailyNodeView[] = progressView.dailyNodes;
   const nodeCount = dailyNodes.length + 1; // Boss follows the daily route.
   const mapHeight = Math.max(720, nodeCount * 76 + 170);
@@ -83,7 +83,7 @@ export function AdventureMap() {
       <header className="map-header">
         <div className="map-header-top">
           <div>
-            <p className="map-eyebrow">ADVENTURE MAP</p>
+            <p className="map-eyebrow">STAGE {stageNumber} · ADVENTURE MAP</p>
             <h1 id="map-title" className="map-title">Iron Vale Ascent</h1>
           </div>
           <span className="map-tag map-tag--danger">BOSSまで {remaining} QUEST</span>
@@ -132,7 +132,15 @@ export function AdventureMap() {
           className="map-position map-position--boss"
           style={{ left: `${points[nodeCount - 1].x}%`, top: points[nodeCount - 1].y }}
         >
-          <MapNode boss={progressView.boss} bossAvailable={progressView.bossAvailable} />
+          <MapNode
+            boss={progressView.boss}
+            bossAvailable={progressView.bossAvailable}
+            bossDefeated={bossBattle?.defeated === true}
+            onOpen={() => {
+              if (bossBattle?.defeated === true) openStageClear();
+              else openBossBattle();
+            }}
+          />
         </div>
 
         <div className="map-bottom-shade" aria-hidden="true" />

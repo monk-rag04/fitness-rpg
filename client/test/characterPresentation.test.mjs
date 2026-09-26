@@ -223,6 +223,26 @@ test('CURRENT ignores actual results on the not-yet-cleared current Quest', () =
   assert.deepEqual(model.mainStrength.current, { weightKg: 40, reps: 5 });
 });
 
+test('CURRENT actual record survives transition to a new Stage through the completed Stage archive', () => {
+  const previousRoadmap = makeRoadmap();
+  const currentRoadmap = generateStageRoadmap({
+    startDate: '2026-10-10', durationDays: 14, trainingFrequencyPerWeek: 3,
+    mainExerciseId: 'barbell_bench_press', stageTargetE1rmKg: 80,
+  });
+  const archivedResult = makeResult([{ setNumber: 1, weightKg: 72.5, reps: 6 }]);
+  const model = deriveCharacterScreenModel(makeSource({
+    roadmap: currentRoadmap,
+    progress: { currentDayIndex: 0 },
+    workoutResultsByDay: {},
+    completedStages: [{
+      roadmap: previousRoadmap,
+      progress: { currentDayIndex: previousRoadmap.days.length },
+      workoutResultsByDay: { 0: { barbell_bench_press: archivedResult } },
+    }],
+  }));
+  assert.deepEqual(model.mainStrength.current, { weightKg: 72.5, reps: 6 });
+});
+
 test('Main Strength exercise label comes from the canonical Exercise ID presentation mapping', () => {
   const model = deriveCharacterScreenModel(makeSource());
   assert.equal(model.mainStrength.exerciseName, 'バーベルベンチプレス');

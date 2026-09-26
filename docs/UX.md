@@ -336,6 +336,14 @@ Recovery has no MVP checklist. The user explicitly clears the current Recovery n
 
 ## Progress / Treasure
 
+### D-040 Production Boss / Stage Clear screens
+
+- Boss Battle is a focused, mobile-first screen in the current dark-fantasy system; hide Bottom Navigation during Boss Battle and Stage Clear.
+- Show the fixed Japanese Main Exercise label, BOSS TARGET e1RM, optional BOSS ADAPTED comparison, and blank actual weight/reps inputs. Validate 1–10 reps and positive weight with Japanese copy.
+- Defeat shows the attempted set, calculated e1RM, target and remaining difference, with Retry and MAP actions. The same frozen target is used on every retry.
+- Victory shows BOSS DEFEATED / STAGE CLEAR and the actual challenge evidence. Before Final Goal, the primary action creates the next Stage; PROGRESS and MAP remain secondary. At Final Goal, offer reflection and MAP only. No fictional EXP, loot, HP, combat stats, or level-up UI.
+- The defeated Boss node remains distinguishable on the Map and opens the Stage Clear summary. The next Stage begins at its first Training node; the retained Equipment Profile is reused and the user explicitly starts Stage Program generation there.
+
 ### Prototype確認
 
 - ProgressのLevel表示だけがGame Stateに連動する。

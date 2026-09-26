@@ -6,7 +6,12 @@ import {
   evaluateTrainingQuestCompletion,
   rescheduleCurrentQuest as rescheduleRoadmapCurrentQuest,
   validateExerciseWorkoutResult,
+  getBestClearedMainE1rmKg,
+  unlockBossBattle,
+  resolveNextStagePlanningStrength,
   CurrentQuestRescheduleError,
+  type BossBattleState,
+  type BossChallengeResult,
   type EquipmentId,
   type ExerciseId,
   type GymEquipmentProfile,
@@ -33,6 +38,7 @@ import { DEMO_EQUIPMENT_PROFILE, DEMO_STAGE_ROADMAP, DEMO_TRAINING_PLAN } from '
 import {
   type AdventureQuestSession,
   completeAdventureQuest,
+  challengeAdventureBoss,
   createAdventureQuestDomainState,
   cacheStageTrainingProgram as cacheStageTrainingProgramForRoadmap,
   cacheTrainingPlanForDay as cacheTrainingPlanForRoadmapDay,
@@ -41,9 +47,11 @@ import {
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
   setExerciseLoadStepForCurrentDay as setExerciseLoadStepForSession,
   skipExerciseForCurrentDay as skipExerciseForSession,
+  advanceAdventureToNextStage,
   undoExerciseSkipForCurrentDay as undoExerciseSkipForSession,
   registerExerciseBaselineForCurrentDay as registerExerciseBaselineForSession,
   type AdventureQuestDomainState,
+  type CompletedStageSummary,
   type ExerciseBaselineRegistrationStatus,
   type ExerciseLoadStepSessionStatus,
   type ExerciseSkipSessionStatus,
@@ -51,12 +59,13 @@ import {
   type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
   type TrainingPlanCacheStatus,
+  type NextStageTransitionStatus,
 } from './adventureSession';
 
 export { type AdventureQuestSession, createOnboardingAdventureSession } from './adventureSession';
 
 export type AdventureHubScreen = 'map' | 'character' | 'progress';
-export type AppScreen = AdventureHubScreen | 'quest';
+export type AppScreen = AdventureHubScreen | 'quest' | 'boss' | 'stage-clear';
 export type CurrentQuestRescheduleStatus = 'rescheduled' | 'unchanged' | 'invalid';
 
 interface EphemeralUiState {
@@ -76,6 +85,10 @@ type Action =
   | { readonly type: 'openCurrentQuest' }
   | { readonly type: 'returnToMap' }
   | { readonly type: 'navigateToHub'; readonly screen: AdventureHubScreen }
+  | { readonly type: 'openBossBattle'; readonly bossBattle: BossBattleState }
+  | { readonly type: 'openStageClear' }
+  | { readonly type: 'bossVictory'; readonly bossBattle: BossBattleState }
+  | { readonly type: 'startNextStage'; readonly domain: AdventureQuestDomainState }
   | { readonly type: 'cacheTrainingPlanForDay'; readonly dayIndex: number; readonly plan: ValidatedTrainingPlan }
   | { readonly type: 'cacheStageTrainingProgram'; readonly program: ValidatedStageTrainingProgram }
   | { readonly type: 'setStageEquipmentProfile'; readonly domain: AdventureQuestDomainState }
@@ -127,6 +140,32 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
       return {
         ...state,
         ui: { ...state.ui, screen: action.screen, validationMessage: null },
+      };
+    case 'openBossBattle':
+      return {
+        ...state,
+        domain: { ...state.domain, bossBattle: action.bossBattle },
+        ui: { ...state.ui, screen: 'boss', validationMessage: null },
+      };
+    case 'openStageClear':
+      return { ...state, ui: { ...state.ui, screen: 'stage-clear', validationMessage: null } };
+    case 'bossVictory':
+      return {
+        ...state,
+        domain: { ...state.domain, bossBattle: action.bossBattle },
+        ui: { ...state.ui, screen: 'stage-clear', validationMessage: null },
+      };
+    case 'startNextStage':
+      return {
+        domain: action.domain,
+        ui: {
+          ...state.ui,
+          screen: 'map',
+          isClearFeedbackVisible: false,
+          questRewardSummary: null,
+          validationMessage: null,
+          baselineSetupConfirmedById: {},
+        },
       };
     case 'cacheTrainingPlanForDay': {
       const cacheResult = cacheTrainingPlanForRoadmapDay(
@@ -245,6 +284,10 @@ interface AdventureQuestContextValue {
   readonly characterGrowth: AdventureQuestDomainState['characterGrowth'];
   readonly workoutResultsByDay: AdventureQuestDomainState['workoutResultsByDay'];
   readonly mainStrengthGoalE1rmKg: number | undefined;
+  readonly stageNumber: number;
+  readonly bossBattle: BossBattleState | undefined;
+  readonly completedStages: readonly CompletedStageSummary[];
+  readonly nextStagePlanningStrength: number | null;
   readonly validationMessage: string | null;
   openCurrentQuest: () => void;
   returnToMap: () => void;
@@ -261,6 +304,10 @@ interface AdventureQuestContextValue {
   clearCurrentQuest: () => QuestCompletionResult | null;
   continueAdventure: () => void;
   navigateToHub: (screen: AdventureHubScreen) => void;
+  openBossBattle: () => boolean;
+  openStageClear: () => boolean;
+  challengeBoss: (input: { readonly weightKg: unknown; readonly reps: unknown }) => BossChallengeResult;
+  startNextStage: (roadmap: StageRoadmap) => NextStageTransitionStatus;
 }
 
 const AdventureQuestContext = createContext<AdventureQuestContextValue | null>(null);
@@ -298,6 +345,15 @@ export function AdventureQuestProvider({
     state.domain.equipmentProfile ?? undefined,
     exerciseSkips,
   );
+  const bossBattle = state.domain.bossBattle;
+  const bestActualMainE1rmKg = getBestClearedMainE1rmKg(
+    state.domain.roadmap,
+    state.domain.progress,
+    state.domain.workoutResultsByDay,
+  );
+  const nextStagePlanningStrength = bossBattle?.winningAttempt === undefined
+    ? null
+    : resolveNextStagePlanningStrength(bestActualMainE1rmKg, bossBattle.winningAttempt.estimatedE1rmKg);
 
   const value = useMemo<AdventureQuestContextValue>(() => ({
     screen: state.ui.screen,
@@ -318,6 +374,10 @@ export function AdventureQuestProvider({
     characterGrowth: state.domain.characterGrowth,
     workoutResultsByDay: state.domain.workoutResultsByDay,
     mainStrengthGoalE1rmKg: state.domain.mainStrengthGoalE1rmKg,
+    stageNumber: state.domain.stageNumber,
+    bossBattle,
+    completedStages: state.domain.completedStages,
+    nextStagePlanningStrength,
     validationMessage: state.ui.validationMessage,
     openCurrentQuest: () => {
       if (progressView.currentDailyNode !== null) {
@@ -325,6 +385,38 @@ export function AdventureQuestProvider({
       }
     },
     returnToMap: () => dispatch({ type: 'returnToMap' }),
+    openBossBattle: () => {
+      if (!progressView.bossAvailable || bossBattle?.defeated === true) return false;
+      const finalGoalE1rmKg = state.domain.mainStrengthGoalE1rmKg ?? state.domain.roadmap.stageTargetE1rmKg;
+      const unlock = unlockBossBattle({
+        roadmap: state.domain.roadmap,
+        progress: state.domain.progress,
+        finalGoalE1rmKg,
+        bestActualMainE1rmKg,
+        existingBossBattle: bossBattle,
+      });
+      if (unlock.status !== 'unlocked' && unlock.status !== 'already_unlocked') return false;
+      dispatch({ type: 'openBossBattle', bossBattle: unlock.bossBattle });
+      return true;
+    },
+    openStageClear: () => {
+      if (bossBattle?.defeated !== true) return false;
+      dispatch({ type: 'openStageClear' });
+      return true;
+    },
+    challengeBoss: ({ weightKg, reps }) => {
+      const transition = challengeAdventureBoss(state.domain, { weightKg, reps });
+      if (transition.result.status === 'victory') {
+        dispatch({ type: 'bossVictory', bossBattle: transition.result.bossBattle });
+      }
+      const result = transition.result;
+      return result;
+    },
+    startNextStage: (roadmap) => {
+      const transition = advanceAdventureToNextStage(state.domain, roadmap);
+      if (transition.status === 'started') dispatch({ type: 'startNextStage', domain: transition.domain });
+      return transition.status;
+    },
     cacheTrainingPlanForDay: (dayIndex, plan) => {
       const cacheResult = cacheTrainingPlanForRoadmapDay(
         state.domain.roadmap,
@@ -453,7 +545,7 @@ export function AdventureQuestProvider({
     },
     continueAdventure: () => dispatch({ type: 'continueAdventure' }),
     navigateToHub: (screen) => dispatch({ type: 'navigateToHub', screen }),
-  }), [exerciseSkips, progressView, state, trainingEvaluation, workoutResults]);
+  }), [bestActualMainE1rmKg, bossBattle, exerciseSkips, nextStagePlanningStrength, progressView, state, trainingEvaluation, workoutResults]);
 
   return (
     <AdventureQuestContext.Provider value={value}>

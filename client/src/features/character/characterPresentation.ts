@@ -21,6 +21,11 @@ export interface CharacterScreenSource {
   readonly workoutResultsByDay?: WorkoutResultsByDay;
   readonly characterGrowth?: CharacterGrowth;
   readonly mainStrengthGoalE1rmKg?: number;
+  readonly completedStages?: readonly {
+    readonly roadmap: StageRoadmap;
+    readonly progress: StageProgress;
+    readonly workoutResultsByDay: WorkoutResultsByDay;
+  }[];
 }
 
 export interface StrengthRecordDisplay {
@@ -91,27 +96,41 @@ export function latestClearedExerciseRecord(
 ): ExerciseRecordDisplay | null {
   if (exerciseId === undefined || source.roadmap === undefined) return null;
   const bodyweight = isBodyweightExerciseId(exerciseId);
+  const history = [
+    {
+      roadmap: source.roadmap,
+      completedQuestCount,
+      workoutResultsByDay: source.workoutResultsByDay ?? {},
+    },
+    ...(source.completedStages ?? []).slice().reverse().map((stage) => ({
+      roadmap: stage.roadmap,
+      completedQuestCount: stage.progress.currentDayIndex,
+      workoutResultsByDay: stage.workoutResultsByDay,
+    })),
+  ];
 
-  for (let dayIndex = completedQuestCount - 1; dayIndex >= 0; dayIndex -= 1) {
-    if (source.roadmap.days[dayIndex]?.type !== 'training') continue;
-    const results = Object.values(source.workoutResultsByDay?.[dayIndex] ?? {});
-    const result = results.find((entry) => entry.performedExerciseId === exerciseId);
-    if (result === undefined) continue;
+  for (const stage of history) {
+    for (let dayIndex = stage.completedQuestCount - 1; dayIndex >= 0; dayIndex -= 1) {
+      if (stage.roadmap.days[dayIndex]?.type !== 'training') continue;
+      const results = Object.values(stage.workoutResultsByDay[dayIndex] ?? {});
+      const result = results.find((entry) => entry.performedExerciseId === exerciseId);
+      if (result === undefined) continue;
 
-    const representativeSet = result.completedSets
-      .reduce<ExerciseWorkoutResult['completedSets'][number] | null>((selected, candidate) => {
-        const validSet = Number.isSafeInteger(candidate.setNumber) && candidate.setNumber > 0 &&
-          Number.isSafeInteger(candidate.reps) && candidate.reps > 0 &&
-          (bodyweight
-            ? candidate.weightKg === undefined
-            : positiveFinite(candidate.weightKg));
-        if (!validSet) return selected;
-        return selected === null || candidate.setNumber > selected.setNumber ? candidate : selected;
-      }, null);
-    if (representativeSet !== null) {
-      return representativeSet.weightKg === undefined
-        ? { reps: representativeSet.reps }
-        : { weightKg: representativeSet.weightKg, reps: representativeSet.reps };
+      const representativeSet = result.completedSets
+        .reduce<ExerciseWorkoutResult['completedSets'][number] | null>((selected, candidate) => {
+          const validSet = Number.isSafeInteger(candidate.setNumber) && candidate.setNumber > 0 &&
+            Number.isSafeInteger(candidate.reps) && candidate.reps > 0 &&
+            (bodyweight
+              ? candidate.weightKg === undefined
+              : positiveFinite(candidate.weightKg));
+          if (!validSet) return selected;
+          return selected === null || candidate.setNumber > selected.setNumber ? candidate : selected;
+        }, null);
+      if (representativeSet !== null) {
+        return representativeSet.weightKg === undefined
+          ? { reps: representativeSet.reps }
+          : { weightKg: representativeSet.weightKg, reps: representativeSet.reps };
+      }
     }
   }
   return null;

@@ -276,6 +276,14 @@ D-041 Main Strengthの初回hintはShared pure presentation helperがOnboarding 
 
 ### Boss eligibility / defeat
 
+#### D-040 Production State Boundary
+
+- `shared/domain/training/bossBattle.ts` owns pure unlock, frozen target, actual-result selection, validation, defeat/victory and Final Goal calculations. It delegates e1RM to D-023 and is separate from Quest completion/reward reducers.
+- `AdventureQuestDomainState` stores optional `bossBattle`, `stageNumber`, and completed Stage summaries. Final Daily Quest completion freezes the target. A Boss attempt changes only Boss state on victory; defeat is retry-only and leaves the domain unchanged.
+- The Map derives availability from StageProgress and routes available/defeated Boss nodes to focused screens. Stage Clear derives from the frozen winning attempt; no Boss Reward or Training Result is synthesized.
+- The Next Stage Application boundary reuses `/api/achievement-duration`; D-025 chooses the target and the existing duration selector creates a Roadmap. Only an explicit Next Stage action makes this request. Stage Program generation continues through `/api/stage-training-program`, reusing retained equipment IDs after an explicit action from the first Training node.
+- Stage transition archives the completed Roadmap/progress/actual Workout Results, then resets Stage-scoped state. Profile/context, equipment, growth, exercise baselines and progression remain in the in-memory session. This is not persistence.
+
 1. Map到達を保存済みProgressから判定する。
 2. 必要なゲーム条件を決定論的に判定する。
 3. 検証済みStrength Recordからe1RM条件を判定する。

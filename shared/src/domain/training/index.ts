@@ -1,5 +1,6 @@
 export * from './equipment.js';
 export * from './equipmentCatalog.js';
+export * from './stageEquipmentReadiness.js';
 export * from './exercise.js';
 export * from './exerciseCatalog.js';
 export * from './filterExercises.js';
@@ -10,6 +11,9 @@ export * from './trainingSessionPlannerInput.js';
 export * from './e1rm.js';
 export * from './workoutResult.js';
 export * from './stagePlanning.js';
+export * from './mainStrengthEstimate.js';
+export * from './exerciseInitialSuggestion.js';
+export * from './exerciseSkip.js';
 export * from './stageRoadmap.js';
 export * from './stageProgress.js';
 export * from './characterGrowth.js';

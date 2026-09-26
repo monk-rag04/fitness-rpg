@@ -136,6 +136,69 @@ test('a valid multi-day Stage Program uses one provider operation and returns th
   assert.match(calls[0].instructions, /Do not prescribe weight/);
 });
 
+test('minimal Bench and Deadlift equipment produce valid Stage candidate spaces with bodyweight fallback', async () => {
+  for (const [mainExerciseId, availableEquipmentIds] of [
+    ['barbell_bench_press', ['barbell', 'flat_bench']],
+    ['barbell_deadlift', ['barbell', 'dumbbell']],
+  ]) {
+    const roadmap = generateStageRoadmap({
+      startDate: '2026-09-22', durationDays: 14, trainingFrequencyPerWeek: 3,
+      mainExerciseId, stageTargetE1rmKg: 75,
+    });
+    const minimalProfile = { id: 'minimal-test', displayName: 'Minimal', availableEquipmentIds };
+    const sessions = getCanonicalStageTrainingDays(roadmap).map(({ dayIndex }) => {
+      const day = roadmap.days[dayIndex];
+      const candidates = buildTrainingCandidates({
+        equipmentProfile: minimalProfile,
+        bossMainExerciseId: mainExerciseId,
+        bossMainExposure: day.bossMainExposure,
+        targetMuscles: day.sessionFocus.targetMuscles,
+        targetMovementPatterns: day.sessionFocus.targetMovementPatterns,
+      });
+      const primary = candidates.mainExercise ?? candidates.candidateExercises[0];
+      assert.ok(primary, `${mainExerciseId} day ${dayIndex} has a primary candidate`);
+      if (day.bossMainExposure) assert.equal(primary.exerciseId, mainExerciseId);
+      else assert.notEqual(primary.exerciseId, mainExerciseId);
+      return { dayIndex, plan: { exercises: [{
+        exerciseId: primary.exerciseId, role: 'main', sets: 3, repRange: { min: 5, max: 8 },
+      }] } };
+    });
+    const calls = [];
+    const program = { sessions };
+    assert.deepEqual(await generateStageTrainingProgram(
+      generationInput(roadmap, { equipmentProfile: minimalProfile, mainExerciseId }),
+      fakeClient(program, calls),
+    ), program);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].instructions, /no-equipment bodyweight/);
+  }
+});
+
+test('rich Gym keeps weighted candidates in addition to bodyweight fallbacks', () => {
+  const roadmap = createRoadmap();
+  const day = getCanonicalStageTrainingDays(roadmap).find(({ bossMainExposure }) => !bossMainExposure);
+  assert.ok(day);
+  const base = {
+    bossMainExerciseId: roadmap.mainExerciseId,
+    bossMainExposure: false,
+    targetMuscles: day.sessionFocus.targetMuscles,
+    targetMovementPatterns: day.sessionFocus.targetMovementPatterns,
+  };
+  const minimal = buildTrainingCandidates({ ...base, equipmentProfile: {
+    id: 'minimal', displayName: 'Minimal', availableEquipmentIds: ['barbell', 'flat_bench'],
+  } });
+  const rich = buildTrainingCandidates({ ...base, equipmentProfile: {
+    id: 'rich', displayName: 'Rich', availableEquipmentIds: [
+      'barbell', 'dumbbell', 'flat_bench', 'adjustable_bench', 'squat_rack',
+      'power_rack', 'cable_machine', 'pullup_bar', 'smith_machine',
+      'chest_press_machine', 'shoulder_press_machine', 'lat_pulldown_machine',
+      'seated_row_machine', 'leg_press_machine', 'leg_extension_machine', 'leg_curl_machine',
+    ],
+  } });
+  assert.ok(rich.candidateExercises.length > minimal.candidateExercises.length);
+  assert.ok(rich.candidateExercises.some(({ exerciseId }) => exerciseId.includes('barbell') || exerciseId.includes('dumbbell')));
+});
+
 test('twelve Training Days still use exactly one provider operation', async () => {
   const roadmap = createTwelveTrainingDayRoadmap();
   const calls = [];

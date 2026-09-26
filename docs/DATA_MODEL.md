@@ -243,7 +243,7 @@ Stage Program RequestのRoadmap validationは、各Daily Slotのcanonical `start
 
 **D-029の計算用Onboarding境界（保存Schemaではない）**: `OnboardingRoadmapInput`は正の有限な`bodyWeightKg`、0以上の整数`trainingExperienceMonths`、1..7の整数`trainingFrequencyPerWeek`、Boss対象4種目の`mainExerciseId`、任意の自己申告`baselineWeightKg` / `baselineReps`（両方あるか両方ない）、正の有限な`finalGoalE1rmKg`、厳格な`startDate`を持つ。未知Field、Catalog外ID、Boss対象外ID（Pull-upを含む）、不正なSet、GoalがBaseline以下、日付不正を区別する。Baseline不明なら`baseline_required`でDuration / Roadmapは生成しない。
 
-`OnboardingSelfReportedBaseline`は`source: 'onboarding_self_reported'`、Exercise ID、入力重量・reps、D-023の未丸め`baselineE1rmKg`、計算Rule Versionを持つ。これはWorkout History、rolling-window `currentE1rm`、Workout Resultの保存Recordではない。`prepareOnboardingRoadmap()`はD-025のStage TargetとEstimator Inputを作り、`completeOnboardingRoadmap()`は検証済みAI日数からD-025のDuration、D-026のRoadmap、D-027の初期Progressを作り、成功結果に検証済みOnboarding入力も保持する。42日超は`stage_replanning_required`でRoadmapを返さない。体重はこのPlanning計算に使わず、Training Plan / Equipment / Food制約もこの境界には含めない。Profile永続Schema、自己申告の修正・信頼性Policyは引き続き未決定である。
+`OnboardingSelfReportedBaseline`は`source: 'onboarding_self_reported'`、Exercise ID、入力重量・reps、D-023の未丸め`baselineE1rmKg`、計算Rule Versionを持つ。これはWorkout History、rolling-window `currentE1rm`、Workout Resultの保存Recordではない。`prepareOnboardingRoadmap()`はD-025のStage TargetとEstimator Inputを作り、`completeOnboardingRoadmap()`は検証済みAI日数からD-025のDuration、D-026のRoadmap、D-027の初期Progressを作り、成功結果に検証済みOnboarding入力も保持する。known Flowの42日超は`stage_replanning_required`でRoadmapを返さず、D-041 unknown Flowだけは後述の42日fallbackを使う。Training Plan / Equipment / Food制約はこの境界には含めない。Profile永続Schema、自己申告の修正・信頼性Policyは引き続き未決定である。
 
 ### RoadmapNode / ScheduledActivity（追加候補）
 
@@ -276,7 +276,7 @@ Stage Program RequestのRoadmap validationは、各Daily Slotのcanonical `start
 
 Exercise Performance候補：元Exercise ID、実施Exercise ID、weight、reps、sets、完了、substitution理由。
 
-**MVP時点の決定済みDomain境界（D-024 / D-036 Task 4G）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、任意のExercise単位`difficultyFeedback`、`performedAt`を持つ。`difficultyFeedback`は`too_hard` / `just_right` / `easy`のいずれかであり、Set単位ではない。Weighted Exerciseの各Setは正の有限`weightKg`と正の整数`reps`を持つ。`push_up` / `pull_up` / `glute_bridge`は例外としてrepsだけを持ち、重量Fieldを拒否する。Exercise全体へ一つの重量は固定しない。これは正式なTable / 保存Schemaではない。
+**MVP時点の決定済みDomain境界（D-024 / D-036 / D-041）**: `ExerciseWorkoutResult`は1 Exerciseの実績を表し、`plannedExerciseId`、`performedExerciseId`、`role`、予定時点の`plannedSets` / `plannedRepRange`、順序を示す`setNumber`ごとの`CompletedSetRecord[]`、任意のExercise単位`difficultyFeedback`、`performedAt`を持つ。`difficultyFeedback`は`too_hard` / `just_right` / `easy`のいずれかであり、Set単位ではない。Weighted Exerciseの各Setは正の有限`weightKg`と正の整数`reps`を持つ。`BODYWEIGHT_EXERCISE_IDS`は例外としてrepsだけを持ち、重量Fieldを拒否する。Exercise全体へ一つの重量は固定しない。これは正式なTable / 保存Schemaではない。
 
 `validateExerciseWorkoutResult(unknown)`はCatalogに存在する予定・実施Exercise ID、role、予定Set数 / rep range、少なくとも1件の完了Set、Set番号の正値・重複なし、Exercise IDに応じた重量有無、正の整数rep、任意のExercise単位`difficultyFeedback`、timestamp、未知Fieldを検査する。Weighted種目には各Setの正の有限重量を必須とし、Bodyweight3種には重量を許さない。Feedbackの許可値は`too_hard`、`just_right`、`easy`であり、未指定なら有効、未知値は拒否する。FeedbackはResultと一緒に保存・編集される。予定より少ないSet、rep range外、plannedExerciseIdとperformedExerciseIdの相違は有効な記録として受け入れる。空の途中入力はWorkout Resultではなく、将来のUI / Draft責務としてこのDomainへ含めない。
 
@@ -315,7 +315,7 @@ type ExerciseProgressState = {
 
 `AdventureQuestDomainState.exerciseProgressById`はExercise ID keyedのin-memory map。Main StrengthだけはOnboardingの実測重量 / repsを`source: 'onboarding'`、初期day index、`sessionsCompleted: 0`で持つ。その他のExerciseは任意の`source: 'self_report'`、またはそのExerciseの初回有効Workout Resultから`source: 'workout_result'`でBaselineを得る。自己申告repsは正の整数で、重量は正の有限値。D-023でe1RM計算可能なら未丸め値とRule Versionを保持し、適格外でもBaselineは残す。
 
-Workout Result由来Baselineは`performedExerciseId`へ帰属する。D-023適格Weighted Setがある場合はWorkout内最大e1RMを選び、その根拠Setの重量 / repsを保存する。全Setがe1RM対象外なら、最小setNumberの有効Weighted SetをBaselineにしてe1RMを省略する。Baselineは一度設定した後、通常Resultで上書きしない。`push_up` / `pull_up` / `glute_bridge`はkg自己申告・Workout Result由来kg Baselineの対象外であり、架空の重量を作らない。
+Workout Result由来Baselineは`performedExerciseId`へ帰属する。D-023適格Weighted Setがある場合はWorkout内最大e1RMを選び、その根拠Setの重量 / repsを保存する。全Setがe1RM対象外なら、最小setNumberの有効Weighted SetをBaselineにしてe1RMを省略する。Baselineは一度設定した後、通常Resultで上書きしない。`BODYWEIGHT_EXERCISE_IDS`はkg自己申告・Workout Result由来kg Baselineの対象外であり、架空の重量を作らない。
 
 `sessionsCompleted`は、成功したTraining Quest Clearに限り、実際に行った各unique Exerciseにつき一度だけ加算する。Result保存、Baseline登録、同一Questでの複数Result、Recovery Clear、失敗・二重Clearでは加算しない。
 
@@ -590,3 +590,19 @@ e1RM対象Setの値域とrolling WindowはD-023で決定済み。その他の値
 - Offline / sync
 - Seed / fixture戦略
 - Personal Data export / deletion
+
+## D-041 Resilience additions
+
+- Onboardingの`strengthKnowledge: 'unknown'`は手動Baseline / Final Goalを受け取らず、Shared Domainが`main-strength-estimate-v1`の暫定値を生成する。確定済みのknown入力shapeは維持する。
+- `ExerciseBaseline.source`へ`estimated_profile`を追加し、`estimateRuleVersion`を保持する。これは実測ではなく、最初の有効なMain Strength Training Quest Clearで`workout_result`へ一度だけ置換される。
+- `BODYWEIGHT_EXERCISE_IDS`はreps-only Result / Progressionを表し、`NO_EQUIPMENT_EXERCISE_IDS`はEquipmentなしで候補にできる部分集合を表す。Pull-upは前者のみ。
+- Exercise Catalogは40件。D-041追加6種目はNo Equipmentかつreps-onlyで、EXP Categoryと日本語Presentation mappingを持つ。
+- Equipment Profileの保存shapeは変更しない。UI preflight用に基本8件、追加8件、基本最低2件、Main requirement充足を導出するが、bodyweightという架空Equipment IDは追加しない。
+
+## D-041 Initial Exercise Suggestion / Skip
+
+- Main Strength初回hintはOnboarding / `estimated_profile` Baselineとplanned `repRange`からD-023 e1RMを換算したPresentation値であり、`ExerciseInitialSuggestion`のAccessory向け体重比ruleとは別経路。Final Goal / Stage Targetは入力しない。Result saveや表示によるstate mutationはなく、実Actual inputも空欄のまま。
+- `ExerciseInitialSuggestion`はShared Domainの計算結果であり、Exercise Baseline、Workout Result、Exercise Progress State、永続Recordではない。Rule Version、Exercise ID、予定`repRange`、`targetReps`、weightedの場合のみ`weightKg`を持ち得る。表示用hintとしてのみ使用し、Actual inputsは空欄を保つ。
+- Recommendation入力はOnboarding session contextの`bodyWeightKg` / `trainingExperienceMonths`、Catalog Exercise ID、Planned `repRange`。Bodyweight Exerciseはweight fieldなし。Dumbbell weightは片手1個あたり。Machine / Cable weight settingは機種間比較可能な絶対値を保証しない。
+- `ExerciseSkipRecord`はWorkout Resultとは別のSession stateで、最低`exerciseId`（planned exercise ID）、`reason`、`pledgeAccepted: true`を持つ。Reason IDは`equipment_unavailable`、`time_constraint`、`condition`、`other`。day indexごとに保持し、成功ClearまではUndo・実施Resultとの切替が可能。
+- SkipはActual Result、Baseline、Exercise sessions、Difficulty Feedback、Progression、EXP、Latest Actualを作らない。Completionは全Plan itemsがResultまたはvalid Skipで満たされ、1つ以上の有効Workout Resultがあることを要求する。これはDatabase Schema案ではなく現行Adventure Sessionのin-memory state modelである。

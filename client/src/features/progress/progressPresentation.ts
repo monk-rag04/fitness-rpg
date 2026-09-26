@@ -32,6 +32,7 @@ export interface ProgressScreenModel {
   readonly mainStrength: {
     readonly exerciseName: string | null;
     readonly start: ExerciseRecordDisplay | null;
+    readonly startEstimated: boolean;
     readonly latest: ExerciseRecordDisplay | null;
     readonly targetE1rmKg: number | null;
     readonly nextSuggestion: string;
@@ -105,6 +106,7 @@ export function deriveProgressScreenModel(
     mainStrength: {
       exerciseName: character.mainStrength.exerciseName,
       start: character.mainStrength.start,
+      startEstimated: character.mainStrength.startEstimated,
       latest: character.mainStrength.current,
       targetE1rmKg: character.mainStrength.targetE1rmKg,
       nextSuggestion: formatNextExerciseSuggestion(mainProgress, mainExerciseId),

@@ -83,6 +83,70 @@ test('creates initial progress at day index zero without consulting a calendar',
   assert.deepEqual(createInitialStageProgress(roadmap({ startDate: '2020-01-01' })), { currentDayIndex: 0 });
 });
 
+test('a Main Exercise can be skipped when another planned Exercise was performed', () => {
+  const value = roadmap();
+  const performedAccessory = fullResults()[1];
+  const skipMain = { exerciseId: 'barbell_bench_press', reason: 'condition', pledgeAccepted: true };
+  const evaluation = evaluateTrainingQuestCompletion(plan, [performedAccessory], undefined, [skipMain]);
+  assert.equal(evaluation.readyToClear, true);
+  assert.deepEqual(evaluation.exercises.map(({ status }) => status), ['skipped', 'completed']);
+
+  const completion = completeTrainingQuest(
+    value, createInitialStageProgress(value), 0, plan, [performedAccessory], undefined, [skipMain],
+  );
+  assert.equal(completion.status, 'completed');
+  assert.equal(completion.progress.currentDayIndex, 1);
+});
+
+test('multiple valid skips are allowed with one performed Exercise, but an all-skip Quest is blocked', () => {
+  const threeExercisePlan = {
+    exercises: [
+      plan.exercises[0],
+      plan.exercises[1],
+      { exerciseId: 'dumbbell_chest_fly', role: 'accessory', sets: 2, repRange: { min: 10, max: 15 } },
+    ],
+  };
+  const performed = fullResults()[1];
+  const multipleSkips = [
+    { exerciseId: 'barbell_bench_press', reason: 'equipment_unavailable', pledgeAccepted: true },
+    { exerciseId: 'dumbbell_chest_fly', reason: 'time_constraint', pledgeAccepted: true },
+  ];
+  assert.equal(evaluateTrainingQuestCompletion(threeExercisePlan, [performed], undefined, multipleSkips).readyToClear, true);
+
+  const allSkips = [
+    { exerciseId: 'barbell_bench_press', reason: 'condition', pledgeAccepted: true },
+    { exerciseId: 'dumbbell_curl', reason: 'other', pledgeAccepted: true },
+  ];
+  const blocked = evaluateTrainingQuestCompletion(plan, [], undefined, allSkips);
+  assert.equal(blocked.readyToClear, false);
+  assert.ok(blocked.errors.some((error) => error.code === 'AT_LEAST_ONE_EXERCISE_MUST_BE_PERFORMED'));
+  assert.equal(completeTrainingQuest(roadmap(), { currentDayIndex: 0 }, 0, mainOnlyPlan,
+    [], undefined, [{ exerciseId: 'barbell_bench_press', reason: 'other', pledgeAccepted: true }]).status, 'not_ready_to_clear');
+});
+
+test('exercise skips require an allowed reason and accepted pledge and cannot overlap a result', () => {
+  const invalidReason = evaluateTrainingQuestCompletion(mainOnlyPlan, [], undefined, [
+    { exerciseId: 'barbell_bench_press', reason: 'too_busy', pledgeAccepted: true },
+  ]);
+  assert.ok(invalidReason.errors.some((error) => error.code === 'INVALID_EXERCISE_SKIP'));
+
+  const noPledge = evaluateTrainingQuestCompletion(mainOnlyPlan, [], undefined, [
+    { exerciseId: 'barbell_bench_press', reason: 'other', pledgeAccepted: false },
+  ]);
+  assert.ok(noPledge.errors.some((error) => error.code === 'INVALID_EXERCISE_SKIP'));
+
+  const mismatch = evaluateTrainingQuestCompletion(mainOnlyPlan, [], undefined, [
+    { exerciseId: 'dumbbell_curl', reason: 'other', pledgeAccepted: true },
+  ]);
+  assert.ok(mismatch.errors.some((error) => error.code === 'EXERCISE_SKIP_PLAN_MISMATCH'));
+
+  const overlap = evaluateTrainingQuestCompletion(mainOnlyPlan, [workoutResult()], undefined, [
+    { exerciseId: 'barbell_bench_press', reason: 'other', pledgeAccepted: true },
+  ]);
+  assert.equal(overlap.readyToClear, false);
+  assert.ok(overlap.errors.some((error) => error.code === 'EXERCISE_BOTH_PERFORMED_AND_SKIPPED'));
+});
+
 test('derives completed, available, and locked statuses solely from currentDayIndex', () => {
   const view = deriveStageProgressView(roadmap(), { currentDayIndex: 2 });
   assert.deepEqual(view.dailyNodes.slice(0, 4).map((node) => node.status), [

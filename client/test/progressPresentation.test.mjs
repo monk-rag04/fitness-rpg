@@ -108,6 +108,19 @@ test('Main START is the Task 4E Exercise Baseline', () => {
     },
   }));
   assert.deepEqual(model.mainStrength.start, { weightKg: 40, reps: 3 });
+  assert.equal(model.mainStrength.startEstimated, false);
+});
+
+test('estimated profile is labeled as provisional START and not as latest actual', () => {
+  const model = deriveProgressScreenModel(makeSource({
+    exerciseProgressById: {
+      barbell_bench_press: mainState({
+        baseline: { weightKg: 35, reps: 5, source: 'estimated_profile', capturedDayIndex: 0 },
+      }),
+    },
+  }));
+  assert.equal(model.mainStrength.startEstimated, true);
+  assert.equal(model.mainStrength.latest, null);
 });
 
 test('Main latest is actual record from the latest cleared Training Quest', () => {

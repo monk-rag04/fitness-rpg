@@ -4,15 +4,18 @@ import {
   completeTrainingQuestWithReward,
   createInitialCharacterGrowth,
   captureFirstWorkoutExerciseBaseline,
+  validateExerciseSkipRecord,
   createOnboardingExerciseProgressState,
   createInitialExerciseProgressState,
   applyExerciseLoadStep,
   evaluateExerciseProgression,
   incrementExerciseSessionsCompleted,
   registerSelfReportedExerciseBaseline,
+  replaceEstimatedMainBaselineAfterClear,
   type CharacterGrowth,
   type ExerciseProgressById,
   type ExerciseLoadStepStatus,
+  type ExerciseSkipRecord,
   type ExerciseWorkoutResult,
   type QuestRewardSummary,
 } from '@fitness-rpg/shared';
@@ -35,6 +38,7 @@ export interface StageTrainingProgramSessionContext {
   readonly currentE1rmKg: number;
   readonly trainingExperienceMonths: number;
   readonly trainingFrequencyPerWeek: number;
+  readonly bodyWeightKg?: number;
 }
 
 export interface AdventureQuestSession {
@@ -54,6 +58,7 @@ export interface OnboardingMainExerciseBaseline {
   readonly exerciseId: ExerciseId;
   readonly weightKg: number;
   readonly reps: number;
+  readonly source?: 'estimated_profile';
 }
 
 /** In-memory domain state owned by the current Adventure Quest session. */
@@ -65,6 +70,7 @@ export interface AdventureQuestDomainState {
   readonly stageTrainingProgramContext: StageTrainingProgramSessionContext | undefined;
   readonly exerciseProgressById: ExerciseProgressById;
   readonly workoutResultsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>>;
+  readonly exerciseSkipsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseSkipRecord>>>>;
   readonly characterGrowth: CharacterGrowth;
   readonly mainStrengthGoalE1rmKg?: number;
 }
@@ -82,6 +88,14 @@ export type AdventureQuestTransitionStatus =
 export type ExerciseLoadStepSessionStatus = ExerciseLoadStepStatus |
   'not_current_training_day' |
   'exercise_not_in_plan';
+
+export type ExerciseSkipSessionStatus =
+  | 'skipped'
+  | 'undone'
+  | 'invalid_skip'
+  | 'not_current_training_day'
+  | 'exercise_not_in_plan'
+  | 'not_skipped';
 
 export type AdventureQuestRewardTransition =
   | {
@@ -105,6 +119,7 @@ export function createAdventureQuestDomainState(
     stageTrainingProgramContext: session.stageTrainingProgramContext,
     exerciseProgressById: session.exerciseProgressById ?? {},
     workoutResultsByDay: {},
+    exerciseSkipsByDay: {},
     characterGrowth: createInitialCharacterGrowth(),
     ...(session.mainStrengthGoalE1rmKg === undefined
       ? {}
@@ -119,20 +134,73 @@ export function saveWorkoutResultForCurrentDay(
 ): AdventureQuestDomainState {
   const dayIndex = domain.progress.currentDayIndex;
   const resultsForDay = domain.workoutResultsByDay[dayIndex] ?? {};
-  const exerciseProgressById = captureFirstWorkoutExerciseBaseline(
-    domain.exerciseProgressById,
-    result,
-    dayIndex,
-  );
+  const skipsForDay = { ...(domain.exerciseSkipsByDay[dayIndex] ?? {}) };
+  delete skipsForDay[result.plannedExerciseId];
   return {
     ...domain,
-    exerciseProgressById,
     workoutResultsByDay: {
       ...domain.workoutResultsByDay,
       [dayIndex]: {
         ...resultsForDay,
         [result.plannedExerciseId]: result,
       },
+    },
+    exerciseSkipsByDay: { ...domain.exerciseSkipsByDay, [dayIndex]: skipsForDay },
+  };
+}
+
+/** Store a reasoned skip separately from all actual Workout Results. */
+export function skipExerciseForCurrentDay(
+  domain: AdventureQuestDomainState,
+  input: { readonly exerciseId: string; readonly reason: unknown; readonly pledgeAccepted: unknown },
+): { readonly status: ExerciseSkipSessionStatus; readonly domain: AdventureQuestDomainState } {
+  const dayIndex = domain.progress.currentDayIndex;
+  if (domain.roadmap.days[dayIndex]?.type !== 'training') {
+    return { status: 'not_current_training_day', domain };
+  }
+  const plan = getTrainingPlanForDay(domain.roadmap, domain.planByDay, dayIndex);
+  if (plan?.exercises.some((exercise) => exercise.exerciseId === input.exerciseId) !== true) {
+    return { status: 'exercise_not_in_plan', domain };
+  }
+  const validation = validateExerciseSkipRecord(input);
+  if (!validation.valid) return { status: 'invalid_skip', domain };
+
+  const skipsForDay = {
+    ...(domain.exerciseSkipsByDay[dayIndex] ?? {}),
+    [validation.value.exerciseId]: validation.value,
+  };
+  const resultsForDay = { ...(domain.workoutResultsByDay[dayIndex] ?? {}) };
+  delete resultsForDay[validation.value.exerciseId];
+  return {
+    status: 'skipped',
+    domain: {
+      ...domain,
+      workoutResultsByDay: { ...domain.workoutResultsByDay, [dayIndex]: resultsForDay },
+      exerciseSkipsByDay: { ...domain.exerciseSkipsByDay, [dayIndex]: skipsForDay },
+    },
+  };
+}
+
+export function undoExerciseSkipForCurrentDay(
+  domain: AdventureQuestDomainState,
+  exerciseId: string,
+): { readonly status: ExerciseSkipSessionStatus; readonly domain: AdventureQuestDomainState } {
+  const dayIndex = domain.progress.currentDayIndex;
+  if (domain.roadmap.days[dayIndex]?.type !== 'training') {
+    return { status: 'not_current_training_day', domain };
+  }
+  const plan = getTrainingPlanForDay(domain.roadmap, domain.planByDay, dayIndex);
+  if (plan?.exercises.some((exercise) => exercise.exerciseId === exerciseId) !== true) {
+    return { status: 'exercise_not_in_plan', domain };
+  }
+  const skipsForDay = { ...(domain.exerciseSkipsByDay[dayIndex] ?? {}) };
+  if (!Object.hasOwn(skipsForDay, exerciseId)) return { status: 'not_skipped', domain };
+  delete skipsForDay[exerciseId];
+  return {
+    status: 'undone',
+    domain: {
+      ...domain,
+      exerciseSkipsByDay: { ...domain.exerciseSkipsByDay, [dayIndex]: skipsForDay },
     },
   };
 }
@@ -152,6 +220,7 @@ export function completeAdventureQuest(
 
   const day = domain.roadmap.days[requestedDayIndex];
   const results = Object.values(domain.workoutResultsByDay[requestedDayIndex] ?? {});
+  const exerciseSkips = Object.values(domain.exerciseSkipsByDay[requestedDayIndex] ?? {});
   const trainingPlan = day.type === 'training'
     ? getTrainingPlanForDay(domain.roadmap, domain.planByDay, requestedDayIndex) ?? undefined
     : undefined;
@@ -164,6 +233,7 @@ export function completeAdventureQuest(
       results,
       domain.equipmentProfile,
       domain.characterGrowth,
+      exerciseSkips,
     )
     : completeRecoveryQuestWithReward(
       domain.roadmap,
@@ -175,6 +245,19 @@ export function completeAdventureQuest(
   if (completion.status !== 'completed') return { status: completion.status, domain };
   let exerciseProgressById = domain.exerciseProgressById;
   if (day.type === 'training') {
+    for (const result of results) {
+      exerciseProgressById = captureFirstWorkoutExerciseBaseline(
+        exerciseProgressById,
+        result,
+        requestedDayIndex,
+      );
+      exerciseProgressById = replaceEstimatedMainBaselineAfterClear(
+        exerciseProgressById,
+        domain.roadmap.mainExerciseId,
+        result,
+        requestedDayIndex,
+      );
+    }
     const sessions = incrementExerciseSessionsCompleted(exerciseProgressById, results);
     if (!sessions.valid) return { status: 'invalid_exercise_progress_state', domain };
     exerciseProgressById = sessions.exerciseProgressById;

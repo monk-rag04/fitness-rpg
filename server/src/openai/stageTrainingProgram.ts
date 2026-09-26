@@ -324,6 +324,8 @@ export async function generateStageTrainingProgram(
         'Generate one coherent Training Program for every supplied Training Day in this Stage.',
         'Return exactly one session for each supplied dayIndex and do not add Recovery or Boss sessions.',
         'Use each day sessionFocus and its candidateExerciseIds; never invent exercise IDs.',
+        'The supplied candidate IDs already include no-equipment bodyweight movements; use those to cover the focus when selected equipment is sparse.',
+        'Use the available weighted equipment options when appropriate; do not default a well-equipped Stage to bodyweight-only sessions.',
         'Every session must contain exactly one exercise with role main; all other exercises use role accessory.',
         'On bossMainExposure days, include the required Boss Main exactly once with role main.',
         'On non-exposure days, do not use the Boss Main; select one allowed focus-compatible candidate as role main.',

@@ -182,6 +182,8 @@ const { createRoot } = await import('react-dom/client');
 const { generateStageRoadmap, getCanonicalStageTrainingDays } = await import('@fitness-rpg/shared');
 const { AdventureQuestProvider, createOnboardingAdventureSession, useAdventureQuest } = await import('../src/state/AdventureQuestContext.tsx');
 const { CurrentQuest } = await import('../src/features/quests/CurrentQuest.tsx');
+const { getBrowserLocalStartDate } = await import('../src/application/onboardingRoadmap.ts');
+const { Onboarding } = await import('../src/features/onboarding/Onboarding.tsx');
 const { RescheduleQuestSheet } = await import('../src/features/quests/RescheduleQuestSheet.tsx');
 const { DEMO_TRAINING_PLAN } = await import('../src/demo/fixture.ts');
 
@@ -203,6 +205,41 @@ function createProgram(roadmap) {
     })),
   };
 }
+
+test('Onboarding switches between known input and unknown estimated goal UI', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(createElement(Onboarding, {
+      onRoadmapCreated: () => {},
+      initialStep: 2,
+      initialDraft: {
+        bodyWeightKg: '60', trainingExperienceMonths: '1', trainingFrequencyPerWeek: '3',
+        mainExerciseId: 'barbell_bench_press', baselineWeightKg: '40', baselineReps: '5',
+        isBaselineUnknown: false, finalGoalE1rmKg: '60',
+      },
+    }));
+  });
+  assert.match(container.textContent, /現在の重量は分かりますか？/);
+  assert.match(container.textContent, /最近の重量/);
+
+  const unknown = findElements(container, (element) =>
+    element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent === '分からない')[0];
+  await act(async () => { click(unknown); });
+  assert.match(container.textContent, /開始時の目安（推定）/);
+  assert.match(container.textContent, /kg × 5回/);
+  assert.doesNotMatch(container.textContent, /最近の重量/);
+
+  const stepTwoNext = findElements(container, (element) =>
+    element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent === '次へ')[0];
+  await act(async () => { click(stepTwoNext); });
+  assert.match(container.textContent, /約3か月後の目標（自動）/);
+  assert.doesNotMatch(container.textContent, /最終目標のe1RMkg/);
+
+  await act(async () => { root.unmount(); });
+  document.body.removeChild(container);
+});
 
 test('StrictMode renders Equipment Flow and survives effect cleanup before CTA submit', async () => {
   const roadmap = createRoadmap();
@@ -240,6 +277,9 @@ test('StrictMode renders Equipment Flow and survives effect cleanup before CTA s
     element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent.includes('バーベル'))[0];
   assert.ok(gear, 'Equipment card should render under StrictMode');
   await act(async () => { click(gear); });
+  const bench = findElements(container, (element) =>
+    element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent.includes('フラットベンチ'))[0];
+  await act(async () => { click(bench); });
 
   const submit = findElements(container, (element) =>
     element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent.includes('クエスト'))[0];
@@ -247,7 +287,7 @@ test('StrictMode renders Equipment Flow and survives effect cleanup before CTA s
   await act(async () => { click(submit); });
 
   assert.equal(requestCount, 1);
-  assert.deepEqual(JSON.parse(requestOptions.body).equipmentIds, ['barbell']);
+  assert.deepEqual(JSON.parse(requestOptions.body).equipmentIds, ['barbell', 'flat_bench']);
   assert.match(container.textContent, /STAGE PROGRAM GENERATING/);
 
   resolveRequest({
@@ -343,7 +383,8 @@ test('Current Quest reschedule sheet validates dates and updates only the roadma
   await act(async () => { click(findElements(container, (element) => element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent === '日程を変更')[0]); });
   dialog = findElements(container, (element) => element.nodeType === 1 && element.getAttribute('role') === 'dialog')[0];
   const dateInput = findElements(dialog, (element) => element.nodeType === 1 && element.tagName === 'INPUT')[0];
-  assert.equal(dateInput.getAttribute('min'), roadmap.days[2].date);
+  assert.equal(dateInput.getAttribute('min'),
+    [roadmap.days[2].date, getBrowserLocalStartDate()].sort().at(-1));
   await act(async () => { click(findElements(container, (element) => element.nodeType === 1 && element.tagName === 'BUTTON' && element.textContent === 'Reschedule through state')[0]); });
   assert.equal(rescheduleStatus, 'rescheduled');
   assert.equal(latestContext.roadmap.days[2].date, '2030-09-25');

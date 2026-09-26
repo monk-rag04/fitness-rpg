@@ -11,6 +11,8 @@ import {
   type ExerciseId,
   type GymEquipmentProfile,
   type ExerciseWorkoutResult,
+  type ExerciseSkipReason,
+  type ExerciseSkipRecord,
   type QuestCompletionResult,
   type QuestRewardSummary,
   type StageRoadmap,
@@ -38,10 +40,13 @@ import {
   saveWorkoutResultForCurrentDay,
   setStageEquipmentProfile as setStageEquipmentProfileForSession,
   setExerciseLoadStepForCurrentDay as setExerciseLoadStepForSession,
+  skipExerciseForCurrentDay as skipExerciseForSession,
+  undoExerciseSkipForCurrentDay as undoExerciseSkipForSession,
   registerExerciseBaselineForCurrentDay as registerExerciseBaselineForSession,
   type AdventureQuestDomainState,
   type ExerciseBaselineRegistrationStatus,
   type ExerciseLoadStepSessionStatus,
+  type ExerciseSkipSessionStatus,
   type StageEquipmentProfileStatus,
   type StageTrainingProgramSessionContext,
   type StageTrainingProgramCacheStatus,
@@ -79,6 +84,8 @@ type Action =
   | { readonly type: 'confirmExerciseBaselineSetup'; readonly exerciseId: ExerciseId }
   | { readonly type: 'rescheduleCurrentQuest'; readonly roadmap: StageRoadmap }
   | { readonly type: 'saveWorkoutResult'; readonly result: ExerciseWorkoutResult }
+  | { readonly type: 'skipExercise'; readonly domain: AdventureQuestDomainState }
+  | { readonly type: 'undoExerciseSkip'; readonly domain: AdventureQuestDomainState }
   | { readonly type: 'completeQuest'; readonly dayIndex: number }
   | { readonly type: 'showValidationMessage'; readonly message: string }
   | { readonly type: 'continueAdventure' };
@@ -174,6 +181,9 @@ function reducer(state: AdventureQuestState, action: Action): AdventureQuestStat
         ui: { ...state.ui, validationMessage: null },
       };
     }
+    case 'skipExercise':
+    case 'undoExerciseSkip':
+      return { ...state, domain: action.domain };
     case 'completeQuest': {
       const transition = completeAdventureQuest(state.domain, action.dayIndex);
       if (transition.status !== 'completed') {
@@ -228,6 +238,7 @@ interface AdventureQuestContextValue {
   readonly exerciseProgressById: AdventureQuestDomainState['exerciseProgressById'];
   readonly baselineSetupConfirmedById: Readonly<Record<string, true>>;
   readonly workoutResults: readonly ExerciseWorkoutResult[];
+  readonly exerciseSkips: readonly ExerciseSkipRecord[];
   readonly trainingEvaluation: TrainingQuestCompletionEvaluation;
   readonly isClearFeedbackVisible: boolean;
   readonly questRewardSummary: QuestRewardSummary | null;
@@ -242,6 +253,8 @@ interface AdventureQuestContextValue {
   setStageEquipmentProfile: (equipmentIds: readonly EquipmentId[]) => StageEquipmentProfileStatus;
   registerExerciseBaseline: (input: { readonly exerciseId: string; readonly weightKg: unknown; readonly reps: unknown }) => ExerciseBaselineRegistrationStatus;
   setExerciseLoadStep: (plannedExerciseId: string, loadStepKg: unknown) => ExerciseLoadStepSessionStatus;
+  skipExercise: (input: { readonly exerciseId: string; readonly reason: ExerciseSkipReason; readonly pledgeAccepted: boolean }) => ExerciseSkipSessionStatus;
+  undoExerciseSkip: (exerciseId: string) => ExerciseSkipSessionStatus;
   confirmExerciseBaselineSetup: (exerciseId: ExerciseId) => void;
   rescheduleCurrentQuest: (newDate: string, today: string) => CurrentQuestRescheduleStatus;
   saveWorkoutResult: (input: unknown) => WorkoutResultValidationResult;
@@ -269,6 +282,9 @@ export function AdventureQuestProvider({
 }) {
   const [state, dispatch] = useReducer(reducer, session, createInitialState);
   const workoutResults = getCurrentWorkoutResults(state);
+  const exerciseSkips = Object.values(
+    state.domain.exerciseSkipsByDay[state.domain.progress.currentDayIndex] ?? {},
+  );
   const progressView = deriveStageProgressView(state.domain.roadmap, state.domain.progress);
   const trainingPlan = getTrainingPlanForDay(
     state.domain.roadmap,
@@ -280,6 +296,7 @@ export function AdventureQuestProvider({
     trainingPlan ?? undefined,
     workoutResults,
     state.domain.equipmentProfile ?? undefined,
+    exerciseSkips,
   );
 
   const value = useMemo<AdventureQuestContextValue>(() => ({
@@ -294,6 +311,7 @@ export function AdventureQuestProvider({
     exerciseProgressById: state.domain.exerciseProgressById,
     baselineSetupConfirmedById: state.ui.baselineSetupConfirmedById,
     workoutResults,
+    exerciseSkips,
     trainingEvaluation,
     isClearFeedbackVisible: state.ui.isClearFeedbackVisible,
     questRewardSummary: state.ui.questRewardSummary,
@@ -345,6 +363,16 @@ export function AdventureQuestProvider({
       if (transition.status === 'applied') {
         dispatch({ type: 'setExerciseLoadStep', domain: transition.domain });
       }
+      return transition.status;
+    },
+    skipExercise: (input) => {
+      const transition = skipExerciseForSession(state.domain, input);
+      if (transition.status === 'skipped') dispatch({ type: 'skipExercise', domain: transition.domain });
+      return transition.status;
+    },
+    undoExerciseSkip: (exerciseId) => {
+      const transition = undoExerciseSkipForSession(state.domain, exerciseId);
+      if (transition.status === 'undone') dispatch({ type: 'undoExerciseSkip', domain: transition.domain });
       return transition.status;
     },
     confirmExerciseBaselineSetup: (exerciseId) => {
@@ -399,6 +427,7 @@ export function AdventureQuestProvider({
           trainingPlan ?? undefined,
           workoutResults,
           state.domain.equipmentProfile,
+          exerciseSkips,
         )
         : completeRecoveryQuest(
           state.domain.roadmap,
@@ -424,7 +453,7 @@ export function AdventureQuestProvider({
     },
     continueAdventure: () => dispatch({ type: 'continueAdventure' }),
     navigateToHub: (screen) => dispatch({ type: 'navigateToHub', screen }),
-  }), [progressView, state, trainingEvaluation, workoutResults]);
+  }), [exerciseSkips, progressView, state, trainingEvaluation, workoutResults]);
 
   return (
     <AdventureQuestContext.Provider value={value}>

@@ -64,21 +64,25 @@ test('baseline preview delegates a 1..10-rep set to shared e1RM logic without a 
   assert.equal(formatE1rmKg(70), '70.0kg');
 });
 
-test('an unknown baseline is preserved as baseline_required input rather than a fabricated strength value', () => {
+test('unknown strength previews a provisional profile estimate and submits no manual strength fields', () => {
   const draft = validDraft({
     isBaselineUnknown: true,
     baselineWeightKg: '60',
     baselineReps: '5',
   });
-  assert.deepEqual(getBaselinePreview(draft), { status: 'missing' });
+  const preview = getBaselinePreview(draft);
+  assert.equal(preview.status, 'estimated');
+  assert.equal(preview.workingReps, 5);
+  assert.equal(preview.goalHorizonDays, 84);
+  assert.ok(preview.finalGoalE1rmKg > preview.e1rmKg);
+  assert.deepEqual(getOnboardingStepErrors(2, draft), []);
+  assert.deepEqual(getOnboardingStepErrors(3, draft), []);
   assert.deepEqual(toOnboardingRoadmapDraft(draft), {
     bodyWeightKg: 72,
     trainingExperienceMonths: 8,
     trainingFrequencyPerWeek: 3,
     mainExerciseId: 'barbell_bench_press',
-    baselineWeightKg: null,
-    baselineReps: null,
-    finalGoalE1rmKg: 80,
+    strengthKnowledge: 'unknown',
   });
 });
 

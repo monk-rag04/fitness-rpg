@@ -6,19 +6,21 @@ import {
 import type { ExerciseSuggestion } from './exerciseProgression.js';
 import { getExerciseById } from './exerciseCatalog.js';
 import { E1RM_RULE, calculateSetE1rm } from './e1rm.js';
+import { MAIN_STRENGTH_ESTIMATE_RULE_VERSION } from './mainStrengthEstimate.js';
 import {
   calculateWorkoutResultE1rm,
   validateExerciseWorkoutResult,
   type ExerciseWorkoutResult,
 } from './workoutResult.js';
 
-export type ExerciseBaselineSource = 'onboarding' | 'self_report' | 'workout_result';
+export type ExerciseBaselineSource = 'onboarding' | 'estimated_profile' | 'self_report' | 'workout_result';
 
 export interface ExerciseBaseline {
   readonly weightKg: number;
   readonly reps: number;
   readonly estimatedE1rmKg?: number;
   readonly e1rmRuleVersion?: typeof E1RM_RULE.version;
+  readonly estimateRuleVersion?: typeof MAIN_STRENGTH_ESTIMATE_RULE_VERSION;
   readonly source: ExerciseBaselineSource;
   readonly capturedDayIndex: number;
 }
@@ -81,6 +83,7 @@ export function createOnboardingExerciseProgressState(input: {
   readonly weightKg: unknown;
   readonly reps: unknown;
   readonly capturedDayIndex: unknown;
+  readonly source?: 'onboarding' | 'estimated_profile';
 }): ExerciseProgressState | null {
   if (getExerciseById(input.exerciseId) === undefined ||
       !isPositiveFinite(input.weightKg) ||
@@ -97,12 +100,18 @@ export function createOnboardingExerciseProgressState(input: {
     return null;
   }
 
-  const baseline = createBaseline(
+  const source = input.source ?? 'onboarding';
+  const baseline: ExerciseBaseline = {
+    ...createBaseline(
     { weightKg: input.weightKg, reps: input.reps },
-    'onboarding',
+    source,
     input.capturedDayIndex,
     estimatedE1rmKg,
-  );
+    ),
+    ...(source === 'estimated_profile'
+      ? { estimateRuleVersion: MAIN_STRENGTH_ESTIMATE_RULE_VERSION }
+      : {}),
+  };
   return {
     exerciseId: input.exerciseId as ExerciseId,
     baseline,
@@ -170,21 +179,17 @@ export function registerSelfReportedExerciseBaseline(
   };
 }
 
-/** Captures an Exercise's first valid performed record; later records never rebase it. */
-export function captureFirstWorkoutExerciseBaseline(
-  exerciseProgressById: ExerciseProgressById,
+function deriveWorkoutBaseline(
   input: unknown,
   capturedDayIndex: unknown,
-): ExerciseProgressById {
-  if (!isDayIndex(capturedDayIndex)) return exerciseProgressById;
+): { readonly exerciseId: ExerciseId; readonly baseline: ExerciseBaseline } | null {
+  if (!isDayIndex(capturedDayIndex)) return null;
   const validation = validateExerciseWorkoutResult(input);
-  if (!validation.valid) return exerciseProgressById;
+  if (!validation.valid) return null;
 
   const result = validation.value;
   const exerciseId = result.performedExerciseId;
-  if (isBodyweightExerciseId(exerciseId)) return exerciseProgressById;
-  const current = exerciseProgressById[exerciseId];
-  if (current?.baseline !== undefined) return exerciseProgressById;
+  if (isBodyweightExerciseId(exerciseId)) return null;
 
   let estimatedE1rmKg: number | undefined;
   let sourceSet: ExerciseWorkoutResult['completedSets'][number] | undefined;
@@ -195,10 +200,10 @@ export function captureFirstWorkoutExerciseBaseline(
       sourceSet = result.completedSets[estimate.sourceSetIndex];
     }
   } catch {
-    return exerciseProgressById;
+    return null;
   }
   sourceSet ??= [...result.completedSets].sort((left, right) => left.setNumber - right.setNumber)[0];
-  if (sourceSet === undefined || sourceSet.weightKg === undefined) return exerciseProgressById;
+  if (sourceSet === undefined || sourceSet.weightKg === undefined) return null;
 
   const baseline = createBaseline(
     { weightKg: sourceSet.weightKg, reps: sourceSet.reps },
@@ -206,10 +211,40 @@ export function captureFirstWorkoutExerciseBaseline(
     capturedDayIndex,
     estimatedE1rmKg,
   );
-  const progress = current ?? createInitialExerciseProgressState(exerciseId);
+  return { exerciseId, baseline };
+}
+
+/** Captures an Exercise's first valid performed record; later records never rebase it. */
+export function captureFirstWorkoutExerciseBaseline(
+  exerciseProgressById: ExerciseProgressById,
+  input: unknown,
+  capturedDayIndex: unknown,
+): ExerciseProgressById {
+  const derived = deriveWorkoutBaseline(input, capturedDayIndex);
+  if (derived === null) return exerciseProgressById;
+  const current = exerciseProgressById[derived.exerciseId];
+  if (current?.baseline !== undefined) return exerciseProgressById;
+  const progress = current ?? createInitialExerciseProgressState(derived.exerciseId);
   return {
     ...exerciseProgressById,
-    [exerciseId]: { ...progress, baseline },
+    [derived.exerciseId]: { ...progress, baseline: derived.baseline },
+  };
+}
+
+/** Only a provisional Main baseline can be replaced, after a successful Quest Clear. */
+export function replaceEstimatedMainBaselineAfterClear(
+  exerciseProgressById: ExerciseProgressById,
+  mainExerciseId: ExerciseId,
+  input: unknown,
+  capturedDayIndex: unknown,
+): ExerciseProgressById {
+  const current = exerciseProgressById[mainExerciseId];
+  if (current?.baseline?.source !== 'estimated_profile') return exerciseProgressById;
+  const derived = deriveWorkoutBaseline(input, capturedDayIndex);
+  if (derived === null || derived.exerciseId !== mainExerciseId) return exerciseProgressById;
+  return {
+    ...exerciseProgressById,
+    [mainExerciseId]: { ...current, baseline: derived.baseline },
   };
 }
 

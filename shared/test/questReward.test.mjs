@@ -45,7 +45,7 @@ test('Exercise EXP mapping is versioned and covers exactly the Catalog IDs once'
   const mappedIds = Object.keys(EXERCISE_EXP_CATEGORY_BY_ID).sort();
 
   assert.equal(EXERCISE_EXP_CATEGORY_RULE_VERSION, 'exercise-exp-category-v1');
-  assert.equal(catalogIds.length, 34);
+  assert.equal(catalogIds.length, 40);
   assert.deepEqual(mappedIds, catalogIds);
   assert.ok(Object.values(EXERCISE_EXP_CATEGORY_BY_ID).every((category) =>
     ['chest', 'back', 'shoulders', 'arms', 'legs'].includes(category),
@@ -87,6 +87,26 @@ test('partial planned sets award only the sets with recorded results', () => {
   })]);
   assert.equal(calculation.valid, true);
   assert.deepEqual(calculation.rewardSummary.trainingExpGained, { chest: 10 });
+});
+
+test('mixed performed and skipped Exercises reward only performed eligible sets', () => {
+  const mixedPlan = planWith(
+    plan.exercises[0],
+    { exerciseId: 'dumbbell_curl', role: 'accessory', sets: 2, repRange: { min: 8, max: 12 } },
+  );
+  const calculation = calculateTrainingQuestReward(0, mixedPlan, [result({
+    completedSets: [{ setNumber: 1, weightKg: 60, reps: 8 }],
+  })], undefined, [
+    { exerciseId: 'dumbbell_curl', reason: 'time_constraint', pledgeAccepted: true },
+  ]);
+  assert.equal(calculation.valid, true);
+  assert.deepEqual(calculation.rewardSummary.trainingExpGained, { chest: 5 });
+
+  const allSkipped = calculateTrainingQuestReward(0, mixedPlan, [], undefined, [
+    { exerciseId: 'barbell_bench_press', reason: 'condition', pledgeAccepted: true },
+    { exerciseId: 'dumbbell_curl', reason: 'other', pledgeAccepted: true },
+  ]);
+  assert.deepEqual(allSkipped, { valid: false, code: 'QUEST_NOT_READY' });
 });
 
 test('extra sets and out-of-range set numbers cannot increase EXP', () => {

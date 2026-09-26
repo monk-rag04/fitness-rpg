@@ -19,7 +19,7 @@ export function MainStrengthRecord({
           {mainStrength.exerciseName ?? '種目未設定'}
         </p>
         <div className="progress-main-record__metrics">
-          <div><span>開始時</span><strong>{recordText(mainStrength.start)}</strong></div>
+          <div><span>{mainStrength.startEstimated ? '開始時（推定）' : '開始時'}</span><strong>{recordText(mainStrength.start)}</strong></div>
           <div><span>最新記録</span><strong>{mainStrength.latest === null ? '記録なし' : recordText(mainStrength.latest)}</strong></div>
           <div><span>目標</span><strong>{mainStrength.targetE1rmKg === null ? '—' : `${mainStrength.targetE1rmKg}kg`}</strong></div>
         </div>

@@ -1,42 +1,69 @@
 import { useState } from 'react';
-import { EQUIPMENT_CATALOG, type EquipmentId } from '@fitness-rpg/shared';
+import {
+  BASIC_STAGE_EQUIPMENT_IDS,
+  MIN_BASIC_STAGE_EQUIPMENT_COUNT,
+  OPTIONAL_STAGE_EQUIPMENT_IDS,
+  evaluateStageEquipmentReadiness,
+  type EquipmentId,
+} from '@fitness-rpg/shared';
 import { QuestGoldButton, QuestOrnateFrame, QuestSectionTitle } from '../../components/QuestUi';
 import { equipmentLabel } from '../../presentation/trainingLabels';
 import {
   INITIAL_EQUIPMENT_DRAFT,
   type EquipmentDraft,
   equipmentIdsForSubmission,
-  selectedChoiceCount,
   submitEquipmentDraft,
   toggleEquipment,
-  toggleNoEquipment,
 } from './equipmentDraft';
 
 export function EquipmentCheckView({
   initialDraft = INITIAL_EQUIPMENT_DRAFT,
+  mainExerciseId,
   onBack,
   onSubmit,
 }: {
   readonly initialDraft?: EquipmentDraft;
+  readonly mainExerciseId: string;
   readonly onBack: () => void;
   readonly onSubmit: (equipmentIds: readonly EquipmentId[]) => void;
 }) {
   const [draft, setDraft] = useState<EquipmentDraft>(initialDraft);
-  return <EquipmentCheckContent draft={draft} onDraftChange={setDraft} onBack={onBack} onSubmit={onSubmit} />;
+  return <EquipmentCheckContent draft={draft} mainExerciseId={mainExerciseId} onDraftChange={setDraft} onBack={onBack} onSubmit={onSubmit} />;
 }
 
 export function EquipmentCheckContent({
   draft,
+  mainExerciseId,
   onDraftChange,
   onBack,
   onSubmit,
 }: {
   readonly draft: EquipmentDraft;
+  readonly mainExerciseId: string;
   readonly onDraftChange: (draft: EquipmentDraft) => void;
   readonly onBack: () => void;
   readonly onSubmit: (equipmentIds: readonly EquipmentId[]) => void;
 }) {
   const equipmentIds = equipmentIdsForSubmission(draft);
+  const readiness = evaluateStageEquipmentReadiness(mainExerciseId, equipmentIds ?? []);
+
+  function equipmentChoice(equipmentId: EquipmentId) {
+    const selected = draft.kind === 'equipment' && draft.equipmentIds.includes(equipmentId);
+    const required = readiness.mainRequiredEquipmentIds.includes(equipmentId);
+    return (
+      <button
+        key={equipmentId}
+        className={`equipment-choice ${selected ? 'is-selected' : ''}`}
+        type="button"
+        aria-pressed={selected}
+        onClick={() => onDraftChange(toggleEquipment(draft, equipmentId))}
+      >
+        <span className="equipment-choice-mark" aria-hidden="true">{selected ? '✓' : '+'}</span>
+        <span className="equipment-choice-label">{equipmentLabel(equipmentId)}</span>
+        {required && <span className="equipment-choice-required">メイン種目に必要</span>}
+      </button>
+    );
+  }
 
   return (
     <section className="equipment-check-screen" aria-labelledby="equipment-check-title">
@@ -51,46 +78,39 @@ export function EquipmentCheckContent({
 
       <div className="equipment-check-info">
         <strong>利用可能な器具</strong>
-        <p>このStageで使用する器具を選択してください。複数選択できます。</p>
+        <p>基本器具を2つ以上選び、メイン種目に必要な器具を揃えてください。</p>
       </div>
 
       <QuestOrnateFrame className="equipment-check-frame">
         <div className="equipment-check-section-heading">
-          <QuestSectionTitle>利用可能な器具</QuestSectionTitle>
-          <span className="equipment-check-count">{selectedChoiceCount(draft)}件 選択中</span>
+          <QuestSectionTitle>基本器具</QuestSectionTitle>
+          <span className="equipment-check-count">{readiness.selectedBasicCount} / {MIN_BASIC_STAGE_EQUIPMENT_COUNT} 選択済み</span>
         </div>
-        <div className="equipment-check-grid" aria-label="利用可能な器具">
-          {EQUIPMENT_CATALOG.map((equipment) => {
-            const selected = draft.kind === 'equipment' && draft.equipmentIds.includes(equipment.id);
-            return (
-              <button
-                key={equipment.id}
-                className={`equipment-choice ${selected ? 'is-selected' : ''}`}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onDraftChange(toggleEquipment(draft, equipment.id))}
-              >
-                <span className="equipment-choice-mark" aria-hidden="true">{selected ? '✓' : '+'}</span>
-                <span className="equipment-choice-label">{equipmentLabel(equipment.id)}</span>
-              </button>
-            );
-          })}
-          <button
-            className={`equipment-choice equipment-choice--none ${draft.kind === 'no_equipment' ? 'is-selected' : ''}`}
-            type="button"
-            aria-pressed={draft.kind === 'no_equipment'}
-            onClick={() => onDraftChange(toggleNoEquipment(draft))}
-          >
-            <span className="equipment-choice-mark" aria-hidden="true">{draft.kind === 'no_equipment' ? '✓' : '−'}</span>
-            <span className="equipment-choice-label">器具なし</span>
-            <span className="equipment-choice-note">他の選択を解除</span>
-          </button>
+        <p className="equipment-check-group-note">2つ以上選択してください。メイン種目に必要な器具も数に含まれます。</p>
+        <div className="equipment-check-grid" aria-label="基本器具">
+          {BASIC_STAGE_EQUIPMENT_IDS.map(equipmentChoice)}
+        </div>
+        <div className="equipment-check-section-heading equipment-check-section-heading--optional">
+          <QuestSectionTitle>追加器具（任意）</QuestSectionTitle>
+        </div>
+        <div className="equipment-check-grid" aria-label="追加器具">
+          {OPTIONAL_STAGE_EQUIPMENT_IDS.map(equipmentChoice)}
         </div>
       </QuestOrnateFrame>
 
+      <div className="equipment-check-bodyweight-info">
+        <strong>✓ 自重トレーニングは常に利用できます</strong>
+        <p>プッシュアップなどは器具選択なしで候補になります。懸垂は懸垂バーが必要です。</p>
+      </div>
+
       <footer className="equipment-check-footer">
-        <QuestGoldButton type="button" disabled={equipmentIds === null} onClick={() => {
-          submitEquipmentDraft(draft, onSubmit);
+        {!readiness.mainAvailable && readiness.missingMainEquipmentIds.length > 0 && (
+          <p className="equipment-check-requirement" role="status">
+            メイン種目に必要な器具：{readiness.missingMainEquipmentIds.map(equipmentLabel).join('・')}
+          </p>
+        )}
+        <QuestGoldButton type="button" disabled={!readiness.ready} onClick={() => {
+          if (readiness.ready) submitEquipmentDraft(draft, onSubmit);
         }}>
           この装備でクエストを生成
         </QuestGoldButton>

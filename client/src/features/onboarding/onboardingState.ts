@@ -1,5 +1,6 @@
 import {
   calculateSetE1rm,
+  estimateMainStrengthProfile,
   type ExerciseId,
 } from '@fitness-rpg/shared';
 
@@ -55,6 +56,15 @@ export type BaselinePreview =
   | { readonly status: 'incomplete' }
   | { readonly status: 'invalid_weight' }
   | { readonly status: 'invalid_reps' }
+  | {
+    readonly status: 'estimated';
+    readonly e1rmKg: number;
+    readonly workingWeightKg: number;
+    readonly workingReps: number;
+    readonly finalGoalE1rmKg: number;
+    readonly goalHorizonDays: number;
+    readonly ruleVersion: string;
+  }
   | { readonly status: 'ready'; readonly e1rmKg: number; readonly ruleVersion: string };
 
 export function createInitialOnboardingDraft(): OnboardingDraftState {
@@ -91,7 +101,24 @@ function asFrequency(value: string): number | null {
  * preview using the same accepted rule that validates the final onboarding input.
  */
 export function getBaselinePreview(draft: OnboardingDraftState): BaselinePreview {
-  if (draft.isBaselineUnknown) return { status: 'missing' };
+  if (draft.isBaselineUnknown) {
+    const profile = estimateMainStrengthProfile({
+      bodyWeightKg: Number(draft.bodyWeightKg),
+      trainingExperienceMonths: Number(draft.trainingExperienceMonths),
+      mainExerciseId: draft.mainExerciseId,
+    });
+    return profile === null
+      ? { status: 'missing' }
+      : {
+        status: 'estimated',
+        e1rmKg: profile.baselineE1rmKg,
+        workingWeightKg: profile.workingWeightKg,
+        workingReps: profile.workingReps,
+        finalGoalE1rmKg: profile.finalGoalE1rmKg,
+        goalHorizonDays: profile.goalHorizonDays,
+        ruleVersion: profile.ruleVersion,
+      };
+  }
 
   const weightKg = asFiniteNumber(draft.baselineWeightKg);
   const reps = asFiniteNumber(draft.baselineReps);
@@ -132,6 +159,9 @@ export function getOnboardingStepErrors(
 
   if (step === 2) {
     const preview = getBaselinePreview(draft);
+    if (draft.isBaselineUnknown && preview.status === 'missing') {
+      return [{ field: 'bodyWeightKg', message: '体重とトレーニング歴から開始目安を作成できません。入力を確認してください。' }];
+    }
     if (preview.status === 'missing') return [];
     if (preview.status === 'incomplete') {
       return [{ field: 'baselineWeightKg', message: '重量と回数を両方入力してください。' }];
@@ -145,6 +175,7 @@ export function getOnboardingStepErrors(
     return [];
   }
 
+  if (draft.isBaselineUnknown) return [];
   const goal = asFiniteNumber(draft.finalGoalE1rmKg);
   if (goal === null || goal <= 0) {
     return [{ field: 'finalGoalE1rmKg', message: '最終目標のe1RMを入力してください。' }];
@@ -157,6 +188,15 @@ export function getOnboardingStepErrors(
 }
 
 export function toOnboardingRoadmapDraft(draft: OnboardingDraftState): Record<string, unknown> {
+  if (draft.isBaselineUnknown) {
+    return {
+      bodyWeightKg: Number(draft.bodyWeightKg),
+      trainingExperienceMonths: Number(draft.trainingExperienceMonths),
+      trainingFrequencyPerWeek: Number(draft.trainingFrequencyPerWeek),
+      mainExerciseId: draft.mainExerciseId,
+      strengthKnowledge: 'unknown',
+    };
+  }
   const baseline = getBaselinePreview(draft);
   return {
     bodyWeightKg: Number(draft.bodyWeightKg),

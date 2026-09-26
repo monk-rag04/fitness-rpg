@@ -213,7 +213,7 @@ D-034ではServerのStage Program snapshot validatorも、各Dayの`startDate + 
 
 Quest Completion / Map ProgressionのMVP Domain API（D-027）は`shared/src/domain/training/stageProgress.ts`に置く。`StageRoadmap`を不変のScheduleとして保ち、`StageProgress = { currentDayIndex }`だけを進行Stateにする。`createInitialStageProgress()`、`deriveStageProgressView()`、`evaluateTrainingQuestCompletion()`、`completeTrainingQuest()`、`completeRecoveryQuest()`はすべてPure TypeScriptである。Map viewはcompleted / available / locked、現在Node、Session Focus、Boss Anchor、Boss availability、完了数を返すが、UI表現を持たない。
 
-D-029の`shared/src/domain/training/onboardingRoadmap.ts`は、未知のOnboarding入力、Boss対象4種目、Baseline Set、Final Goal、D-026と共通の日付検証を扱う。自己申告BaselineはD-023のSet計算を再利用し、`onboarding_self_reported`の出所とRule Versionを持つ計算結果であってWorkout Historyの`currentE1rm`ではない。Pureな`prepareOnboardingRoadmap()`がStage TargetとDuration Estimator Inputまで、`completeOnboardingRoadmap()`がAI応答の再検証・Duration選択・Roadmap・初期Progressまでを調停する。42日超はRoadmapを作らない。sharedからOpenAIを呼ばない。
+D-029の`shared/src/domain/training/onboardingRoadmap.ts`は、未知のOnboarding入力、Boss対象4種目、Baseline Set、Final Goal、D-026と共通の日付検証を扱う。自己申告BaselineはD-023のSet計算を再利用し、`onboarding_self_reported`の出所とRule Versionを持つ計算結果であってWorkout Historyの`currentE1rm`ではない。Pureな`prepareOnboardingRoadmap()`がStage TargetとDuration Estimator Inputまで、`completeOnboardingRoadmap()`がAI応答の再検証・Duration選択・Roadmap・初期Progressまでを調停する。known Flowの42日超はRoadmapを作らない。D-041のunknown Flow例外は後述する。sharedからOpenAIを呼ばない。
 
 Clientの`application/onboardingRoadmap.ts`は開始操作時のBrowser local dateを入力へ加え、ExpressへDurationを一度要求する。`features/onboarding/`は3-Step UIのDraft StateとUsability validationを持つが、Baseline e1RMはsharedのD-023 APIから導出し、最終入力はこのApplication helperとshared Domainで再検証する。成功時は生成済みRoadmapと初期Progressだけを`AdventureQuestSession`へ渡してMapを表示し、Demo Bench Training Planを実ユーザーRoadmapへ結合しない。Equipment入力とStage Training Program取得は後続工程であり、Onboarding由来Training DayはProgram未生成の間「Training Planを準備中」と表示してClearを禁止する。Equipment確定後はD-031のStage-wide生成境界へ進み、成功したPlanを`planByDay`へ一括保存する。Recoveryは既存D-027 Domain境界で独立して扱える。
 
@@ -251,6 +251,8 @@ D-036 Task 4Fでは、Sharedの`ExerciseWorkoutResult`が任意のExercise単位
 D-036 Task 4GではShared `exerciseProgression.ts`のpure functionが`exercise-progression-v1`に従い、current Plan rangeへclampしたhintとClear後の次Suggestionを決定する。全planned Setの実績を先に評価し、数値Suggestionがある場合は各Setの実重量がそれ以上であることを要求する。`too_hard`はVeto、未選択は中立で、`easy`単独では進めない。数値SuggestionがないWeighted種目の初回完遂時はplanned Set内の最小実重量を保守的基準として使い、Baselineは変更しない。Progressionはsuccessful Training Clear後だけ`completeAdventureQuest()`内で計算され、Stage Progress、Character Growth、Quest Reward、unique performed Exerciseの`sessionsCompleted`と同じDomain result / reducer transitionで返る。Result save/edit、Recovery、failed / replayed clearでは更新しない。
 
 `ExerciseProgressState`にはoptional `nextSuggestion`とuser-configurable `loadStepKg`だけを追加し、前回Suggestion / Feedback / Performanceのduplicate stateは持たない。Weight Up Readyはweight付きrep max suggestionとして表現し、load step確定時にload step保存と次の一段を同じimmutable state transitionで適用する。有限正数以外を拒否し、適用済みSuggestionでは二重加算しない。Bodyweight3種はreps-onlyに限定され、重量Field / kg Suggestion / loadStep / e1RMを持たない。これらの機能はAdventure Session memory内に限り、DB / localStorage / AI callを追加しない。
+
+D-041 Main Strengthの初回hintはShared pure presentation helperがOnboarding / `estimated_profile` BaselineをD-023 `calculateSetE1rm()`で換算し、planned minimum repsへ逆Epley・既存0.5kg normalizationで表示する。保存済み`nextSuggestion`がある場合は通常resolverを優先する。hintはstate transitionを起こさず、Final Goal / Stage Targetを読み取らない。
 
 ### Future API / persistence workflow
 
@@ -443,3 +445,15 @@ Server and Client build the same per-Day context: exposure Days require the Boss
 This D-032 implementation includes the existing Stage Program endpoint, Client application helper, defensive Client validation, and Session cache integration. Earlier D-031 notes that described those pieces as not yet connected are superseded by the current runtime; production model selection, prompt/schema versioning, and periodization details remain open.
 
 It also supersedes the earlier D-026 focus description: current generated Training Days use the typed frequency split and existing movement taxonomy while preserving D-026 date offsets, Duration, Recovery placement, Boss anchor, and reschedule invariants.
+
+### D-041 resilience boundaries
+
+`shared`の`estimateMainStrengthProfile()`がversionedなprofile estimate、逆Epleyの5-rep preview、0.5kg normalization、84-day Goalを所有する。Reactは計算式を持たず、known / unknown入力とpreviewを表示するだけである。Onboarding validationはunknown入力へ手動Baseline / Goalの混入を許さず、Provider request前に暫定BaselineとStage Planning inputを完成させる。既知重量のD-025 duration selectionは不変で、`estimated_profile`だけが42日上限fallbackを使用するため追加Provider retryは発生しない。
+
+`estimated_profile`はExercise ProgressのBaseline sourceとしてSessionへ渡る。Result保存では置換せず、既存のatomic Training Quest Clearが成功した後の同一transition内で、Main Exerciseの有効な実Resultへ一度だけ置換する。以後は通常の`workout_result` Baselineとなり再置換しない。
+
+Equipment preflightは`evaluateStageEquipmentReadiness()`でMain requirementsと基本器具2件をpureに評価する。Candidate生成自体はCatalogの`requiredEquipmentOptions`を引き続き唯一の可用性Ruleとし、`[[]]`のNo Equipment Exerciseを常時含める。`BODYWEIGHT_EXERCISE_IDS`はResultをreps-onlyにする集合、`NO_EQUIPMENT_EXERCISE_IDS`は器具なしCandidate集合であり、barを要するPull-upを後者へ含めない。ServerはClient候補を信用せず、従来どおり選択EquipmentからDay別候補を再構築してStage全体をatomic validationする。
+
+初回Exercise RecommendationはSharedの`recommendInitialExerciseSuggestion()`が版付きpure ruleとして計算し、Clientは表示するだけである。Onboarding session contextは既存の体重・経験値を保持する。RecommendationはExercise Progress stateへ保存せず、Actual入力にも反映しない。Machine / CableとDumbbellの表示補助はCatalog / ID情報から導出する。
+
+Exercise SkipはSharedの`ExerciseSkipRecord` validationとQuest completion evaluatorを使用し、Adventure Sessionではday index別にResultと別レコードで保持する。Clear判定は全Planned Exerciseの実施または有効Skipと最低1件の実Resultを要求する。Reward・Baseline・sessions・Progressionは実Resultだけから計算し、Skip記録だけでは更新しない。実Resultの初回Baseline captureは成功したQuest Clear境界で行う。Persistence / API contractは追加せず、既存のin-memory Sessionに留める。

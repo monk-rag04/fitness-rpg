@@ -175,7 +175,7 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 **決定済み（D-024）**:
 
 - MVPではTraining Planが`exerciseId`、role、sets、rep rangeを提示し、AIやSystemがTraining Weightを自動決定しない。
-- Weighted Exerciseでは各Setに正の有限`weightKg`と正の整数`reps`を記録する。`push_up` / `pull_up` / `glute_bridge`だけはreps-onlyであり、重量Fieldを受け付けない。Strength Historyがない種目へ根拠のない初期重量を生成しない。
+- Weighted Exerciseでは各Setに正の有限`weightKg`と正の整数`reps`を記録する。`BODYWEIGHT_EXERCISE_IDS`の種目はreps-onlyであり、重量Fieldを受け付けない。Strength Historyがない種目へ根拠のない初期重量を生成しない。
 - D-035 4Eでは、ExerciseごとのStage開始時BaselineをSession内で保持する。Main StrengthはOnboardingの実記録を使い、その他の種目は任意の自己申告または最初の有効Workout Resultから取得する。架空の初期重量は作らない。
 - Workout Resultは予定Exercise IDと実施Exercise IDを別に保持する。代替Exerciseの実績は実施したExerciseの履歴・e1RM根拠となり、元Exerciseのe1RMや重量履歴を自動移管しない。
 - rep range未達・超過や予定Set数未達は、それ自体を不正なWorkout Recordにしない。Quest Clearと将来のProgressionは、それぞれ別のDomainで判断する。
@@ -185,7 +185,7 @@ All planned `main` / `accessory` Exercises are required for a D-027 Training Cle
 - Difficulty FeedbackはWorkout Resultと一緒に保存する。D-036 Task 4Gでは`too_hard`だけがProgressionを拒否するVetoであり、未選択は中立、`just_right` / `easy`もActual Set条件を満たさない限り単独では進行させない。
 - `exercise-progression-v1`はBaselineまたは保守的な実測重量を初期基準に、現在Planのrep range内でrepsを一回ずつ進める。全planned Set達成後のProgressionは明示的Training Quest Clear成功時だけ、Map / Growth / Reward / `sessionsCompleted`と同じSession transitionに適用する。Result保存・編集、Recovery Clear、Rescheduleでは更新しない。
 - Suggested Weight / Repsは画面上の目安であり、actual入力へ自動入力しない。Weight Upは全planned Setがsuggested weight以上かつrep maxを達成した場合だけ候補となる。器具刻み`loadStepKg`はユーザーがExerciseごとに任意設定し、未設定なら`weight_up_ready`で止める。固定刻み、automatic Weight Down、失敗連続数は導入しない。
-- `push_up` / `pull_up` / `glute_bridge`はreps-onlyで、追加重量、kg Suggestion、load step、e1RM、kg Baselineを持たない。repsだけを+1し、rep maxで維持する。
+- `BODYWEIGHT_EXERCISE_IDS`の種目はreps-onlyで、追加重量、kg Suggestion、load step、e1RM、kg Baselineを持たない。repsだけを+1し、rep maxで維持する。
 - 重量記録はBarbellがバーを含む総重量、Dumbbellが1個あたり、Machine / Cableが機械の表示重量。同じExerciseでは同じ基準で記録する。分類が曖昧な種目には説明を表示しない。
 - Suggested Weight / Reps、Feedback、loadStep、Progressionは既存Adventure Session内だけに置き、DB / localStorage等へ永続化しない。Progression計算にAIを使わない。
 
@@ -356,3 +356,19 @@ The onboarding-selected Main Strength Exercise remains the Stage `bossMainExerci
 Each Training Day carries a typed `sessionFocus` and `bossMainExposure` flag. Exposure Days include the Boss Main exactly once as `role: 'main'`; non-exposure Days exclude it and select exactly one focus-compatible candidate as the session main. Every session still has exactly one main, all candidates remain server-built, and the existing guardrails and atomic `planByDay` cache remain in force. Recovery and Boss nodes receive no Training Plan.
 
 This D-032 section supersedes the earlier D-026 prototype-level statement that every Day reused the Main Exercise's primary-muscle focus and omitted movement patterns.
+
+### D-041 Onboarding / Equipment resilience
+
+Main Strengthの最初のTraining Questでは、保存済み4G progression hintがない場合、Onboarding実測または`estimated_profile`のBaselineからD-023 e1RMを計算し、Planの最低repsへ換算した数値目安を表示する。これは実測/推定BaselineやFinal Goal / Stage Targetを変更せず、SET入力にも反映しない。成功Clear後は通常の実Workout Result由来Baselineと4G suggestionを使う。
+
+Main Strength入力は「分かる」と「分からない」に分岐する。分かるFlowはD-029の自己申告Setと手入力Final Goalを維持する。分からないFlowは体重、Training経験月数、Boss対象Main Exerciseから`main-strength-estimate-v1`で暫定e1RM、5-rep working set、84日後の自動Final Goalを決定論的に作る。Exercise係数はBench 0.55、Squat 0.75、Deadlift 0.90、OHP 0.35。経験月数で開始値とGoal成長率を補正し、Goalは暫定Baselineより最低2.5kg高くする。この節は、重量不明なら常に`baseline_required`として停止するD-029記述を、分からないFlowに限って置き換える。
+
+暫定Baselineは`estimated_profile`として実測値と区別する。Main Strengthの最初の有効なTraining Quest Clear時だけ、保存済み実Workout Result由来Baselineへ置換し、その後は既存の初回固定Ruleを適用する。Character / ProgressのSTARTは置換前だけ推定表示とし、CURRENT / 最新記録には使用しない。
+
+既知重量の42日超はD-025どおり`stage_replanning_required`を維持する。分からないFlowだけは通常ユーザーを停止させず、Provider retryやGoal再生成をせず、既存Duration候補の最大42日でRoadmapを作る。AIの元見積もり日数は結果に保持する。
+
+Equipment Checkは16 Equipmentを基本8件と追加8件へ分ける。CTA条件は基本器具2件以上かつMain Exerciseの必要器具を満たすこと。追加器具は0件でよく、自重は選択項目ではなく常時候補となる。`pull_up`はBodyweightだが`pullup_bar`必須であり、No Equipmentとは区別する。器具なしfallback用にClose-grip Push-up、Reverse Snow Angel、Pike Push-up、Bodyweight Squat、Reverse Lunge、Bodyweight Calf RaiseをCatalogへ加え、既存Push-up / Glute Bridgeと共にreps-onlyで扱う。
+
+**D-041追加決定**: 明示的にExerciseを「初めて」と選んだ場合、初回Workoutだけに版付きの保守的Recommendationを表示できる。これはBaseline / Actual Result / Progress Recordではなく、SET入力にも自動入力しない。Weighted Exerciseは体重、Training経験月数、Exercise ID別比率、予定rep rangeのminから目安を計算し、Bodyweight Exerciseはrepsのみを表示する。実際の記録は有効Resultとして保存され、成功したQuest Clear時だけBaseline / sessions / progressionが更新される。既存BaselineまたはD-036 `nextSuggestion`があればそちらを優先する。
+
+**D-041追加決定**: Training QuestのPlanned Exerciseは理由と「他の種目で挽回する」誓約付きで個別Skipできる。すべてのPlanned Exerciseが有効な実Resultまたは有効Skipで満たされ、かつ1種目以上が実施済みの場合だけClearできる。全Skipは不可。SkipはWorkout Resultではなく、EXP・Baseline・Progression・sessions・Actual Recordを生成しない。Main StrengthもSkip可能であり、他の種目を1つ以上実施すれば通常どおりQuestをClearできる。理由は器具 unavailable、時間不足、コンディション、その他の4種。Clear前はResultとSkipを切り替えられる。

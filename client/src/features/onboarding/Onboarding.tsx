@@ -19,6 +19,8 @@ type RoadmapCreated = Extract<OnboardingRoadmapApplicationResult, { readonly sta
 
 interface OnboardingProps {
   readonly onRoadmapCreated: (result: RoadmapCreated) => void;
+  readonly initialDraft?: OnboardingDraftState;
+  readonly initialStep?: OnboardingStep;
 }
 
 function errorCopy(result: Exclude<OnboardingRoadmapApplicationResult, RoadmapCreated>): string {
@@ -69,15 +71,16 @@ function FieldError({ message }: { readonly message: string | null }) {
   return message === null ? null : <p className="onboarding-field-error" role="alert">{message}</p>;
 }
 
-export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
-  const [draft, setDraft] = useState<OnboardingDraftState>(createInitialOnboardingDraft);
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>(1);
+export function Onboarding({ onRoadmapCreated, initialDraft, initialStep = 1 }: OnboardingProps) {
+  const [draft, setDraft] = useState<OnboardingDraftState>(() => initialDraft ?? createInitialOnboardingDraft());
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>(initialStep);
   const [fieldMessage, setFieldMessage] = useState<string | null>(null);
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdRoadmap, setCreatedRoadmap] = useState<RoadmapCreated | null>(null);
   const submissionGate = useRef(createOnboardingSubmissionGate());
   const baseline = useMemo(() => getBaselinePreview(draft), [draft]);
+  const hasBaselinePreview = baseline.status === 'ready' || baseline.status === 'estimated';
 
   function updateText(field: Exclude<keyof OnboardingDraftState, 'mainExerciseId' | 'isBaselineUnknown'>) {
     return (event: ChangeEvent<HTMLInputElement>) => {
@@ -145,7 +148,9 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         <div className="onboarding-brand" aria-hidden="true"><span>⚔</span></div>
         <p className="onboarding-kicker">ROADMAP READY</p>
         <h1 id="onboarding-success-title">最初のStageを準備しました</h1>
-        <p className="onboarding-lead">あなたの記録をもとに、最初のBossへ向かうRoadmapを作成しました。</p>
+        <p className="onboarding-lead">{createdRoadmap.baseline.source === 'estimated_profile'
+          ? '開始時の推定値をもとに、最初のBossへ向かうRoadmapを作成しました。'
+          : 'あなたの記録をもとに、最初のBossへ向かうRoadmapを作成しました。'}</p>
         <QuestOrnateFrame className="onboarding-success-card" glow>
           <dl>
             <div><dt>AI見積もり日数</dt><dd>{createdRoadmap.estimatedAchievementDays}日</dd></div>
@@ -197,7 +202,7 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         {currentStep === 2 && (
           <QuestOrnateFrame className="onboarding-panel" glow>
             <QuestSectionTitle>MAIN STRENGTH</QuestSectionTitle>
-            <p className="onboarding-panel-intro">Bossへ挑むメイン種目を選び、最近実施できたSetを記録してください。</p>
+            <p className="onboarding-panel-intro">Bossへ挑むメイン種目を選んでください。</p>
             <div className="onboarding-exercise-grid" role="radiogroup" aria-label="メイン種目">
               {ONBOARDING_MAIN_EXERCISES.map((exercise) => (
                 <button
@@ -220,24 +225,31 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
               </button>
             </div>
 
-            <label className="onboarding-baseline-toggle">
-              <input
-                type="checkbox"
-                checked={draft.isBaselineUnknown}
-                onChange={(event) => {
-                  const isBaselineUnknown = event.target.checked;
-                  setDraft((current) => ({ ...current, isBaselineUnknown }));
-                  setFieldMessage(null);
-                  setRequestMessage(null);
-                }}
-              />
-              <span>まだ実施できる重量がわからない</span>
-            </label>
+            <div className="onboarding-knowledge-choice" role="radiogroup" aria-label="現在の重量は分かりますか？">
+              <p>現在の重量は分かりますか？</p>
+              <div>
+                {([['分かる', false], ['分からない', true]] as const).map(([label, isBaselineUnknown]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.isBaselineUnknown === isBaselineUnknown}
+                    className={draft.isBaselineUnknown === isBaselineUnknown ? 'is-selected' : ''}
+                    onClick={() => {
+                      setDraft((current) => ({ ...current, isBaselineUnknown }));
+                      setFieldMessage(null);
+                      setRequestMessage(null);
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
 
             {draft.isBaselineUnknown ? (
               <div className="onboarding-baseline-missing" role="status">
-                <strong>STRENGTH ASSESSMENT REQUIRED</strong>
-                <p>Roadmap作成には、現在のStrengthの基準が必要です。初心者向けの測定機能は今後対応予定です。</p>
+                <strong>開始時の目安（推定）</strong>
+                <p>体重とトレーニング経験から、開始時の目安を仮設定します。実際の記録は最初のトレーニング結果から更新されます。</p>
+                {baseline.status === 'estimated' && <p className="onboarding-estimated-set">{baseline.workingWeightKg}kg × {baseline.workingReps}回</p>}
               </div>
             ) : (
               <div className="onboarding-baseline-inputs">
@@ -253,8 +265,8 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
             )}
 
             <div className={`onboarding-baseline-result is-${baseline.status}`} aria-live="polite">
-              <div><p>現在のStrength</p><span>このSetから算出した推定1RM</span></div>
-              <strong>{baseline.status === 'ready' ? formatE1rmKg(baseline.e1rmKg) : '—'}</strong>
+              <div><p>{draft.isBaselineUnknown ? '開始時の推定e1RM' : '現在のStrength'}</p><span>{draft.isBaselineUnknown ? '実測ではない暫定値' : 'このSetから算出した推定1RM'}</span></div>
+              <strong>{hasBaselinePreview ? formatE1rmKg(baseline.e1rmKg) : '—'}</strong>
             </div>
           </QuestOrnateFrame>
         )}
@@ -262,15 +274,19 @@ export function Onboarding({ onRoadmapCreated }: OnboardingProps) {
         {currentStep === 3 && (
           <QuestOrnateFrame className="onboarding-panel onboarding-panel--goal" glow>
             <QuestSectionTitle>FINAL BOSS GOAL</QuestSectionTitle>
-            <p className="onboarding-panel-intro">最終目標のe1RMを直接入力してください。推奨値は表示しません。</p>
+            <p className="onboarding-panel-intro">{draft.isBaselineUnknown
+              ? '最終目標は約3か月後を目安に自動設定します。実際の記録ができたら開始時の推定値は更新されます。'
+              : '最終目標のe1RMを直接入力してください。推奨値は表示しません。'}</p>
             <div className="onboarding-goal-summary">
-              <div><span>現在の基準</span><strong>{baseline.status === 'ready' ? formatE1rmKg(baseline.e1rmKg) : '必要です'}</strong></div>
-              <div><span>最終目標</span><strong>{draft.finalGoalE1rmKg.trim() === '' ? '—' : `${draft.finalGoalE1rmKg}kg`}</strong></div>
+              <div><span>{draft.isBaselineUnknown ? '開始時（推定）' : '現在の基準'}</span><strong>{hasBaselinePreview ? formatE1rmKg(baseline.e1rmKg) : '必要です'}</strong></div>
+              <div><span>{draft.isBaselineUnknown ? '約3か月後の目標（自動）' : '最終目標'}</span><strong>{baseline.status === 'estimated'
+                ? `${baseline.finalGoalE1rmKg}kg`
+                : draft.finalGoalE1rmKg.trim() === '' ? '—' : `${draft.finalGoalE1rmKg}kg`}</strong></div>
             </div>
-            <label className="onboarding-goal-input">
+            {!draft.isBaselineUnknown && <label className="onboarding-goal-input">
               <span>最終目標のe1RM <em>kg</em></span>
               <input type="number" inputMode="decimal" min="0" step="any" value={draft.finalGoalE1rmKg} onChange={updateText('finalGoalE1rmKg')} placeholder="例：80" />
-            </label>
+            </label>}
             {fieldMessage !== null && <FieldError message={fieldMessage} />}
             <div className="onboarding-estimate-area" aria-live="polite">
               <p>AIによるRoadmap見積もり</p>

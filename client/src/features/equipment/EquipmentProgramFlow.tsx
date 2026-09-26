@@ -108,6 +108,7 @@ export function EquipmentProgramFlow() {
   return (
     <EquipmentCheckView
       key={equipmentProfile === undefined ? 'unset' : equipmentProfile.availableEquipmentIds.join('|')}
+      mainExerciseId={roadmap.mainExerciseId}
       initialDraft={equipmentDraftFromEquipmentIds(equipmentProfile?.availableEquipmentIds)}
       onBack={returnToAdventureMap}
       onSubmit={submitEquipment}

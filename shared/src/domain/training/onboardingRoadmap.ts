@@ -1,8 +1,10 @@
 import { calculateSetE1rm, E1RM_RULE, isBossE1rmExerciseId } from './e1rm.js';
+import { estimateMainStrengthProfile, type MainStrengthProfileEstimate } from './mainStrengthEstimate.js';
 import type { ExerciseId } from './exercise.js';
 import { getExerciseById } from './exerciseCatalog.js';
 import {
   planNextStage,
+  ROADMAP_DURATION_CANDIDATES,
   selectRoadmapDuration,
   validateAchievementDurationEstimate,
   type AchievementDurationEstimatorInput,
@@ -18,6 +20,8 @@ import { createInitialStageProgress, type StageProgress } from './stageProgress.
 
 /** D-029 input for one new roadmap, not a persisted profile or Workout Result. */
 export interface OnboardingRoadmapInput {
+  /** Present only for a profile-derived, provisional starting strength. */
+  readonly strengthKnowledge?: 'unknown';
   readonly bodyWeightKg: number;
   readonly trainingExperienceMonths: number;
   readonly trainingFrequencyPerWeek: number;
@@ -38,6 +42,18 @@ export interface OnboardingSelfReportedBaseline {
   readonly ruleVersion: typeof E1RM_RULE.version;
 }
 
+export interface OnboardingEstimatedProfileBaseline {
+  readonly source: 'estimated_profile';
+  readonly exerciseId: ExerciseId;
+  readonly weightKg: number;
+  readonly reps: number;
+  readonly baselineE1rmKg: number;
+  readonly ruleVersion: typeof E1RM_RULE.version;
+  readonly estimateRuleVersion: MainStrengthProfileEstimate['ruleVersion'];
+}
+
+export type OnboardingBaseline = OnboardingSelfReportedBaseline | OnboardingEstimatedProfileBaseline;
+
 export type OnboardingRoadmapInputErrorCode =
   | 'INVALID_INPUT_SHAPE'
   | 'UNKNOWN_FIELD'
@@ -52,6 +68,9 @@ export type OnboardingRoadmapInputErrorCode =
   | 'INVALID_BASELINE_ESTIMATE'
   | 'INVALID_FINAL_GOAL'
   | 'FINAL_GOAL_NOT_ABOVE_BASELINE'
+  | 'INVALID_STRENGTH_KNOWLEDGE'
+  | 'UNKNOWN_STRENGTH_FIELDS_NOT_ALLOWED'
+  | 'ESTIMATE_UNAVAILABLE'
   | 'INVALID_START_DATE';
 
 export interface OnboardingRoadmapInputError {
@@ -63,7 +82,7 @@ export type OnboardingRoadmapInputValidationResult =
   | {
     readonly valid: true;
     readonly value: OnboardingRoadmapInput;
-    readonly baseline: OnboardingSelfReportedBaseline | null;
+    readonly baseline: OnboardingBaseline | null;
   }
   | { readonly valid: false; readonly errors: readonly OnboardingRoadmapInputError[] };
 
@@ -83,7 +102,7 @@ function isMissing(value: unknown): value is undefined | null {
   return value === undefined || value === null;
 }
 
-/** Reject untrusted fields and preserve an unknown baseline as baseline_required. */
+/** Reject untrusted fields and derive only the explicitly requested provisional profile estimate. */
 export function validateOnboardingRoadmapInput(input: unknown): OnboardingRoadmapInputValidationResult {
   if (!isRecord(input)) {
     return { valid: false, errors: [{ code: 'INVALID_INPUT_SHAPE', path: 'input' }] };
@@ -93,10 +112,14 @@ export function validateOnboardingRoadmapInput(input: unknown): OnboardingRoadma
   const allowedFields = [
     'bodyWeightKg', 'trainingExperienceMonths', 'trainingFrequencyPerWeek',
     'mainExerciseId', 'baselineWeightKg', 'baselineReps',
-    'finalGoalE1rmKg', 'startDate',
+    'finalGoalE1rmKg', 'startDate', 'strengthKnowledge',
   ];
   for (const field of Object.keys(input)) {
     if (!allowedFields.includes(field)) errors.push({ code: 'UNKNOWN_FIELD', path: `input.${field}` });
+  }
+  const unknownStrength = input.strengthKnowledge === 'unknown';
+  if (input.strengthKnowledge !== undefined && !unknownStrength) {
+    errors.push({ code: 'INVALID_STRENGTH_KNOWLEDGE', path: 'input.strengthKnowledge' });
   }
 
   if (!isPositiveFinite(input.bodyWeightKg)) {
@@ -121,23 +144,63 @@ export function validateOnboardingRoadmapInput(input: unknown): OnboardingRoadma
 
   const weightMissing = isMissing(input.baselineWeightKg);
   const repsMissing = isMissing(input.baselineReps);
-  if (weightMissing !== repsMissing) {
-    errors.push({ code: 'BASELINE_SET_INCOMPLETE', path: 'input.baselineWeightKg' });
-  }
-  if (!weightMissing && !isPositiveFinite(input.baselineWeightKg)) {
-    errors.push({ code: 'INVALID_BASELINE_WEIGHT', path: 'input.baselineWeightKg' });
-  }
-  if (!repsMissing && (!isNonnegativeInteger(input.baselineReps) ||
-      input.baselineReps < E1RM_RULE.minEligibleReps || input.baselineReps > E1RM_RULE.maxEligibleReps)) {
-    errors.push({ code: 'INVALID_BASELINE_REPS', path: 'input.baselineReps' });
-  }
-  if (!isPositiveFinite(input.finalGoalE1rmKg)) {
-    errors.push({ code: 'INVALID_FINAL_GOAL', path: 'input.finalGoalE1rmKg' });
+  if (unknownStrength) {
+    if (['baselineWeightKg', 'baselineReps', 'finalGoalE1rmKg'].some((field) => Object.hasOwn(input, field))) {
+      errors.push({ code: 'UNKNOWN_STRENGTH_FIELDS_NOT_ALLOWED', path: 'input.strengthKnowledge' });
+    }
+  } else {
+    if (weightMissing !== repsMissing) {
+      errors.push({ code: 'BASELINE_SET_INCOMPLETE', path: 'input.baselineWeightKg' });
+    }
+    if (!weightMissing && !isPositiveFinite(input.baselineWeightKg)) {
+      errors.push({ code: 'INVALID_BASELINE_WEIGHT', path: 'input.baselineWeightKg' });
+    }
+    if (!repsMissing && (!isNonnegativeInteger(input.baselineReps) ||
+        input.baselineReps < E1RM_RULE.minEligibleReps || input.baselineReps > E1RM_RULE.maxEligibleReps)) {
+      errors.push({ code: 'INVALID_BASELINE_REPS', path: 'input.baselineReps' });
+    }
+    if (!isPositiveFinite(input.finalGoalE1rmKg)) {
+      errors.push({ code: 'INVALID_FINAL_GOAL', path: 'input.finalGoalE1rmKg' });
+    }
   }
   if (!isValidLocalDate(input.startDate)) {
     errors.push({ code: 'INVALID_START_DATE', path: 'input.startDate' });
   }
   if (errors.length > 0) return { valid: false, errors };
+
+  if (unknownStrength) {
+    const estimate = estimateMainStrengthProfile({
+      bodyWeightKg: input.bodyWeightKg as number,
+      trainingExperienceMonths: input.trainingExperienceMonths as number,
+      mainExerciseId: mainExercise!.id,
+    });
+    if (estimate === null) {
+      return { valid: false, errors: [{ code: 'ESTIMATE_UNAVAILABLE', path: 'input.bodyWeightKg' }] };
+    }
+    return {
+      valid: true,
+      value: {
+        bodyWeightKg: input.bodyWeightKg as number,
+        trainingExperienceMonths: input.trainingExperienceMonths as number,
+        trainingFrequencyPerWeek: input.trainingFrequencyPerWeek as number,
+        mainExerciseId: mainExercise!.id,
+        baselineWeightKg: estimate.workingWeightKg,
+        baselineReps: estimate.workingReps,
+        finalGoalE1rmKg: estimate.finalGoalE1rmKg,
+        startDate: input.startDate as LocalDate,
+        strengthKnowledge: 'unknown',
+      },
+      baseline: {
+        source: 'estimated_profile',
+        exerciseId: mainExercise!.id,
+        weightKg: estimate.workingWeightKg,
+        reps: estimate.workingReps,
+        baselineE1rmKg: estimate.baselineE1rmKg,
+        ruleVersion: E1RM_RULE.version,
+        estimateRuleVersion: estimate.ruleVersion,
+      },
+    };
+  }
 
   let baseline: OnboardingSelfReportedBaseline | null = null;
   if (!weightMissing) {
@@ -187,7 +250,7 @@ export function validateOnboardingRoadmapInput(input: unknown): OnboardingRoadma
 export interface OnboardingRoadmapReadyForEstimate {
   readonly status: 'ready_for_duration_estimate';
   readonly input: OnboardingRoadmapInput;
-  readonly baseline: OnboardingSelfReportedBaseline;
+  readonly baseline: OnboardingBaseline;
   readonly stage: Extract<StagePlanningResult, { readonly status: 'stage_planned' }>;
   readonly durationInput: AchievementDurationEstimatorInput;
 }
@@ -233,7 +296,7 @@ export type OnboardingRoadmapCompletionResult =
   | {
     readonly status: 'roadmap_created';
     readonly input: OnboardingRoadmapInput;
-    readonly baseline: OnboardingSelfReportedBaseline;
+    readonly baseline: OnboardingBaseline;
     readonly stage: OnboardingRoadmapReadyForEstimate['stage'];
     readonly estimatedAchievementDays: number;
     readonly selectedRoadmapDurationDays: StageRoadmap['durationDays'];
@@ -251,7 +314,31 @@ export function completeOnboardingRoadmap(
 
   const selection = selectRoadmapDuration(estimate.value.estimatedAchievementDays);
   if (selection.status === 'stage_replanning_required') {
-    return { status: 'stage_replanning_required', estimatedAchievementDays: selection.estimatedAchievementDays };
+    if (prepared.baseline.source !== 'estimated_profile') {
+      return { status: 'stage_replanning_required', estimatedAchievementDays: selection.estimatedAchievementDays };
+    }
+
+    // D-041 resilience: an unknown-strength newcomer has no better manual value
+    // to edit. Keep D-025 unchanged for known strength, avoid provider retries,
+    // and use the largest established Roadmap duration for this provisional case.
+    const selectedRoadmapDurationDays = ROADMAP_DURATION_CANDIDATES[ROADMAP_DURATION_CANDIDATES.length - 1];
+    const roadmap = generateStageRoadmap({
+      startDate: prepared.input.startDate,
+      durationDays: selectedRoadmapDurationDays,
+      trainingFrequencyPerWeek: prepared.input.trainingFrequencyPerWeek,
+      mainExerciseId: prepared.input.mainExerciseId,
+      stageTargetE1rmKg: prepared.stage.stageTargetE1rmKg,
+    });
+    return {
+      status: 'roadmap_created',
+      input: prepared.input,
+      baseline: prepared.baseline,
+      stage: prepared.stage,
+      estimatedAchievementDays: selection.estimatedAchievementDays,
+      selectedRoadmapDurationDays,
+      roadmap,
+      progress: createInitialStageProgress(roadmap),
+    };
   }
   const roadmap = generateStageRoadmap({
     startDate: prepared.input.startDate,

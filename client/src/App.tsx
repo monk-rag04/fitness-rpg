@@ -47,12 +47,16 @@ export default function App() {
                 currentE1rmKg: result.baseline.baselineE1rmKg,
                 trainingExperienceMonths: result.input.trainingExperienceMonths,
                 trainingFrequencyPerWeek: result.input.trainingFrequencyPerWeek,
+                bodyWeightKg: result.input.bodyWeightKg,
               },
               mainStrengthGoalE1rmKg: result.input.finalGoalE1rmKg,
               onboardingBaseline: {
                 exerciseId: result.baseline.exerciseId,
                 weightKg: result.baseline.weightKg,
                 reps: result.baseline.reps,
+                ...(result.baseline.source === 'estimated_profile'
+                  ? { source: 'estimated_profile' as const }
+                  : {}),
               },
             }));
           }}

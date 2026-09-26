@@ -103,12 +103,12 @@ test('pending Production Training Quest renders Equipment Check at 0 SELECTED', 
   ));
 
   assert.match(markup, /EQUIPMENT CHECK/);
-  assert.match(markup, /0件 選択中/);
+  assert.match(markup, /0 \/ 2 選択済み/);
   assert.match(markup, /disabled=""/);
   assert.doesNotMatch(markup, /Training Planを準備中/);
 });
 
-test('a saved Equipment Profile pre-fills Equipment Check, including explicit no-equipment', () => {
+test('a saved Equipment Profile pre-fills Equipment Check while legacy empty profile stays blocked', () => {
   const session = createSession();
   const selected = setStageEquipmentProfile(session, ['flat_bench', 'barbell']);
   const selectedMarkup = renderToStaticMarkup(createElement(
@@ -116,7 +116,7 @@ test('a saved Equipment Profile pre-fills Equipment Check, including explicit no
     { session: selected.target },
     createElement(CurrentQuest),
   ));
-  assert.match(selectedMarkup, /2件 選択中/);
+  assert.match(selectedMarkup, /2 \/ 2 選択済み/);
   assert.equal((selectedMarkup.match(/aria-pressed="true"/g) ?? []).length, 2);
 
   const noEquipment = setStageEquipmentProfile(session, []);
@@ -125,9 +125,9 @@ test('a saved Equipment Profile pre-fills Equipment Check, including explicit no
     { session: noEquipment.target },
     createElement(CurrentQuest),
   ));
-  assert.match(noEquipmentMarkup, /1件 選択中/);
-  assert.match(noEquipmentMarkup, /器具なし/);
-  assert.equal((noEquipmentMarkup.match(/aria-pressed="true"/g) ?? []).length, 1);
+  assert.match(noEquipmentMarkup, /0 \/ 2 選択済み/);
+  assert.match(noEquipmentMarkup, /disabled=""/);
+  assert.equal((noEquipmentMarkup.match(/aria-pressed="true"/g) ?? []).length, 0);
   assert.deepEqual(equipmentDraftFromEquipmentIds(undefined), { kind: 'unselected' });
   assert.deepEqual(equipmentDraftFromEquipmentIds([]), { kind: 'no_equipment' });
 });

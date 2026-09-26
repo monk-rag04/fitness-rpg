@@ -33,20 +33,42 @@ function existingResult(difficultyFeedback) {
   };
 }
 
-function renderForm(result, exerciseProgressById) {
-  const session = exerciseProgressById === undefined
+function renderForm(result, exerciseProgressById, options = {}) {
+  const session = exerciseProgressById === undefined && options.stageTrainingProgramContext === undefined
     ? undefined
-    : { ...DEMO_ADVENTURE_SESSION, exerciseProgressById };
+    : {
+      ...DEMO_ADVENTURE_SESSION,
+      ...(exerciseProgressById === undefined ? {} : { exerciseProgressById }),
+      ...(options.mainStrengthGoalE1rmKg === undefined ? {} : { mainStrengthGoalE1rmKg: options.mainStrengthGoalE1rmKg }),
+      ...(options.stageTrainingProgramContext === undefined
+        ? {}
+        : { stageTrainingProgramContext: options.stageTrainingProgramContext }),
+    };
   return renderToStaticMarkup(createElement(
     AdventureQuestProvider,
     session === undefined ? null : { session },
     createElement(WorkoutResultForm, {
-      plan,
+      plan: options.plan ?? plan,
       exerciseName: 'テスト種目',
       existingResult: result,
+      ...(options.showInitialSuggestion === undefined ? {} : { showInitialSuggestion: options.showInitialSuggestion }),
     }),
   ));
 }
+
+const mainPlan = {
+  ...plan,
+  exerciseId: 'barbell_bench_press',
+  role: 'main',
+  repRange: { min: 5, max: 8 },
+};
+const mainContext = {
+  mainExerciseId: 'barbell_bench_press',
+  currentE1rmKg: 500,
+  trainingExperienceMonths: 0,
+  trainingFrequencyPerWeek: 3,
+  bodyWeightKg: 60,
+};
 
 test('feedback choices, optional hint, and unselected submit are rendered', () => {
   const markup = renderForm(undefined);
@@ -141,6 +163,178 @@ test('bodyweight renders reps-only input, suggestion, and helper copy', () => {
   assert.match(markup, /push_up-set-1-reps/);
   assert.doesNotMatch(markup, /push_up-set-1-weight/);
   assert.match(markup, /今回の負荷は？/);
+});
+
+test('first-time weighted exercise displays a versioned display-only suggestion without input autofill', () => {
+  const curlPlan = {
+    exerciseId: 'dumbbell_curl',
+    role: 'accessory',
+    sets: 3,
+    repRange: { min: 8, max: 12 },
+  };
+  const markup = renderToStaticMarkup(createElement(
+    AdventureQuestProvider,
+    {
+      session: {
+        ...DEMO_ADVENTURE_SESSION,
+        planByDay: { 0: { exercises: [curlPlan] } },
+        stageTrainingProgramContext: {
+          mainExerciseId: 'barbell_bench_press', currentE1rmKg: 35,
+          trainingExperienceMonths: 0, trainingFrequencyPerWeek: 3, bodyWeightKg: 60,
+        },
+      },
+    },
+    createElement(WorkoutResultForm, {
+      plan: curlPlan,
+      exerciseName: 'ダンベルカール',
+      showInitialSuggestion: true,
+    }),
+  ));
+  assert.match(markup, /初回おすすめ/);
+  assert.match(markup, /2\.5kg × 8回/);
+  assert.match(markup, /ダンベルは片手1個あたりの目安です。/);
+  assert.match(markup, /value=""/);
+  assert.doesNotMatch(markup, /value="2\.5"/);
+  assert.doesNotMatch(markup, /Baseline/);
+});
+
+test('machine and bodyweight first-time hints stay equipment-aware and reps-only', () => {
+  const cablePlan = { ...plan, exerciseId: 'cable_chest_fly', role: 'accessory' };
+  const context = {
+    mainExerciseId: 'barbell_bench_press', currentE1rmKg: 35,
+    trainingExperienceMonths: 0, trainingFrequencyPerWeek: 3, bodyWeightKg: 60,
+  };
+  const machineMarkup = renderToStaticMarkup(createElement(
+    AdventureQuestProvider,
+    { session: { ...DEMO_ADVENTURE_SESSION, stageTrainingProgramContext: context } },
+    createElement(WorkoutResultForm, { plan: cablePlan, exerciseName: 'ケーブルチェストフライ', showInitialSuggestion: true }),
+  ));
+  assert.match(machineMarkup, /初回おすすめ/);
+  assert.match(machineMarkup, /マシンの重量表記は機種によって異なります。/);
+
+  const bodyweightPlan = { ...plan, exerciseId: 'push_up' };
+  const bodyweightMarkup = renderToStaticMarkup(createElement(
+    AdventureQuestProvider,
+    { session: { ...DEMO_ADVENTURE_SESSION, stageTrainingProgramContext: context } },
+    createElement(WorkoutResultForm, { plan: bodyweightPlan, exerciseName: 'プッシュアップ', showInitialSuggestion: true }),
+  ));
+  assert.match(bodyweightMarkup, /初回おすすめ/);
+  assert.match(bodyweightMarkup, />8回</);
+  assert.doesNotMatch(bodyweightMarkup, /push_up-set-1-weight/);
+  assert.doesNotMatch(bodyweightMarkup, /0kg/);
+});
+
+test('real Baseline or 4G suggestion takes precedence over first-time recommendation', () => {
+  const baselineProgress = {
+    [plan.exerciseId]: {
+      exerciseId: plan.exerciseId,
+      baseline: { weightKg: 55, reps: 8, source: 'self_report', capturedDayIndex: 0 },
+      sessionsCompleted: 0,
+    },
+  };
+  const baselineMarkup = renderForm(undefined, baselineProgress, {
+    showInitialSuggestion: true,
+    stageTrainingProgramContext: {
+      mainExerciseId: 'barbell_bench_press', currentE1rmKg: 35,
+      trainingExperienceMonths: 0, trainingFrequencyPerWeek: 3, bodyWeightKg: 60,
+    },
+  });
+  assert.match(baselineMarkup, /55kg × 8回/);
+  assert.doesNotMatch(baselineMarkup, /初回おすすめ/);
+
+  const progressed = {
+    [plan.exerciseId]: {
+      exerciseId: plan.exerciseId,
+      sessionsCompleted: 1,
+      nextSuggestion: {
+        weightKg: 62.5, targetReps: 9, repRange: plan.repRange,
+        status: 'active', ruleVersion: EXERCISE_PROGRESSION_RULE_VERSION,
+      },
+    },
+  };
+  const progressedMarkup = renderForm(undefined, progressed, {
+    showInitialSuggestion: true,
+    stageTrainingProgramContext: {
+      mainExerciseId: 'barbell_bench_press', currentE1rmKg: 35,
+      trainingExperienceMonths: 0, trainingFrequencyPerWeek: 3, bodyWeightKg: 60,
+    },
+  });
+  assert.match(progressedMarkup, /62\.5kg × 9回/);
+  assert.doesNotMatch(progressedMarkup, /初回おすすめ/);
+});
+
+test('known Main Strength outside planned reps receives a D-023 hint without autofill or mutation', () => {
+  const baseline = { weightKg: 40, reps: 3, source: 'onboarding', capturedDayIndex: 0 };
+  const progress = {
+    [mainPlan.exerciseId]: {
+      exerciseId: mainPlan.exerciseId,
+      baseline,
+      sessionsCompleted: 0,
+    },
+  };
+  const before = structuredClone(progress);
+  const markup = renderForm(undefined, progress, {
+    plan: mainPlan,
+    stageTrainingProgramContext: mainContext,
+    mainStrengthGoalE1rmKg: 999,
+  });
+  assert.ok(markup.includes('exercise-suggestion__tag--initial'));
+  assert.match(markup, /37\.5kg.{0,4}5/);
+  assert.ok(markup.includes('value=""'));
+  assert.equal(markup.includes('value="37.5"'), false);
+  assert.equal(markup.includes('value="5"'), false);
+  assert.deepEqual(progress, before);
+});
+
+test('known Main Strength baseline in the planned rep range receives a numeric initial hint', () => {
+  const progress = {
+    [mainPlan.exerciseId]: {
+      exerciseId: mainPlan.exerciseId,
+      baseline: { weightKg: 40, reps: 6, source: 'onboarding', capturedDayIndex: 0 },
+      sessionsCompleted: 0,
+    },
+  };
+  const markup = renderForm(undefined, progress, {
+    plan: mainPlan,
+    stageTrainingProgramContext: mainContext,
+  });
+  assert.match(markup, /41kg.{0,4}5/);
+  assert.equal(markup.includes('value="41"'), false);
+});
+
+test('estimated_profile Main Strength gets a numeric hint and real 4G suggestion wins after Clear', () => {
+  const estimated = {
+    [mainPlan.exerciseId]: {
+      exerciseId: mainPlan.exerciseId,
+      baseline: { weightKg: 30, reps: 5, source: 'estimated_profile', capturedDayIndex: 0 },
+      sessionsCompleted: 0,
+    },
+  };
+  const estimatedMarkup = renderForm(undefined, estimated, {
+    plan: { ...mainPlan, repRange: { min: 8, max: 12 } },
+    stageTrainingProgramContext: mainContext,
+    mainStrengthGoalE1rmKg: 1000,
+  });
+  assert.match(estimatedMarkup, /27\.5kg.{0,4}8/);
+  assert.equal(estimatedMarkup.includes('value="27.5"'), false);
+
+  const afterClear = {
+    [mainPlan.exerciseId]: {
+      exerciseId: mainPlan.exerciseId,
+      baseline: { weightKg: 37.5, reps: 5, source: 'workout_result', capturedDayIndex: 0 },
+      sessionsCompleted: 1,
+      nextSuggestion: {
+        weightKg: 40, targetReps: 6, repRange: mainPlan.repRange,
+        status: 'active', ruleVersion: EXERCISE_PROGRESSION_RULE_VERSION,
+      },
+    },
+  };
+  const progressedMarkup = renderForm(undefined, afterClear, {
+    plan: mainPlan,
+    stageTrainingProgramContext: mainContext,
+  });
+  assert.match(progressedMarkup, /40kg.{0,4}6/);
+  assert.equal(progressedMarkup.includes('exercise-suggestion__tag--initial'), false);
 });
 
 test('weight convention helper is conservative and leaves ambiguous exercises unlabelled', () => {

@@ -49,14 +49,17 @@ export const EXERCISE_IDS = [
   'cable_chest_fly',
   'dumbbell_chest_fly',
   'push_up',
+  'close_grip_push_up',
   'barbell_bent_over_row',
   'one_arm_dumbbell_row',
   'seated_row_machine',
   'lat_pulldown',
   'pull_up',
+  'reverse_snow_angel',
   'barbell_deadlift',
   'barbell_overhead_press',
   'dumbbell_shoulder_press',
+  'pike_push_up',
   'shoulder_press_machine',
   'dumbbell_lateral_raise',
   'cable_lateral_raise',
@@ -68,12 +71,15 @@ export const EXERCISE_IDS = [
   'close_grip_bench_press',
   'barbell_back_squat',
   'goblet_squat',
+  'bodyweight_squat',
+  'reverse_lunge',
   'smith_machine_squat',
   'leg_press',
   'leg_extension',
   'romanian_deadlift',
   'seated_leg_curl',
   'standing_calf_raise',
+  'bodyweight_calf_raise',
   'barbell_hip_thrust',
   'glute_bridge',
 ] as const;
@@ -83,7 +89,25 @@ export type ExerciseId = (typeof EXERCISE_IDS)[number];
 /** MVP bodyweight exercises use reps only; weighted variants are out of scope. */
 export const BODYWEIGHT_EXERCISE_IDS = [
   'push_up',
+  'close_grip_push_up',
   'pull_up',
+  'reverse_snow_angel',
+  'pike_push_up',
+  'bodyweight_squat',
+  'reverse_lunge',
+  'bodyweight_calf_raise',
+  'glute_bridge',
+] as const satisfies readonly ExerciseId[];
+
+/** Reps-only movements that need no selected Equipment; pull-up is intentionally excluded. */
+export const NO_EQUIPMENT_EXERCISE_IDS = [
+  'push_up',
+  'close_grip_push_up',
+  'reverse_snow_angel',
+  'pike_push_up',
+  'bodyweight_squat',
+  'reverse_lunge',
+  'bodyweight_calf_raise',
   'glute_bridge',
 ] as const satisfies readonly ExerciseId[];
 

@@ -90,12 +90,13 @@ export function calculateTrainingQuestReward(
   trainingPlan: ValidatedTrainingPlan,
   workoutResults: readonly unknown[],
   equipmentProfile?: GymEquipmentProfile,
+  exerciseSkips: readonly unknown[] = [],
 ): TrainingQuestRewardCalculation {
   if (!Number.isSafeInteger(dayIndex) || dayIndex < 0) {
     return { valid: false, code: 'INVALID_DAY_INDEX' };
   }
   if (!Array.isArray(workoutResults)) return { valid: false, code: 'QUEST_NOT_READY' };
-  const evaluation = evaluateTrainingQuestCompletion(trainingPlan, workoutResults, equipmentProfile);
+  const evaluation = evaluateTrainingQuestCompletion(trainingPlan, workoutResults, equipmentProfile, exerciseSkips);
   if (!evaluation.readyToClear) return { valid: false, code: 'QUEST_NOT_READY' };
 
   const gained: Partial<Record<TrainingExpCategory, number>> = {};
@@ -170,6 +171,7 @@ export function completeTrainingQuestWithReward(
   workoutResults: readonly unknown[],
   equipmentProfile: GymEquipmentProfile | undefined,
   characterGrowth: unknown,
+  exerciseSkips: readonly unknown[] = [],
 ): QuestRewardCompletionResult {
   const completion = completeTrainingQuest(
     roadmap,
@@ -178,6 +180,7 @@ export function completeTrainingQuestWithReward(
     trainingPlan,
     workoutResults,
     equipmentProfile,
+    exerciseSkips,
   );
   if (completion.status !== 'completed') return completion;
   if (trainingPlan === undefined) return { status: 'invalid_reward_state', progress };
@@ -187,6 +190,7 @@ export function completeTrainingQuestWithReward(
     trainingPlan,
     workoutResults,
     equipmentProfile,
+    exerciseSkips,
   );
   if (!calculation.valid) return { status: 'invalid_reward_state', progress };
   const applied = applyQuestReward(characterGrowth, calculation.rewardSummary);

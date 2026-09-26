@@ -18,10 +18,11 @@ import {
 } from './stageProgramGeneration';
 import { exerciseLabel } from '../../presentation/trainingLabels';
 
-/** Connects the Figma-faithful Equipment states to the existing Client boundaries. */
+/** Connects the existing Production Equipment states to the Stage Program boundary. */
 export function EquipmentProgramFlow() {
   const {
     roadmap,
+    stageNumber,
     equipmentProfile,
     stageTrainingProgramContext,
     setStageEquipmentProfile,
@@ -29,6 +30,7 @@ export function EquipmentProgramFlow() {
     returnToMap,
   } = useAdventureQuest();
   const [flowState, setFlowState] = useState<EquipmentProgramFlowState>('equipment');
+  const [reuseEquipmentProfile, setReuseEquipmentProfile] = useState(equipmentProfile !== undefined && stageNumber > 1);
   const lastSubmittedEquipmentIds = useRef<readonly EquipmentId[] | null>(null);
   const latestDependencies = useRef({
     roadmap,
@@ -98,10 +100,33 @@ export function EquipmentProgramFlow() {
         mainExerciseName={stageTrainingProgramContext === undefined
           ? 'MAIN STRENGTH'
           : exerciseLabel(stageTrainingProgramContext.mainExerciseId)}
-        onReselectEquipment={() => setFlowState('equipment')}
+        onReselectEquipment={() => { setReuseEquipmentProfile(false); setFlowState('equipment'); }}
         onChangeMainStrength={() => {}}
         canChangeMainStrength={false}
       />
+    );
+  }
+
+  if (reuseEquipmentProfile && equipmentProfile !== undefined) {
+    return (
+      <section className="screen equipment-flow-screen equipment-program-start" aria-labelledby="stage-program-start-title">
+        <div className="equipment-flow-center">
+          <div className="equipment-flow-emblem equipment-flow-emblem--gold" aria-hidden="true">✦</div>
+          <p className="equipment-flow-eyebrow">STAGE PROGRAM</p>
+          <h1 id="stage-program-start-title">Stageのメニューを準備</h1>
+          <p className="equipment-flow-description">前StageのEquipment設定を引き継いで、このStageのトレーニングメニューを作成します。</p>
+          <div className="equipment-flow-actions">
+            <button
+              className="quest-gold-button"
+              type="button"
+              onClick={() => submitEquipment(equipmentProfile.availableEquipmentIds)}
+            >
+              このStageのトレーニングメニューを作成
+            </button>
+            <button className="equipment-flow-back" type="button" onClick={returnToAdventureMap}>MAPへ戻る</button>
+          </div>
+        </div>
+      </section>
     );
   }
 

@@ -448,6 +448,12 @@ Workout ResultやCalendar dateをQuest identityとして使わない。Progress�
 
 ### Reward / Inventory
 
+### D-040 in-memory Boss / Stage transition
+
+Production v1 keeps Boss separate from `StageProgress` and Daily Quest results. The session `BossBattleState` contains `ruleVersion`, `originalStageTargetE1rmKg`, frozen `targetE1rmKg`, `adapted`, `defeated`, and optional `winningAttempt { exerciseId, weightKg, reps, estimatedE1rmKg }`. Only an actual Main set from a cleared Training Quest contributes to target adaptation; Boss attempts are not Workout Results.
+
+The active Adventure state also carries `stageNumber` and optional `CompletedStageSummary` entries. Each summary preserves the Stage number, original/Boss targets, winning attempt, adaptation flag, completed Roadmap/progress and actual results by day. Starting the next Stage resets current progress, Boss state, plan cache, result and skip maps; equipment, profile/context, Character Growth and `ExerciseProgressState` remain. All are in-memory Session state; there is no database schema or persistence contract.
+
 **Product上の有力方針**: Quest / Boss / Stage等の達成へ無料のゲーム内Rewardを付与できる。Reward種別と付与ルールは未決定。
 
 **Field候補**:

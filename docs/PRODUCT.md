@@ -280,6 +280,16 @@ D-027 Recovery is also explicit: the user clears the current Recovery node witho
 
 ## Boss / Stage Clear
 
+### D-040 Production v1
+
+- Boss availability is the existing `currentDayIndex === roadmap.days.length` boundary. It is separate from Daily Quest completion and has no Training Plan.
+- At the final Daily Quest Clear, freeze a versioned Boss target from `roadmap.stageTargetE1rmKg`. Only actual Main Exercise sets in cleared Training Quest results qualify; use D-023 e1RM and `min(finalGoal, max(stageTarget, bestActualMainE1rm * 1.03))`. With no eligible actual set, use the Stage target unchanged. Baselines, suggestions, skipped or uncleared results are excluded.
+- Boss Challenge is one fixed Main Exercise, positive `weightKg`, integer `reps` from 1 through 10, and the existing D-023 e1RM calculation. `e1RM >= frozen target` wins, including exact equality. A defeat leaves Boss undefeated and retryable. A victory is idempotent and does not advance Daily Quest progress, grant EXP/rewards, or create a Workout Result / Baseline / progression update.
+- Stage Clear is the Boss victory state. It adds no fictional reward or combat statistics. When the winning attempt meets the Final Goal, no further Stage is generated. Otherwise the explicit Next Stage action uses `max(best cleared actual Main e1RM, winning Boss attempt e1RM)` as D-025 planning strength; D-025 still selects the next target and the confirmed Final Goal remains the cap.
+- Starting a subsequent Stage increments its number, creates a new Roadmap, resets only current Stage progress/Boss/plan/result/skip state, and retains profile/context, equipment, Character Growth, Exercise progression and an archive of completed Stage actual results. Stage 2 reuses the retained Equipment Profile; its first Training node exposes an explicit Stage Program generation action and does not reopen Equipment Check.
+- The existing achievement-duration and Stage Training Program endpoints are called only after their explicit user actions. No Boss-specific provider call, reward rule, persistence, or dependency is added.
+- This D-040 v1 behavior resolves the earlier open Boss retry/validation/defeat details for this flow: reaching the final Daily Quest is the only Map gate, and the e1RM challenge above is the full v1 game condition.
+
 **決定済み**:
 
 Boss挑戦には基本的に次の三条件を用いる。

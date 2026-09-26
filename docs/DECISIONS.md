@@ -580,3 +580,13 @@ Production実装時は、Prototypeの挙動を再現するためではなく、A
 - **Consequence**: PROGRESS v1 is existing records plus suggestions for viewing, not Stage Growth Analysis. No growth rates, comparisons, charts, PR / streak / achievement, AI Review, filters, new state, persistence, or API calls are added.
 - **Affected docs / code**: `docs/PRODUCT.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, Client Progress presentation / screen, and Client presentation tests.
 - **Date**: 2026-09-25
+
+### D-040: Boss Battle, Stage Clear, and Next Stage v1
+
+- **Status**: Accepted (MVP)
+- **Decision**: Daily completion unlocks a separate Boss flow. Freeze `boss-target-v1` once all Roadmap days are clear: use the Stage target if no eligible actual Main result exists; otherwise use `min(Final Goal, max(Stage target, best cleared actual Main e1RM × 1.03))`. Compute only with D-023 and do not use suggestions, baselines, skipped or uncleared results.
+- **Decision**: Boss input is the fixed Roadmap Main Exercise with positive weight and integer 1–10 reps. D-023 `e1RM >= frozen target` wins; a lower result is a retryable defeat. Victory cannot be applied twice and never creates Training Progress, Workout Result, EXP, Quest reward, baseline, or progression changes.
+- **Decision**: Stage Clear is the Boss victory state; no fictional reward is added. A winning attempt that reaches Final Goal ends Stage generation. Otherwise Next Stage planning uses the greater of best cleared actual Main e1RM and the winning attempt, then existing D-025 planning / duration rules. A duration planning failure preserves the cleared Stage and allows a user-initiated retry.
+- **Decision**: Next Stage increments Stage number and resets only its roadmap progress, Boss, plan cache, current results and skips. The session retains Equipment Profile, profile/program context, Character Growth, exercise baselines/progression and actual prior Stage results in a compact completed-Stage summary. Stage 2 explicitly generates a new Stage Program with the retained Equipment Profile, without reopening Equipment Check.
+- **Consequence**: Boss Challenge and Stage Clear are focused screens without Bottom Navigation. The existing achievement-duration and Stage Training Program endpoints are invoked only from explicit CTAs. No new provider, reward, persistence, dependency, or combat-stat rule is introduced.
+- **Date**: 2026-09-26

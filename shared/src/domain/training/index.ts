@@ -16,6 +16,8 @@ export * from './exerciseInitialSuggestion.js';
 export * from './exerciseSkip.js';
 export * from './stageRoadmap.js';
 export * from './stageProgress.js';
+export * from './bossBattle.js';
+export * from './nextStageRoadmap.js';
 export * from './characterGrowth.js';
 export * from './exerciseExpCategory.js';
 export * from './questReward.js';

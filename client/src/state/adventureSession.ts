@@ -12,6 +12,16 @@ import {
   incrementExerciseSessionsCompleted,
   registerSelfReportedExerciseBaseline,
   replaceEstimatedMainBaselineAfterClear,
+  getBestClearedMainE1rmKg,
+  isFinalGoalCleared,
+  resolveNextStagePlanningStrength,
+  unlockBossBattle,
+  challengeBoss,
+  planNextStage,
+  createInitialStageProgress,
+  type BossBattleState,
+  type BossChallengeResult,
+  type BossWinningAttempt,
   type CharacterGrowth,
   type ExerciseProgressById,
   type ExerciseLoadStepStatus,
@@ -52,6 +62,9 @@ export interface AdventureQuestSession {
   readonly exerciseProgressById?: ExerciseProgressById;
   /** The onboarding-confirmed final goal, distinct from this Roadmap's Stage target. */
   readonly mainStrengthGoalE1rmKg?: number;
+  readonly stageNumber?: number;
+  readonly bossBattle?: BossBattleState;
+  readonly completedStages?: readonly CompletedStageSummary[];
 }
 
 export interface OnboardingMainExerciseBaseline {
@@ -63,6 +76,7 @@ export interface OnboardingMainExerciseBaseline {
 
 /** In-memory domain state owned by the current Adventure Quest session. */
 export interface AdventureQuestDomainState {
+  readonly stageNumber: number;
   readonly roadmap: StageRoadmap;
   readonly progress: StageProgress;
   readonly planByDay: TrainingPlanByDay;
@@ -73,6 +87,20 @@ export interface AdventureQuestDomainState {
   readonly exerciseSkipsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseSkipRecord>>>>;
   readonly characterGrowth: CharacterGrowth;
   readonly mainStrengthGoalE1rmKg?: number;
+  readonly bossBattle?: BossBattleState;
+  readonly completedStages: readonly CompletedStageSummary[];
+}
+
+/** Compact Stage archive keeps actual history visible after the active Stage resets. */
+export interface CompletedStageSummary {
+  readonly stageNumber: number;
+  readonly originalStageTargetE1rmKg: number;
+  readonly bossTargetE1rmKg: number;
+  readonly winningAttempt: BossWinningAttempt;
+  readonly adapted: boolean;
+  readonly roadmap: StageRoadmap;
+  readonly progress: StageProgress;
+  readonly workoutResultsByDay: Readonly<Record<number, Readonly<Record<string, ExerciseWorkoutResult>>>>;
 }
 
 export type AdventureQuestTransitionStatus =
@@ -112,6 +140,7 @@ export function createAdventureQuestDomainState(
   session: AdventureQuestSession,
 ): AdventureQuestDomainState {
   return {
+    stageNumber: session.stageNumber ?? 1,
     roadmap: session.roadmap,
     progress: session.initialProgress,
     planByDay: session.planByDay,
@@ -121,6 +150,8 @@ export function createAdventureQuestDomainState(
     workoutResultsByDay: {},
     exerciseSkipsByDay: {},
     characterGrowth: createInitialCharacterGrowth(),
+    ...(session.bossBattle === undefined ? {} : { bossBattle: session.bossBattle }),
+    completedStages: session.completedStages ?? [],
     ...(session.mainStrengthGoalE1rmKg === undefined
       ? {}
       : { mainStrengthGoalE1rmKg: session.mainStrengthGoalE1rmKg }),
@@ -289,15 +320,108 @@ export function completeAdventureQuest(
       }
     }
   }
+  let nextDomain: AdventureQuestDomainState = {
+    ...domain,
+    progress: completion.progress,
+    characterGrowth: completion.characterGrowth,
+    exerciseProgressById,
+  };
+  if (completion.progress.currentDayIndex === domain.roadmap.days.length && nextDomain.bossBattle === undefined) {
+    const finalGoalE1rmKg = nextDomain.mainStrengthGoalE1rmKg ?? nextDomain.roadmap.stageTargetE1rmKg;
+    const unlock = unlockBossBattle({
+      roadmap: nextDomain.roadmap,
+      progress: completion.progress,
+      finalGoalE1rmKg,
+      bestActualMainE1rmKg: getBestClearedMainE1rmKg(
+        nextDomain.roadmap,
+        completion.progress,
+        nextDomain.workoutResultsByDay,
+      ),
+    });
+    if (unlock.status === 'unlocked') nextDomain = { ...nextDomain, bossBattle: unlock.bossBattle };
+  }
   return {
     status: 'completed',
+    domain: nextDomain,
+    rewardSummary: completion.rewardSummary,
+  };
+}
+
+export type NextStageTransitionStatus =
+  | 'started'
+  | 'boss_not_defeated'
+  | 'final_goal_cleared'
+  | 'invalid_roadmap';
+
+export function challengeAdventureBoss(
+  domain: AdventureQuestDomainState,
+  input: { readonly weightKg: unknown; readonly reps: unknown },
+): { readonly result: BossChallengeResult; readonly domain: AdventureQuestDomainState } {
+  const result = challengeBoss({
+    bossBattle: domain.bossBattle,
+    currentDayIndex: domain.progress.currentDayIndex,
+    dailyQuestCount: domain.roadmap.days.length,
+    mainExerciseId: domain.roadmap.mainExerciseId,
+    exerciseId: domain.roadmap.mainExerciseId,
+    weightKg: input.weightKg,
+    reps: input.reps,
+  });
+  return result.status === 'victory'
+    ? { result, domain: { ...domain, bossBattle: result.bossBattle } }
+    : { result, domain };
+}
+
+/** Reset only Stage-scoped state while retaining profile, growth, progression and equipment. */
+export function advanceAdventureToNextStage(
+  domain: AdventureQuestDomainState,
+  roadmap: StageRoadmap,
+): { readonly status: NextStageTransitionStatus; readonly domain: AdventureQuestDomainState } {
+  const battle = domain.bossBattle;
+  const attempt = battle?.winningAttempt;
+  if (battle?.defeated !== true || attempt === undefined) return { status: 'boss_not_defeated', domain };
+  const finalGoal = domain.mainStrengthGoalE1rmKg;
+  if (finalGoal === undefined || isFinalGoalCleared(attempt.estimatedE1rmKg, finalGoal)) {
+    return { status: 'final_goal_cleared', domain };
+  }
+  const currentStrength = resolveNextStagePlanningStrength(
+    getBestClearedMainE1rmKg(domain.roadmap, domain.progress, domain.workoutResultsByDay),
+    attempt.estimatedE1rmKg,
+  );
+  if (currentStrength === null || roadmap.mainExerciseId !== domain.roadmap.mainExerciseId ||
+      roadmap.trainingFrequencyPerWeek !== domain.roadmap.trainingFrequencyPerWeek) {
+    return { status: 'invalid_roadmap', domain };
+  }
+  const planned = planNextStage({ currentE1rmKg: currentStrength, finalGoalE1rmKg: finalGoal });
+  if (planned.status !== 'stage_planned' || roadmap.stageTargetE1rmKg !== planned.stageTargetE1rmKg) {
+    return { status: 'invalid_roadmap', domain };
+  }
+
+  const completed: CompletedStageSummary = {
+    stageNumber: domain.stageNumber,
+    originalStageTargetE1rmKg: battle.originalStageTargetE1rmKg,
+    bossTargetE1rmKg: battle.targetE1rmKg,
+    winningAttempt: attempt,
+    adapted: battle.adapted,
+    roadmap: domain.roadmap,
+    progress: domain.progress,
+    workoutResultsByDay: domain.workoutResultsByDay,
+  };
+  return {
+    status: 'started',
     domain: {
       ...domain,
-      progress: completion.progress,
-      characterGrowth: completion.characterGrowth,
-      exerciseProgressById,
+      stageNumber: domain.stageNumber + 1,
+      roadmap,
+      progress: createInitialStageProgress(roadmap),
+      planByDay: {},
+      bossBattle: undefined,
+      workoutResultsByDay: {},
+      exerciseSkipsByDay: {},
+      completedStages: [...domain.completedStages, completed],
+      ...(domain.stageTrainingProgramContext === undefined
+        ? {}
+        : { stageTrainingProgramContext: { ...domain.stageTrainingProgramContext, currentE1rmKg: currentStrength } }),
     },
-    rewardSummary: completion.rewardSummary,
   };
 }
 

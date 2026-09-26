@@ -106,7 +106,7 @@ Step 3:
 
 - 3 Stepの画面構造・Visual意図は維持するが、Training歴はカテゴリではなく経験月数を直接入力し、週頻度は1..7とする。体重は正の有限値を受け付け、45..120kgをProduct validationにしない。
 - Main LiftはBoss対象のBarbell Bench / Back Squat / Deadlift / Overhead Pressだけを選択可能とし、Pull-upはComing later / disabled。最近実施できたSetの重量と1..10 repsからD-023式で自己申告Baselineを算出し、Workout Historyとは区別する。重量不明なら`baseline_required`として開始を止め、体重倍率で埋めない。
-- Final Goalはユーザーが直接入力し、Baselineより大きい値を要求する。MVPでGoal推薦値、Food restrictions / Allergy入力、全Stageの仮日数は表示しない。AI Duration推定中・失敗・42日超の状態を偽の成功に置き換えない。
+- Final Goalはユーザーが直接入力し、Baselineより大きい値を要求する。MVPでGoal推薦値、Food restrictions / Allergy入力、全Stageの仮日数は表示しない。D-043 Stage 1のDurationは既存Roadmap成功表示に14 / 21 / 28日のいずれかとして現れ、first estimateが28日超なら必要に応じてTargetを縮小して同じ操作内で一度再Estimateする。これは28日以内の到達保証ではない。Stage 2以降の42日超やEstimator errorを偽の成功に置き換えない。
 - Applicationは開始操作時にBrowser local dateを取得する。Baselineの根拠と`onboarding_self_reported`を明示し、未経験者へ体重倍率をAI結果として表示しない。入力・Roadmapの永続化と再Onboarding方針は未決定。
 - Client初期表示はOnboardingとし、成功後に実生成Roadmapと初期ProgressをAdventure Mapへ渡す。Demo Fixtureは開発用に隔離し、実ユーザーRoadmapへDemo Bench Training Planを結合しない。EquipmentはOnboardingでは入力せず、最初のProduction Training Nodeを開いた時点で未設定ならStage共通のEquipment Profileを登録する。Profile確定後、D-031に従ってStage全体のTraining Programを一度だけ編成し、Roadmap上のTraining DayへPlanを割り当てる。Plan未生成・生成失敗時は安全な準備中 / Error表示とし、ClearやDemo fallbackを許可しない。Recovery DayとBossにはTraining Planを表示・生成せず、生成済みDayは保存済みPlanを再利用する。
 

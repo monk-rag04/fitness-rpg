@@ -115,14 +115,17 @@ test('next Stage preparation reuses D-025 target step and does not replace it wi
     mainExerciseId: 'barbell_bench_press',
     trainingExperienceMonths: 8,
     trainingFrequencyPerWeek: 3,
+    currentStageNumber: 1,
     startDate: '2026-10-01',
   });
   assert.equal(prepared.status, 'ready_for_duration_estimate');
   assert.equal(prepared.stageTargetE1rmKg, 77);
+  assert.equal(prepared.nextStageNumber, 2);
   assert.equal(prepared.durationInput.currentE1rmKg, 72);
   assert.equal(prepareNextStageRoadmap({
     currentE1rmKg: 72, finalGoalE1rmKg: 90, mainExerciseId: 'barbell_bench_press',
-    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3, startDate: '2026-10-01', extra: true,
+    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3, currentStageNumber: 1,
+    startDate: '2026-10-01', extra: true,
   }).status, 'invalid_input');
   const created = completeNextStageRoadmap(prepared, { estimatedAchievementDays: 21 });
   assert.equal(created.status, 'roadmap_created');
@@ -135,6 +138,23 @@ test('next Stage preparation reuses D-025 target step and does not replace it wi
     mainExerciseId: 'barbell_bench_press',
     trainingExperienceMonths: 8,
     trainingFrequencyPerWeek: 3,
+    currentStageNumber: 1,
     startDate: '2026-10-01',
   }).status, 'goal_reached');
+});
+
+test('Stage 2 next-roadmap planning retains the 35- and 42-day candidates', () => {
+  const prepared = prepareNextStageRoadmap({
+    currentE1rmKg: 72, finalGoalE1rmKg: 100, mainExerciseId: 'barbell_bench_press',
+    trainingExperienceMonths: 8, trainingFrequencyPerWeek: 3, currentStageNumber: 1,
+    startDate: '2026-10-01',
+  });
+  assert.equal(prepared.status, 'ready_for_duration_estimate');
+  assert.equal(prepared.nextStageNumber, 2);
+  for (const estimatedAchievementDays of [30, 35, 36, 42]) {
+    const result = completeNextStageRoadmap(prepared, { estimatedAchievementDays });
+    assert.equal(result.status, 'roadmap_created');
+    assert.equal(result.roadmap.durationDays,
+      estimatedAchievementDays === 30 || estimatedAchievementDays === 35 ? 35 : 42);
+  }
 });

@@ -20,7 +20,7 @@ OpenAI APIとのIntegration FoundationをBackendに実装済み。D-029ではAch
 - 現行`TrainingPlanDraft`は1回のTraining Sessionを表す。Schedule / Roadmap計画とは分離し、Session PlannerへはCandidate、事実値のTraining経験月数、Session Focusだけを渡す。週頻度、Strength Record、e1RM、Goal、実重量は渡さない（D-022）。
 - D-025ではTraining Planと別のAchievement Duration Estimator Use Caseを採用する。AIは`exerciseId`、current e1RM、決定論的なnext Stage Target、Training経験月数、週頻度を入力として、`estimatedAchievementDays`（1以上の整数）だけをStructured Outputで返す。sharedのInput / Output Validationを必ず通す。
 - AIはStage Target、Roadmap Duration候補、Boss Requirement / date、Training / Recovery Node、曜日、Quest Clear、EXP、Boss Defeatedを決定しない。Duration候補のceiling選択はProduct-owned shared Domainの責務である。
-- D-029ではClientは`POST /api/achievement-duration`だけを呼び、BrowserからOpenAI SDK / API keyを使用しない。Backendは既存Estimator Input ValidationとStructured OutputのDomain再Validationを維持し、`estimatedAchievementDays`だけを返す。42日超はClient/sharedの`selectRoadmapDuration()`が`stage_replanning_required`とし、Demo日数へfallbackしない。
+- D-029ではClientは`POST /api/achievement-duration`だけを呼び、BrowserからOpenAI SDK / API keyを使用しない。Backendは既存Estimator Input ValidationとStructured OutputのDomain再Validationを維持し、`estimatedAchievementDays`だけを返す。D-043 Stage 1では同じEndpointを一回のOnboarding操作で最大2回まで順次呼ぶことがあるが、AI Input / SchemaとEndpoint contractは変えない。Stage 2以降の42日超はClient/sharedの`selectRoadmapDuration()`が`stage_replanning_required`とし、Demo日数へfallbackしない。
 - D-030ではTraining Plan生成をTraining Node初回Open時の独立Use Caseとし、ClientはEquipment IDs、Training経験月数、Main Exercise ID、D-022 `sessionFocus`だけを送信する境界を定めた。D-031は生成タイミングをStage-wide Training Programへ置き換えるが、Candidate ResultをClientから受け取らないこと、ServerがEquipmentを検証して`buildTrainingCandidates()`と`TrainingSessionPlannerInput`を実行すること、Main Exercise unavailableを`MAIN_EXERCISE_UNAVAILABLE`として停止することは維持する。
 - D-031では、Equipment Profile確定後にStage Target、Main Exercise、current e1RM、Training経験月数、週頻度、Stage duration、全Training Day、各Dayの`sessionFocus`を文脈として、Stage全体のProgramを1回の生成操作で編成する。AIはWeight、Roadmap配置、Quest Clear、EXP、Boss Stateを決めない。Outputは既存`ValidatedTrainingPlan`を`dayIndex`へ割り当てるStage Program形状とし、全Training Dayを過不足なく含める。
 - D-030のPlanは`planByDay[dayIndex]`相当のReact Adventure Session stateへ保存する。D-031では全SessionのValidation成功後にAtomicに一括保存し、部分cacheを禁止する。同じStage内のTraining Node再Openでは保存済みPlanを再利用し、Recovery DayとBossでは生成しない。失敗時のDemo / 固定Plan / silent fallback、自動Retryは禁止し、`maxRetries: 0`と明示的なUser Retryを維持する。既存の6 Exercises、1–5 sets、Main 1–10 reps、Accessory 5–20 reps、Session 20 working setsのdeterministic runtime guardrailと、AIがTraining Weightを決めない境界も維持する。
@@ -160,7 +160,7 @@ interface AiProvider {
 1. shared Domainがcurrent e1RMとFinal Goalから次のStage Targetを決定する。baselineがなければAIを呼ばない。
 2. `AchievementDurationEstimatorInput`を構造・Catalog・e1RM境界・経験月数・頻度で検証する。Training Session Planner Inputを流用しない。
 3. BackendがResponses APIのStrict Structured Outputで`estimatedAchievementDays`だけを取得し、shared Domainで再検証する。
-4. shared DomainがAI estimate以上の最小Roadmap Duration候補を選ぶ。42日超はclampせずstage replanning requiredとする。
+4. shared DomainがAI estimate以上の最小Roadmap Duration候補を選ぶ。D-043 Stage 1は14 / 21 / 28日の候補だけを使い、最初のestimateが28日超で縮小可能なら`current + 2.5kg` targetで一度だけEstimatorを再利用する。それでも28日超なら28日Challenge Windowで開始する。Stage 2+は14 / 21 / 28 / 35 / 42日と既存の42日超`stage_replanning_required`を維持する。
 
 Estimator自体はRoadmap Node、Schedule、Boss State、Quest / EXP、Stage Clearを作成・変更しない。D-029 Application FlowがValidated Estimateを受けた後、sharedの既存DomainでDuration選択とRoadmap・初期Progress生成を行う。trainingFrequencyは推定文脈とSchedule入力だが、AIに曜日やTraining / Recovery配置を選択させない。42日超のclampやDemo fallbackは禁止し、再計画AlgorithmとRetry / Timeout Policyは未決定のままとする。
 

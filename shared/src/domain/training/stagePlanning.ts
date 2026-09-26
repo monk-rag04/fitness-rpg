@@ -7,13 +7,37 @@ export const STAGE_PLANNING_RULE = {
   stepKg: 5,
 } as const;
 
-/** Product-owned duration options. Do not duplicate this list in UI or AI prompts. */
+/** Standard Stage 2+ duration options. Do not duplicate these in UI or AI prompts. */
 export const ROADMAP_DURATION_CANDIDATES = [14, 21, 28, 35, 42] as const;
+export type RoadmapDurationCandidate = (typeof ROADMAP_DURATION_CANDIDATES)[number];
+
+/** Stage 1 is a shorter first challenge; all later Stages use the standard candidates above. */
+export const STAGE_ONE_ROADMAP_DURATION_CANDIDATES = [14, 21, 28] as const;
+
+export const STAGE_ONE_QUICK_START_RULE = {
+  version: 'stage-one-quick-start-v1',
+  reducedTargetStepKg: 2.5,
+  maxDurationDays: 28,
+} as const;
 
 /** D-025 MVP rule. Persist this version with a selected roadmap duration. */
 export const ROADMAP_DURATION_SELECTION_RULE = {
   version: 'roadmap-duration-ceiling-v1',
 } as const;
+
+export type RoadmapDurationRuleVersion =
+  | typeof ROADMAP_DURATION_SELECTION_RULE.version
+  | typeof STAGE_ONE_QUICK_START_RULE.version;
+
+/** Session/domain Stage number owns the duration candidate set. */
+export function getRoadmapDurationCandidatesForStage(stageNumber: number): readonly RoadmapDurationCandidate[] {
+  if (!Number.isSafeInteger(stageNumber) || stageNumber < 1) {
+    throw new RangeError('Stage number must be a positive safe integer.');
+  }
+  return stageNumber === 1
+    ? STAGE_ONE_ROADMAP_DURATION_CANDIDATES
+    : ROADMAP_DURATION_CANDIDATES;
+}
 
 export interface StagePlanningInput {
   /** Missing current e1RM means a current strength baseline must be recorded first. */
@@ -220,12 +244,12 @@ export type RoadmapDurationSelectionResult =
     readonly status: 'roadmap_duration_selected';
     readonly estimatedAchievementDays: number;
     readonly selectedRoadmapDurationDays: (typeof ROADMAP_DURATION_CANDIDATES)[number];
-    readonly ruleVersion: typeof ROADMAP_DURATION_SELECTION_RULE.version;
+    readonly ruleVersion: RoadmapDurationRuleVersion;
   }
   | {
     readonly status: 'stage_replanning_required';
     readonly estimatedAchievementDays: number;
-    readonly ruleVersion: typeof ROADMAP_DURATION_SELECTION_RULE.version;
+    readonly ruleVersion: RoadmapDurationRuleVersion;
   };
 
 export class RoadmapDurationSelectionError extends Error {
@@ -238,18 +262,42 @@ export class RoadmapDurationSelectionError extends Error {
 
 /** Select the smallest Product duration candidate that is at least the AI estimate. */
 export function selectRoadmapDuration(estimatedAchievementDays: number): RoadmapDurationSelectionResult {
+  return selectRoadmapDurationFromCandidates(
+    ROADMAP_DURATION_CANDIDATES,
+    ROADMAP_DURATION_SELECTION_RULE.version,
+    estimatedAchievementDays,
+  );
+}
+
+/** Select the existing ceiling candidate set for an explicit domain Stage number. */
+export function selectRoadmapDurationForStage(
+  stageNumber: number,
+  estimatedAchievementDays: number,
+): RoadmapDurationSelectionResult {
+  const candidates = getRoadmapDurationCandidatesForStage(stageNumber);
+  const ruleVersion = stageNumber === 1
+    ? STAGE_ONE_QUICK_START_RULE.version
+    : ROADMAP_DURATION_SELECTION_RULE.version;
+  return selectRoadmapDurationFromCandidates(candidates, ruleVersion, estimatedAchievementDays);
+}
+
+function selectRoadmapDurationFromCandidates(
+  candidates: readonly RoadmapDurationCandidate[],
+  ruleVersion: RoadmapDurationRuleVersion,
+  estimatedAchievementDays: number,
+): RoadmapDurationSelectionResult {
   if (!Number.isSafeInteger(estimatedAchievementDays) || estimatedAchievementDays < 1) {
     throw new RoadmapDurationSelectionError('INVALID_ESTIMATED_ACHIEVEMENT_DAYS');
   }
 
-  const selectedRoadmapDurationDays = ROADMAP_DURATION_CANDIDATES.find(
+  const selectedRoadmapDurationDays = candidates.find(
     (candidate) => candidate >= estimatedAchievementDays,
   );
   if (selectedRoadmapDurationDays === undefined) {
     return {
       status: 'stage_replanning_required',
       estimatedAchievementDays,
-      ruleVersion: ROADMAP_DURATION_SELECTION_RULE.version,
+      ruleVersion,
     };
   }
 
@@ -257,6 +305,6 @@ export function selectRoadmapDuration(estimatedAchievementDays: number): Roadmap
     status: 'roadmap_duration_selected',
     estimatedAchievementDays,
     selectedRoadmapDurationDays,
-    ruleVersion: ROADMAP_DURATION_SELECTION_RULE.version,
+    ruleVersion,
   };
 }

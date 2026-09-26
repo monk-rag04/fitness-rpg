@@ -4,12 +4,13 @@ import type { ExerciseId } from './exercise.js';
 import { getExerciseById } from './exerciseCatalog.js';
 import {
   planNextStage,
-  ROADMAP_DURATION_CANDIDATES,
-  selectRoadmapDuration,
-  validateAchievementDurationEstimate,
   type AchievementDurationEstimatorInput,
   type StagePlanningResult,
 } from './stagePlanning.js';
+import {
+  resolveStageOneQuickStart,
+  type StageOneQuickStartMetadata,
+} from './stageOneQuickStart.js';
 import {
   generateStageRoadmap,
   isValidLocalDate,
@@ -292,6 +293,12 @@ export function prepareOnboardingRoadmap(input: unknown): OnboardingRoadmapPrepa
 
 export type OnboardingRoadmapCompletionResult =
   | { readonly status: 'invalid_duration_estimate' }
+  | {
+    readonly status: 'reduced_target_estimate_required';
+    readonly originalPlannedStageTargetE1rmKg: number;
+    readonly reducedStageTargetE1rmKg: number;
+    readonly firstEstimatedAchievementDays: number;
+  }
   | { readonly status: 'stage_replanning_required'; readonly estimatedAchievementDays: number }
   | {
     readonly status: 'roadmap_created';
@@ -300,6 +307,7 @@ export type OnboardingRoadmapCompletionResult =
     readonly stage: OnboardingRoadmapReadyForEstimate['stage'];
     readonly estimatedAchievementDays: number;
     readonly selectedRoadmapDurationDays: StageRoadmap['durationDays'];
+    readonly quickStart: StageOneQuickStartMetadata;
     readonly roadmap: StageRoadmap;
     readonly progress: StageProgress;
   };
@@ -308,52 +316,42 @@ export type OnboardingRoadmapCompletionResult =
 export function completeOnboardingRoadmap(
   prepared: OnboardingRoadmapReadyForEstimate,
   durationResponse: unknown,
+  reducedTargetDurationResponse?: unknown,
 ): OnboardingRoadmapCompletionResult {
-  const estimate = validateAchievementDurationEstimate(durationResponse);
-  if (!estimate.valid) return { status: 'invalid_duration_estimate' };
+  const resolution = resolveStageOneQuickStart(
+    {
+      currentE1rmKg: prepared.baseline.baselineE1rmKg,
+      finalGoalE1rmKg: prepared.input.finalGoalE1rmKg,
+    },
+    durationResponse,
+    reducedTargetDurationResponse,
+  );
+  if (resolution.status === 'invalid_duration_estimate') return resolution;
+  if (resolution.status === 'reduced_target_estimate_required') return resolution;
+  if (resolution.status === 'stage_not_planned') return {
+    status: 'stage_replanning_required',
+    estimatedAchievementDays: resolution.estimatedAchievementDays,
+  };
 
-  const selection = selectRoadmapDuration(estimate.value.estimatedAchievementDays);
-  if (selection.status === 'stage_replanning_required') {
-    if (prepared.baseline.source !== 'estimated_profile') {
-      return { status: 'stage_replanning_required', estimatedAchievementDays: selection.estimatedAchievementDays };
-    }
-
-    // D-041 resilience: an unknown-strength newcomer has no better manual value
-    // to edit. Keep D-025 unchanged for known strength, avoid provider retries,
-    // and use the largest established Roadmap duration for this provisional case.
-    const selectedRoadmapDurationDays = ROADMAP_DURATION_CANDIDATES[ROADMAP_DURATION_CANDIDATES.length - 1];
-    const roadmap = generateStageRoadmap({
-      startDate: prepared.input.startDate,
-      durationDays: selectedRoadmapDurationDays,
-      trainingFrequencyPerWeek: prepared.input.trainingFrequencyPerWeek,
-      mainExerciseId: prepared.input.mainExerciseId,
-      stageTargetE1rmKg: prepared.stage.stageTargetE1rmKg,
-    });
-    return {
-      status: 'roadmap_created',
-      input: prepared.input,
-      baseline: prepared.baseline,
-      stage: prepared.stage,
-      estimatedAchievementDays: selection.estimatedAchievementDays,
-      selectedRoadmapDurationDays,
-      roadmap,
-      progress: createInitialStageProgress(roadmap),
-    };
-  }
+  const stage = {
+    ...prepared.stage,
+    stageTargetE1rmKg: resolution.metadata.selectedStageTargetE1rmKg,
+  };
   const roadmap = generateStageRoadmap({
     startDate: prepared.input.startDate,
-    durationDays: selection.selectedRoadmapDurationDays,
+    durationDays: resolution.selectedRoadmapDurationDays,
     trainingFrequencyPerWeek: prepared.input.trainingFrequencyPerWeek,
     mainExerciseId: prepared.input.mainExerciseId,
-    stageTargetE1rmKg: prepared.stage.stageTargetE1rmKg,
+    stageTargetE1rmKg: resolution.metadata.selectedStageTargetE1rmKg,
   });
   return {
     status: 'roadmap_created',
     input: prepared.input,
     baseline: prepared.baseline,
-    stage: prepared.stage,
-    estimatedAchievementDays: selection.estimatedAchievementDays,
-    selectedRoadmapDurationDays: selection.selectedRoadmapDurationDays,
+    stage,
+    estimatedAchievementDays: resolution.estimatedAchievementDays,
+    selectedRoadmapDurationDays: resolution.selectedRoadmapDurationDays,
+    quickStart: resolution.metadata,
     roadmap,
     progress: createInitialStageProgress(roadmap),
   };

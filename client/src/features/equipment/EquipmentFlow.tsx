@@ -165,6 +165,29 @@ export function StageProgramErrorView({
   );
 }
 
+export function StageProgramEquipmentConstraintView({
+  onReselectEquipment,
+  onBack,
+}: {
+  readonly onReselectEquipment: () => void;
+  readonly onBack: () => void;
+}) {
+  return (
+    <section className="equipment-flow-screen" aria-labelledby="stage-program-equipment-title">
+      <div className="equipment-flow-center">
+        <span className="equipment-flow-emblem equipment-flow-emblem--gold" aria-hidden="true">⚒</span>
+        <p className="equipment-flow-eyebrow">EQUIPMENT CHECK</p>
+        <h1 id="stage-program-equipment-title">この器具構成では<br />メニューを作成できません</h1>
+        <p className="equipment-flow-description">選んだ器具で実施できる種目が不足しています。器具を追加して、もう一度お試しください。</p>
+      </div>
+      <footer className="equipment-flow-actions">
+        <QuestGoldButton type="button" onClick={onReselectEquipment}>器具を選び直す</QuestGoldButton>
+        <StageProgramBack onBack={onBack} />
+      </footer>
+    </section>
+  );
+}
+
 export function MainEquipmentMissingView({
   mainExerciseName,
   onReselectEquipment,

@@ -212,6 +212,27 @@ test('main unavailable preserves the empty cache path and a later selection uses
   assert.equal(harness.cacheWrites.length, 1);
 });
 
+test('no-candidate preflight preserves an empty cache and offers another Equipment selection', async () => {
+  let call = 0;
+  const harness = createHarness({
+    request: async () => {
+      call += 1;
+      return call === 1
+        ? { status: 'stage_training_program_request_failed', code: 'no_valid_candidates' }
+        : { status: 'stage_training_program_ready', program: createProgram(harness.roadmap) };
+    },
+  });
+
+  await harness.controller.submit(['barbell', 'flat_bench']);
+  assert.deepEqual(harness.states, ['generating', 'no_valid_candidates']);
+  assert.equal(harness.cacheWrites.length, 0);
+
+  await harness.controller.submit(['barbell', 'flat_bench', 'dumbbell']);
+  assert.equal(harness.calls.length, 2);
+  assert.equal(harness.cacheWrites.length, 1);
+  assert.equal(harness.readyCalls, 1);
+});
+
 test('generic failures do not retry automatically and an explicit retry is a second request', async () => {
   const harness = createHarness({
     request: async () => ({ status: 'stage_training_program_request_failed', code: 'provider_failure' }),

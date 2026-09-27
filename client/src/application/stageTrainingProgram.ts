@@ -22,6 +22,7 @@ export interface StageTrainingProgramApplicationInput {
 export type StageTrainingProgramRequestFailureCode =
   | 'invalid_request'
   | 'main_exercise_unavailable'
+  | 'no_valid_candidates'
   | 'provider_failure'
   | 'invalid_structured_output'
   | 'internal_error'
@@ -61,6 +62,7 @@ function mapServerError(
   const code = isRecord(body) && isRecord(body.error) ? body.error.code : undefined;
   if (code === 'INVALID_REQUEST') return 'invalid_request';
   if (code === 'MAIN_EXERCISE_UNAVAILABLE') return 'main_exercise_unavailable';
+  if (code === 'NO_VALID_CANDIDATES') return 'no_valid_candidates';
   if (code === 'PROVIDER_FAILURE') return 'provider_failure';
   if (code === 'INVALID_STRUCTURED_OUTPUT') return 'invalid_structured_output';
   if (code === 'INTERNAL_ERROR') return 'internal_error';

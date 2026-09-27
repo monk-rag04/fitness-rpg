@@ -13,6 +13,7 @@ const {
   EquipmentCheckContent,
   StageProgramGeneratingView,
   StageProgramErrorView,
+  StageProgramEquipmentConstraintView,
   MainEquipmentMissingView,
 } = await import('../src/features/equipment/EquipmentFlow.tsx');
 const {
@@ -156,4 +157,21 @@ test('Main Missing view displays the exercise and leaves choices to callbacks', 
   buttons.find((button) => buttonText(button) === '装備を選び直す').props.onClick();
   buttons.find((button) => buttonText(button) === 'Main Strengthを変更する').props.onClick();
   assert.deepEqual([reselectCalls, changeMainCalls], [1, 1]);
+});
+
+test('equipment candidate precondition explains the issue and offers equipment reselection', () => {
+  let reselectCalls = 0;
+  let backCalls = 0;
+  const element = StageProgramEquipmentConstraintView({
+    onReselectEquipment: () => { reselectCalls++; },
+    onBack: () => { backCalls++; },
+  });
+  const markup = renderToStaticMarkup(element);
+  assert.match(markup, /EQUIPMENT CHECK/);
+  assert.match(markup, /器具を追加して/);
+  assert.deepEqual([reselectCalls, backCalls], [0, 0]);
+  const buttons = buttonsIn(element);
+  buttons.find((button) => buttonText(button) === '器具を選び直す').props.onClick();
+  buttons.find((button) => buttonText(button) === 'Adventure Mapへ戻る').props.onClick();
+  assert.deepEqual([reselectCalls, backCalls], [1, 1]);
 });

@@ -9,6 +9,7 @@ import {
   EquipmentCheckView,
   MainEquipmentMissingView,
   StageProgramErrorView,
+  StageProgramEquipmentConstraintView,
   StageProgramGeneratingView,
 } from './EquipmentFlow';
 import {
@@ -103,6 +104,14 @@ export function EquipmentProgramFlow() {
         onReselectEquipment={() => { setReuseEquipmentProfile(false); setFlowState('equipment'); }}
         onChangeMainStrength={() => {}}
         canChangeMainStrength={false}
+      />
+    );
+  }
+  if (flowState === 'no_valid_candidates') {
+    return (
+      <StageProgramEquipmentConstraintView
+        onReselectEquipment={() => { setReuseEquipmentProfile(false); setFlowState('equipment'); }}
+        onBack={returnToAdventureMap}
       />
     );
   }

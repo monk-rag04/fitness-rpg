@@ -17,7 +17,8 @@ export type EquipmentProgramFlowState =
   | 'equipment'
   | 'generating'
   | 'error'
-  | 'main_equipment_missing';
+  | 'main_equipment_missing'
+  | 'no_valid_candidates';
 
 export function createStageTrainingProgramInput(
   context: StageTrainingProgramSessionContext | undefined,
@@ -123,7 +124,11 @@ export function createStageProgramGenerationController(
 
       finishWith(
         attemptId,
-        result.code === 'main_exercise_unavailable' ? 'main_equipment_missing' : 'error',
+        result.code === 'main_exercise_unavailable'
+          ? 'main_equipment_missing'
+          : result.code === 'no_valid_candidates'
+            ? 'no_valid_candidates'
+            : 'error',
       );
     },
   };

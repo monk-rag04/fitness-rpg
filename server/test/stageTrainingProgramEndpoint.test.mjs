@@ -293,6 +293,7 @@ test('Stage Adapter errors map to safe public HTTP codes without provider detail
     ['STRUCTURED_OUTPUT_MISSING', 502, 'INVALID_STRUCTURED_OUTPUT'],
     ['DOMAIN_VALIDATION_FAILED', 502, 'INVALID_STRUCTURED_OUTPUT'],
     ['INVALID_INPUT', 400, 'INVALID_REQUEST'],
+    ['NO_VALID_CANDIDATES', 422, 'NO_VALID_CANDIDATES'],
   ];
 
   for (const [code, status, publicCode] of cases) {

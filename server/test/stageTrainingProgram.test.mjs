@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { APIError } from 'openai';
 
 import {
   buildTrainingCandidates,
@@ -8,6 +9,7 @@ import {
 } from '@fitness-rpg/shared';
 import {
   MAX_STAGE_TRAINING_PROGRAM_SESSIONS,
+  createStageTrainingProgramDraftFormat,
   stageTrainingProgramDraftFormat,
 } from '../dist/openai/stageTrainingProgramSchema.js';
 import {
@@ -131,8 +133,15 @@ test('a valid multi-day Stage Program uses one provider operation and returns th
 
   assert.deepEqual(result, program);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].text.format, stageTrainingProgramDraftFormat);
+  const prompt = JSON.parse(calls[0].input);
+  const allowedIds = [...new Set(prompt.trainingDays.flatMap((day) => day.allowedExerciseIds))];
+  assert.deepEqual(calls[0].text.format, createStageTrainingProgramDraftFormat(
+    allowedIds,
+    prompt.trainingDays.map((day) => day.dayIndex),
+  ));
+  assert.ok(calls[0].text.format.schema.properties.sessions.items.properties.plan.properties.exercises.items.properties.exerciseId.enum.every((id) => allowedIds.includes(id)));
   assert.match(calls[0].instructions, /coherent Training Program/);
+  assert.match(calls[0].instructions, /allowedExerciseIds/);
   assert.match(calls[0].instructions, /Do not prescribe weight/);
 });
 
@@ -228,8 +237,8 @@ test('prompt contains only canonical Training Days with each Day focus and candi
   assert.equal(prompt.trainingDays.some((day) => day.dayIndex === 1), false);
   const backDay = prompt.trainingDays.find((day) => day.dayIndex === 2);
   assert.deepEqual(backDay.sessionFocus, { targetMuscles: ['back'] });
-  assert.ok(backDay.candidateExerciseIds.includes('one_arm_dumbbell_row'));
-  assert.equal(backDay.candidateExerciseIds.includes('push_up'), false);
+  assert.ok(backDay.allowedExerciseIds.includes('one_arm_dumbbell_row'));
+  assert.equal(backDay.allowedExerciseIds.includes('push_up'), false);
 });
 
 test('missing, duplicate, extra, and Recovery provider sessions fail whole-Stage validation', async () => {
@@ -380,4 +389,126 @@ test('input is not mutated and invalid server context never calls the provider',
     (error) => error instanceof StageTrainingProgramGenerationError && error.code === 'INVALID_INPUT',
   );
   assert.equal(calls.includes('invalid'), false);
+});
+
+test('preflight rejects a Training Day with no allowed candidates before a Provider call', async () => {
+  const base = createRoadmap();
+  const targetDay = getCanonicalStageTrainingDays(base).find((day) => !day.bossMainExposure);
+  assert.ok(targetDay);
+  const roadmap = {
+    ...base,
+    days: base.days.map((day, index) => index === targetDay.dayIndex
+      ? { ...day, sessionFocus: { targetMuscles: [], targetMovementPatterns: [] } }
+      : day),
+  };
+  let calls = 0;
+  await assert.rejects(
+    generateStageTrainingProgram(generationInput(roadmap), {
+      responses: { create: async () => { calls += 1; return { status: 'completed', output_text: '{}' }; } },
+    }),
+    (error) => error instanceof StageTrainingProgramGenerationError &&
+      error.code === 'NO_VALID_CANDIDATES' &&
+      error.details.category === 'NO_VALID_CANDIDATES' &&
+      error.details.reasons[0].dayIndex === targetDay.dayIndex,
+  );
+  assert.equal(calls, 0);
+});
+
+test('a Domain validation failure gets one complete repair attempt with bounded reason context', async () => {
+  const roadmap = createRoadmap();
+  const calls = [];
+  const invalid = structuredClone(validProgram(roadmap));
+  invalid.sessions[0].plan.exercises[0].sets = 0;
+  const valid = validProgram(roadmap);
+  let responseIndex = 0;
+  const client = {
+    responses: {
+      create: async (request) => {
+        calls.push(request);
+        const output = responseIndex++ === 0 ? invalid : valid;
+        return { status: 'completed', output_text: JSON.stringify(output) };
+      },
+    },
+  };
+
+  assert.deepEqual(await generateStageTrainingProgram(generationInput(roadmap), client), valid);
+  assert.equal(calls.length, 2);
+  const repairedInput = JSON.parse(calls[1].input);
+  assert.equal(repairedInput.previousDraftRejected[0].reasonCode, 'INVALID_SET_COUNT');
+  assert.equal(repairedInput.previousDraftRejected[0].dayIndex, valid.sessions[0].dayIndex);
+  assert.equal(repairedInput.previousDraftRejected[0].exerciseId, valid.sessions[0].plan.exercises[0].exerciseId);
+  assert.match(calls[1].instructions, /Regenerate the complete Stage Program/);
+  assert.match(calls[1].instructions, /requiredMainExerciseId values unchanged/);
+  assert.equal(JSON.stringify(calls[1]).includes('stack'), false);
+  assert.equal(JSON.stringify(calls[1]).includes('api_key'), false);
+});
+
+test('two invalid Stage drafts stop after two Provider attempts and return no partial Program', async () => {
+  const roadmap = createRoadmap();
+  const invalid = structuredClone(validProgram(roadmap));
+  invalid.sessions.pop();
+  const calls = [];
+  await assert.rejects(
+    generateStageTrainingProgram(generationInput(roadmap), fakeClient(invalid, calls)),
+    (error) => error instanceof StageTrainingProgramGenerationError &&
+      error.code === 'DOMAIN_VALIDATION_FAILED' &&
+      error.details.category === 'STAGE_COVERAGE' &&
+      error.details.attempt === 2,
+  );
+  assert.equal(calls.length, 2);
+});
+
+test('malformed Structured Output receives one repair attempt', async () => {
+  const roadmap = createRoadmap();
+  const calls = [];
+  const program = validProgram(roadmap);
+  const client = {
+    responses: {
+      create: async (request) => {
+        calls.push(request);
+        return calls.length === 1
+          ? { status: 'completed', output_text: '{invalid json' }
+          : { status: 'completed', output_text: JSON.stringify(program) };
+      },
+    },
+  };
+  assert.deepEqual(await generateStageTrainingProgram(generationInput(roadmap), client), program);
+  assert.equal(calls.length, 2);
+  assert.equal(JSON.parse(calls[1].input).previousDraftRejected[0].reasonCode, 'STRUCTURED_OUTPUT_INVALID');
+});
+
+test('transient Provider failures retry once while non-retryable failures do not retry', async () => {
+  const roadmap = createRoadmap();
+  const program = validProgram(roadmap);
+  const transientCalls = [];
+  const transientClient = {
+    responses: {
+      create: async (request) => {
+        transientCalls.push(request);
+        if (transientCalls.length === 1) throw new APIError(503, { message: 'sensitive provider body' }, 'temporary', new Headers());
+        return { status: 'completed', output_text: JSON.stringify(program) };
+      },
+    },
+  };
+  assert.deepEqual(await generateStageTrainingProgram(generationInput(roadmap), transientClient), program);
+  assert.equal(transientCalls.length, 2);
+  assert.equal(JSON.parse(transientCalls[1].input).previousDraftRejected, undefined);
+
+  const nonRetryCalls = [];
+  const nonRetryClient = {
+    responses: {
+      create: async () => {
+        nonRetryCalls.push(true);
+        throw new APIError(401, { message: 'sensitive auth body' }, 'invalid key', new Headers());
+      },
+    },
+  };
+  await assert.rejects(
+    generateStageTrainingProgram(generationInput(roadmap), nonRetryClient),
+    (error) => error instanceof StageTrainingProgramGenerationError &&
+      error.code === 'OPENAI_API_ERROR' &&
+      error.details.category === 'NON_RETRYABLE_PROVIDER' &&
+      !error.message.includes('sensitive'),
+  );
+  assert.equal(nonRetryCalls.length, 1);
 });

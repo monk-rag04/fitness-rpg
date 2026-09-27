@@ -370,6 +370,10 @@ export function createApp(
           response.status(422).json({ error: { code: 'MAIN_EXERCISE_UNAVAILABLE' } });
           return;
         }
+        if (error.code === 'NO_VALID_CANDIDATES') {
+          response.status(422).json({ error: { code: 'NO_VALID_CANDIDATES' } });
+          return;
+        }
         const publicCode = error.code === 'OPENAI_API_ERROR'
           ? 'PROVIDER_FAILURE'
           : 'INVALID_STRUCTURED_OUTPUT';

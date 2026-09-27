@@ -415,3 +415,10 @@ Prototypeは約430px幅のPhone Column、Cinzel / Cinzel Decorative / Spectral /
 - 各Exercise Cardに控えめな「この種目をスキップ」を置く。選択後は日本語理由4択と誓約チェックを表示し、理由と誓約の両方が揃うまで確認CTAを無効にする。成立後は`SKIPPED`、日本語理由、「スキップを取り消す」を示す。
 - Skipは記録・実施と視覚的に区別する。Undo後は通常のResult入力へ戻す。全種目SkipではClear CTAを無効にし、「最低1種目は実施してください。」と案内する。Skipのために数値やWorkout Resultを捏造しない。
 - 初回Recommendation、Skip理由選択、誓約、Undo、Main Skip、all-skip blockedを375 / 390 / 430pxでHuman Smokeし、Secondary Actionが主要なWorkout保存・Clear操作を押しのけないことを確認する。
+
+## D-044 Stage Program generation reliability UX
+
+- Program生成中はStage Program全体を1回の処理として表示する。内部Repair attemptはLoading内で行い、Attempt番号やAI error detailsをUIへ出さない。
+- Main Equipment不足は既存のMain Equipment Missing stateを使う。特定のTraining Dayで利用可能な候補がない場合は、既存のDark Fantasy / Gold equipment-flow表現に合わせた日本語の器具制約stateを表示し、Equipment Checkへ戻れるようにする。
+- 最終的な生成失敗だけに既存の明示Retryを表示する。Retry開始時は古いFailure表示をGenerating stateへ置き換える。失敗したDraft、部分Plan、Demo Planを表示しない。
+- Attempt / validation reasonなどの内部情報はDevelopment Server logだけに制限し、Provider本文、stack trace、secretは画面にもlogにも出さない。

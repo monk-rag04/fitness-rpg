@@ -239,6 +239,7 @@ test('rejects malformed JSON without returning a partial program', async () => {
 for (const [status, serverCode, clientCode] of [
   [400, 'INVALID_REQUEST', 'invalid_request'],
   [422, 'MAIN_EXERCISE_UNAVAILABLE', 'main_exercise_unavailable'],
+  [422, 'NO_VALID_CANDIDATES', 'no_valid_candidates'],
   [502, 'PROVIDER_FAILURE', 'provider_failure'],
   [502, 'INVALID_STRUCTURED_OUTPUT', 'invalid_structured_output'],
   [500, 'INTERNAL_ERROR', 'internal_error'],
